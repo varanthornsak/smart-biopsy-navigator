@@ -3,4 +3,3 @@ torch
 torchvision
 pillow
 matplotlib
-pytorch-grad-cam
