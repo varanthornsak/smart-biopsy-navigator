@@ -7,6 +7,7 @@ import numpy as np
 import uuid
 import datetime
 import time
+import matplotlib.pyplot as plt
 
 # ===================================
 # PAGE CONFIG
@@ -17,51 +18,18 @@ st.set_page_config(
 )
 
 # ===================================
-# CLEAN CLINICAL UI
+# SIDEBAR
 # ===================================
-st.markdown("""
-<style>
-body {
-    background-color: #f4f6f9;
-}
-.main-title {
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: #1f2937;
-}
-.subtitle {
-    font-size: 1rem;
-    color: #6b7280;
-    margin-bottom: 20px;
-}
-.card {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    margin-bottom: 20px;
-}
-.badge {
-    background: #e5e7eb;
-    padding: 4px 10px;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    color: #374151;
-}
-.footer {
-    font-size: 0.8rem;
-    color: #9ca3af;
-    margin-top: 40px;
-}
-</style>
-""", unsafe_allow_html=True)
+st.sidebar.title("Smart Biopsy Navigator")
+page = st.sidebar.radio("Navigation", ["Dashboard", "About"])
 
-st.markdown("<div class='main-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>AI-Powered Liver Ultrasound Clinical Decision Support</div>", unsafe_allow_html=True)
-st.markdown("<span class='badge'>Model v1.0.0 • CPU Deployment</span>", unsafe_allow_html=True)
+st.sidebar.markdown("---")
+st.sidebar.markdown("Model Version: v1.0.0")
+st.sidebar.markdown("Deployment: CPU")
+st.sidebar.markdown("Status: Operational")
 
 # ===================================
-# MODEL LOADING
+# MODEL LOAD
 # ===================================
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth"
 
@@ -77,12 +45,7 @@ def load_model():
     model.eval()
     return model
 
-try:
-    model = load_model()
-except Exception as e:
-    st.error(f"Model loading failed: {e}")
-    st.stop()
-
+model = load_model()
 classes = ['benign', 'malignant', 'normal']
 
 transform = transforms.Compose([
@@ -91,15 +54,26 @@ transform = transforms.Compose([
 ])
 
 # ===================================
-# CLINICAL LOGIC
+# ABOUT PAGE
 # ===================================
-def clinical_recommendation(risk):
-    if risk < 20:
-        return "Routine follow-up suggested."
-    elif risk < 60:
-        return "Recommend further imaging (CT/MRI) and clinical correlation."
-    else:
-        return "High suspicion. Recommend biopsy and specialist referral."
+if page == "About":
+    st.title("About Smart Biopsy Navigator")
+    st.write("""
+    Smart Biopsy Navigator is an AI-powered clinical decision support system 
+    designed to assist in liver ultrasound lesion risk stratification.
+    
+    • Deep learning architecture: ResNet18  
+    • Risk computed from malignant posterior probability  
+    • Designed for research and educational purposes  
+    • Not intended for standalone clinical diagnosis
+    """)
+    st.stop()
+
+# ===================================
+# DASHBOARD PAGE
+# ===================================
+st.title("AI Liver Lesion Risk Dashboard")
+st.caption("Clinical Decision Support System")
 
 # ===================================
 # INPUT SECTION
@@ -107,14 +81,32 @@ def clinical_recommendation(risk):
 left, right = st.columns([1.2, 1])
 
 with left:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
     uploaded_file = st.file_uploader(
         "Upload Liver Ultrasound Image",
         type=["jpg", "jpeg", "png"]
     )
     age = st.slider("Patient Age", 18, 90, 55)
     gender = st.selectbox("Gender", ["Male", "Female"])
-    st.markdown("</div>", unsafe_allow_html=True)
+
+# ===================================
+# GAUGE FUNCTION
+# ===================================
+def draw_gauge(score):
+    fig, ax = plt.subplots(figsize=(4,4))
+    ax.axis("off")
+
+    circle = plt.Circle((0.5, 0.5), 0.4)
+    ax.add_artist(circle)
+
+    ax.text(0.5, 0.5, f"{int(score)}%",
+            horizontalalignment='center',
+            verticalalignment='center',
+            fontsize=24)
+
+    ax.set_xlim(0,1)
+    ax.set_ylim(0,1)
+
+    st.pyplot(fig)
 
 # ===================================
 # INFERENCE
@@ -124,9 +116,7 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
 
     with left:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.image(image, use_column_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with right:
         with st.spinner("AI analyzing image..."):
@@ -144,30 +134,27 @@ if uploaded_file is not None:
         pred_class = classes[pred_idx]
         confidence = float(probs[pred_idx])
 
-        # Risk based ONLY on malignant probability
         malignant_index = classes.index("malignant")
         malignant_prob = probs[malignant_index]
         risk_score = malignant_prob * 100
 
         case_id = str(uuid.uuid4())[:8]
 
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-
-        # ---------------- Case Summary ----------------
         st.subheader("Case Summary")
         st.write(f"Case ID: {case_id}")
         st.write(f"Age: {age} | Gender: {gender}")
-        st.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         st.write(f"Inference Time: {inference_time} sec")
+        st.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-        # ---------------- AI Assessment ----------------
         st.subheader("AI Risk Intelligence")
+
         st.metric("Predicted Class", pred_class.upper())
         st.metric("Malignant Probability", f"{round(malignant_prob*100,2)}%")
-        st.metric("Prediction Confidence", f"{round(confidence*100,2)}%")
-        st.metric("Computed Risk Score", f"{round(risk_score,2)} / 100")
+        st.metric("Confidence", f"{round(confidence*100,2)}%")
 
-        # Risk Interpretation
+        st.subheader("Risk Gauge")
+        draw_gauge(risk_score)
+
         if risk_score < 20:
             st.success("LOW RISK")
         elif risk_score < 60:
@@ -175,24 +162,20 @@ if uploaded_file is not None:
         else:
             st.error("HIGH RISK")
 
-        # Confidence Interpretation
-        if confidence > 0.8:
-            st.info("High model confidence.")
-        elif confidence > 0.5:
-            st.info("Moderate model confidence.")
-        else:
-            st.warning("Low model confidence. Interpret with caution.")
+        st.subheader("Probability Distribution")
+        fig, ax = plt.subplots()
+        ax.bar(classes, probs)
+        ax.set_ylim(0,1)
+        st.pyplot(fig)
 
-        # Clinical Recommendation
         st.subheader("Clinical Recommendation")
-        st.write(clinical_recommendation(risk_score))
 
-        st.markdown("</div>", unsafe_allow_html=True)
+        if risk_score < 20:
+            st.write("Routine follow-up suggested.")
+        elif risk_score < 60:
+            st.write("Recommend further imaging and clinical correlation.")
+        else:
+            st.write("High suspicion. Recommend biopsy and specialist referral.")
 
-# ===================================
-# FOOTER
-# ===================================
-st.markdown(
-    "<div class='footer'>This AI system is intended for decision support only and should not replace clinical judgment.</div>",
-    unsafe_allow_html=True
-)
+st.markdown("---")
+st.markdown("For research and educational purposes only. Not for standalone clinical diagnosis.")
