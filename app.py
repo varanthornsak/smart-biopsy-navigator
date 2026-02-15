@@ -104,4 +104,3 @@ if uploaded_file is not None:
                 output = model(input_tensor)
                 probs = torch.softmax(output, dim=1)[0].numpy()
 
-        pred
