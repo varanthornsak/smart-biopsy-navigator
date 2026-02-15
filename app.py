@@ -8,21 +8,21 @@ import matplotlib.pyplot as plt
 import uuid
 import datetime
 
-# -----------------------------
-# Page Config
-# -----------------------------
+# =============================
+# PAGE CONFIG
+# =============================
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
-# -----------------------------
-# Futuristic AI Medical Theme
-# -----------------------------
+# =============================
+# FUTURISTIC MEDICAL UI
+# =============================
 st.markdown("""
 <style>
 body {
     background-color: #0f172a;
 }
 .title {
-    font-size: 2.5rem;
+    font-size: 2.6rem;
     font-weight: 700;
     color: #22d3ee;
 }
@@ -35,12 +35,9 @@ body {
     background: #111827;
     padding: 25px;
     border-radius: 18px;
-    box-shadow: 0 0 20px rgba(34,211,238,0.15);
+    box-shadow: 0 0 25px rgba(34,211,238,0.15);
     margin-bottom: 20px;
     border: 1px solid rgba(34,211,238,0.2);
-}
-.metric-label {
-    color: #94a3b8;
 }
 .footer {
     font-size: 0.8rem;
@@ -53,9 +50,9 @@ body {
 st.markdown("<div class='title'>SMART BIOPSY NAVIGATOR</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtitle'>AI-Driven Liver Lesion Risk Intelligence System</div>", unsafe_allow_html=True)
 
-# -----------------------------
-# Model
-# -----------------------------
+# =============================
+# MODEL LOAD
+# =============================
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth"
 
 @st.cache_resource
@@ -69,7 +66,7 @@ def load_model():
 
 try:
     model = load_model()
-except:
+except Exception as e:
     st.error("AI Core failed to initialize.")
     st.stop()
 
@@ -80,20 +77,20 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
-# -----------------------------
-# Risk Logic
-# -----------------------------
+# =============================
+# RISK LOGIC (CLINICALLY CORRECT)
+# =============================
 def get_risk_display(score):
-    if score < 50:
+    if score < 20:
         return "LOW RISK", "#22c55e"
-    elif score < 75:
+    elif score < 60:
         return "MODERATE RISK", "#facc15"
     else:
         return "HIGH RISK", "#ef4444"
 
-# -----------------------------
-# Layout
-# -----------------------------
+# =============================
+# LAYOUT
+# =============================
 col1, col2 = st.columns([1.2, 1])
 
 with col1:
@@ -123,7 +120,12 @@ if uploaded_file is not None:
         pred_idx = np.argmax(probs)
         pred_class = classes[pred_idx]
         confidence = float(probs[pred_idx])
-        risk_score = confidence * 100
+
+        # 🔴 RISK CALCULATED FROM MALIGNANT PROBABILITY ONLY
+        malignant_index = classes.index("malignant")
+        malignant_prob = probs[malignant_index]
+        risk_score = malignant_prob * 100
+
         adequacy = 60 + confidence * 40
         case_id = str(uuid.uuid4())[:8]
 
@@ -139,8 +141,10 @@ if uploaded_file is not None:
         st.subheader("AI RISK INTELLIGENCE")
 
         st.metric("Predicted Classification", pred_class.upper())
-        st.metric("Confidence Level", f"{round(confidence*100,2)}%")
-        st.metric("Risk Score", f"{round(risk_score,2)} / 100")
+        st.metric("Prediction Confidence", f"{round(confidence*100,2)}%")
+
+        st.metric("Malignant Probability", f"{round(malignant_prob*100,2)}%")
+        st.metric("Computed Risk Score", f"{round(risk_score,2)} / 100")
 
         st.markdown(f"<h3 style='color:{risk_color};'>{risk_text}</h3>", unsafe_allow_html=True)
 
@@ -150,17 +154,20 @@ if uploaded_file is not None:
 
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.subheader("Probability Matrix")
+
         fig, ax = plt.subplots()
         ax.bar(classes, probs)
         ax.set_ylim(0,1)
         ax.set_facecolor("#111827")
         fig.patch.set_facecolor("#111827")
         ax.tick_params(colors='white')
-        ax.spines[:].set_color('white')
+        for spine in ax.spines.values():
+            spine.set_color('white')
+
         st.pyplot(fig)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# -----------------------------
-# Footer
-# -----------------------------
+# =============================
+# FOOTER
+# =============================
 st.markdown("<div class='footer'>AI Clinical Decision Support Prototype • Not for standalone medical diagnosis</div>", unsafe_allow_html=True)
