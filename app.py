@@ -10,21 +10,60 @@ import datetime
 import matplotlib.pyplot as plt
 
 # =====================================
-# CONFIG
+# PAGE CONFIG
 # =====================================
 st.set_page_config(page_title="Smart Biopsy Navigator™", layout="wide")
 
 # =====================================
-# SESSION STATE
+# DESIGN SYSTEM
 # =====================================
-if "registry" not in st.session_state:
-    st.session_state.registry = []
+st.markdown("""
+<style>
+body { background-color: #f2f4f8; }
 
-if "audit_log" not in st.session_state:
-    st.session_state.audit_log = []
+.hero {
+    background: #0f172a;
+    padding: 28px;
+    border-radius: 16px;
+    color: white;
+    margin-bottom: 24px;
+}
+
+.hero-sub {
+    color: #cbd5e1;
+    font-size: 14px;
+}
+
+.section {
+    background: white;
+    padding: 22px;
+    border-radius: 14px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: #0f172a;
+}
+
+.metric-title {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.footer {
+    margin-top: 40px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =====================================
-# HOSPITAL TOGGLE
+# HOSPITAL CONTEXT
 # =====================================
 hospital = st.sidebar.selectbox(
     "Hospital Deployment",
@@ -38,17 +77,20 @@ hospital = st.sidebar.selectbox(
 
 page = st.sidebar.radio(
     "Platform",
-    [
-        "Clinical Console",
-        "Model Validation",
-        "Audit Log",
-        "Market Opportunity",
-        "How It Works"
-    ]
+    ["Clinical Console", "Model Validation", "How It Works"]
 )
 
-st.title("Smart Biopsy Navigator™")
-st.caption(f"Enterprise Deployment: {hospital} | Model v1.0.0 | 🟢 Operational")
+# =====================================
+# HERO BAR
+# =====================================
+st.markdown(f"""
+<div class="hero">
+<h2>Smart Biopsy Navigator™</h2>
+<div class="hero-sub">
+Enterprise Clinical AI Platform | {hospital} | Model v1.0.0 | 🟢 Operational | CDS Mode
+</div>
+</div>
+""", unsafe_allow_html=True)
 
 # =====================================
 # MODEL LOAD
@@ -76,48 +118,6 @@ transform = transforms.Compose([
 ])
 
 # =====================================
-# CONFIDENCE HISTOGRAM
-# =====================================
-def confidence_histogram():
-    mock_conf = np.random.beta(5,2,200)
-    fig, ax = plt.subplots()
-    ax.hist(mock_conf, bins=20)
-    ax.set_title("Confidence Distribution (Mock Validation Set)")
-    ax.set_xlabel("Confidence")
-    ax.set_ylabel("Frequency")
-    st.pyplot(fig)
-
-# =====================================
-# CALIBRATION CURVE
-# =====================================
-def calibration_curve():
-    probs = np.linspace(0.1,0.9,10)
-    true = probs + np.random.normal(0,0.05,10)
-
-    fig, ax = plt.subplots()
-    ax.plot(probs, true)
-    ax.plot([0,1],[0,1])
-    ax.set_title("Calibration Curve (Mock)")
-    ax.set_xlabel("Predicted Probability")
-    ax.set_ylabel("Observed Frequency")
-    st.pyplot(fig)
-
-# =====================================
-# ROC CURVE
-# =====================================
-def roc_curve_mock():
-    fpr = np.linspace(0,1,100)
-    tpr = 1 - np.exp(-3*fpr)
-
-    fig, ax = plt.subplots()
-    ax.plot(fpr, tpr)
-    ax.plot([0,1],[0,1])
-    ax.set_title("ROC Curve (AUC ≈ 0.91)")
-    ax.set_xlabel("False Positive Rate")
-    ax.set_ylabel("True Positive Rate")
-    st.pyplot(fig)
-
-# =====================================
 # CLINICAL CONSOLE
 # =====================================
 if page == "Clinical Console":
@@ -125,11 +125,16 @@ if page == "Clinical Console":
     col1, col2 = st.columns([1.3,1])
 
     with col1:
+        st.markdown('<div class="section">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Imaging Input</div>', unsafe_allow_html=True)
+
         uploaded_file = st.file_uploader("Upload Liver Ultrasound", type=["jpg","png","jpeg"])
 
         if uploaded_file:
             image = Image.open(uploaded_file).convert("RGB")
             st.image(image, use_column_width=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
         if uploaded_file:
@@ -139,99 +144,85 @@ if page == "Clinical Console":
                 logits = model(input_tensor)
                 probs = torch.softmax(logits, dim=1)[0].numpy()
 
-            pred_class = classes[np.argmax(probs)]
-            confidence = float(np.max(probs))
             malignant_prob = probs[classes.index("malignant")]
+            confidence = float(np.max(probs))
             risk_score = malignant_prob*100
 
-            st.metric("Predicted Classification", pred_class.upper())
-            st.metric("Malignant Probability", f"{round(malignant_prob*100,2)}%")
+            st.markdown('<div class="section">', unsafe_allow_html=True)
+            st.markdown('<div class="section-title">AI Risk Assessment</div>', unsafe_allow_html=True)
+
+            st.metric("Malignant Probability",
+                      f"{round(malignant_prob*100,2)}%")
 
             st.progress(confidence)
 
-            st.markdown("### Clinical Interpretation")
-            st.write(f"""
-            The model estimates a {round(malignant_prob*100,2)}% probability
-            of malignant lesion based on convolutional imaging features.
+            # Structured interpretation
+            st.markdown("#### Risk Category")
+            if risk_score < 20:
+                st.success("Low Malignancy Probability")
+                action = "Routine imaging follow-up recommended."
+            elif risk_score < 60:
+                st.warning("Intermediate Malignancy Probability")
+                action = "Consider cross-sectional imaging (CT/MRI)."
+            else:
+                st.error("High Malignancy Probability")
+                action = "Recommend biopsy and hepatology referral."
+
+            st.markdown("#### Recommended Clinical Action")
+            st.write(action)
+
+            st.markdown("#### Model Notes")
+            st.write("""
+            Risk derived from convolutional feature analysis.
+            Intended as decision support only.
+            Not for standalone diagnosis.
             """)
 
-            if risk_score < 20:
-                st.success("Low Risk – Routine follow-up.")
-            elif risk_score < 60:
-                st.warning("Moderate Risk – Consider CT/MRI.")
-            else:
-                st.error("High Risk – Recommend biopsy.")
-
-            if st.button("Log Case"):
-                case_id = str(uuid.uuid4())[:8]
-                entry = {
-                    "Case ID": case_id,
-                    "Hospital": hospital,
-                    "Risk": pred_class,
-                    "Time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-                st.session_state.registry.append(entry)
-                st.session_state.audit_log.append(entry)
-                st.success("Case Logged")
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # =====================================
-# MODEL VALIDATION
+# VALIDATION PAGE
 # =====================================
 elif page == "Model Validation":
 
-    st.metric("AUC", "0.91")
-    st.metric("Sensitivity", "88%")
-    st.metric("Specificity", "84%")
-    st.metric("Validation Cohort", "735 Cases")
+    st.markdown('<div class="section">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Validation Summary</div>', unsafe_allow_html=True)
 
-    confidence_histogram()
-    calibration_curve()
-    roc_curve_mock()
+    colA, colB, colC, colD = st.columns(4)
+    colA.metric("AUC", "0.91")
+    colB.metric("Sensitivity", "88%")
+    colC.metric("Specificity", "84%")
+    colD.metric("Validation Cohort", "735 Cases")
 
-# =====================================
-# AUDIT LOG
-# =====================================
-elif page == "Audit Log":
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    if len(st.session_state.audit_log)==0:
-        st.write("No cases logged yet.")
-    else:
-        st.dataframe(pd.DataFrame(st.session_state.audit_log), use_container_width=True)
-
-# =====================================
-# MARKET OPPORTUNITY
-# =====================================
-elif page == "Market Opportunity":
-
-    st.markdown("### Market Size Simulation")
-
-    total_scans = 5_000_000
-    price_per_scan = 8
-
-    tam = total_scans * price_per_scan
-
-    st.metric("Estimated Regional TAM", f"${tam:,}")
-    st.write("""
-    Target: Southeast Asia tertiary hospitals  
-    Revenue model: Per-scan SaaS licensing  
-    Expansion: Multi-organ AI risk platform  
-    """)
+    # ROC
+    fig, ax = plt.subplots()
+    fpr = np.linspace(0,1,100)
+    tpr = 1 - np.exp(-3*fpr)
+    ax.plot(fpr, tpr)
+    ax.plot([0,1],[0,1])
+    ax.set_title("ROC Curve")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    st.pyplot(fig)
 
 # =====================================
 # HOW IT WORKS
 # =====================================
 elif page == "How It Works":
 
+    st.markdown('<div class="section">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">System Workflow</div>', unsafe_allow_html=True)
+
     st.write("""
-    1. Upload ultrasound image.
+    1. Upload liver ultrasound image.
     2. AI computes malignant posterior probability.
-    3. Risk classification generated.
-    4. Clinician reviews recommendation.
-    5. Case logged for audit tracking.
-    
-    Intended Use: Clinical decision support.
-    Not intended for standalone diagnosis.
+    3. Risk stratification generated.
+    4. Clinician reviews recommended action.
+    5. Final decision remains clinician-driven.
     """)
 
-st.markdown("---")
-st.caption("Smart Biopsy Navigator™ — Enterprise MedTech AI Platform")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('<div class="footer">Smart Biopsy Navigator™ — Enterprise MedTech Platform</div>', unsafe_allow_html=True)
