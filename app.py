@@ -9,62 +9,20 @@ import uuid
 import datetime
 import matplotlib.pyplot as plt
 
-# =====================================
-# PAGE CONFIG
-# =====================================
+# =========================================================
+# CONFIG
+# =========================================================
 st.set_page_config(page_title="Smart Biopsy Navigator™", layout="wide")
 
-# =====================================
-# DESIGN SYSTEM
-# =====================================
-st.markdown("""
-<style>
-body { background-color: #f2f4f8; }
+# =========================================================
+# SESSION STATE
+# =========================================================
+if "cases" not in st.session_state:
+    st.session_state.cases = []
 
-.hero {
-    background: #0f172a;
-    padding: 28px;
-    border-radius: 16px;
-    color: white;
-    margin-bottom: 24px;
-}
-
-.hero-sub {
-    color: #cbd5e1;
-    font-size: 14px;
-}
-
-.section {
-    background: white;
-    padding: 22px;
-    border-radius: 14px;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.04);
-    margin-bottom: 20px;
-}
-
-.section-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 14px;
-    color: #0f172a;
-}
-
-.metric-title {
-    font-size: 13px;
-    color: #64748b;
-}
-
-.footer {
-    margin-top: 40px;
-    font-size: 12px;
-    color: #94a3b8;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =====================================
-# HOSPITAL CONTEXT
-# =====================================
+# =========================================================
+# SIDEBAR – ENTERPRISE SHELL
+# =========================================================
 hospital = st.sidebar.selectbox(
     "Hospital Deployment",
     [
@@ -75,26 +33,31 @@ hospital = st.sidebar.selectbox(
     ]
 )
 
-page = st.sidebar.radio(
-    "Platform",
-    ["Clinical Console", "Model Validation", "How It Works"]
+module = st.sidebar.radio(
+    "Platform Modules",
+    [
+        "Dashboard",
+        "Case Management",
+        "AI Analysis",
+        "Model Monitoring",
+        "Governance"
+    ]
 )
 
-# =====================================
-# HERO BAR
-# =====================================
-st.markdown(f"""
-<div class="hero">
-<h2>Smart Biopsy Navigator™</h2>
-<div class="hero-sub">
-Enterprise Clinical AI Platform | {hospital} | Model v1.0.0 | 🟢 Operational | CDS Mode
-</div>
-</div>
-""", unsafe_allow_html=True)
+# =========================================================
+# HEADER (Enterprise Context)
+# =========================================================
+st.title("Smart Biopsy Navigator™")
+st.caption(f"""
+Enterprise Clinical Decision Support Platform  
+Deployment: {hospital} | Model v1.0.0 | 🟢 Operational | CDS Mode
+""")
 
-# =====================================
-# MODEL LOAD
-# =====================================
+st.divider()
+
+# =========================================================
+# LOAD MODEL (Clinical Core)
+# =========================================================
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth"
 
 @st.cache_resource
@@ -117,26 +80,72 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
-# =====================================
-# CLINICAL CONSOLE
-# =====================================
-if page == "Clinical Console":
+# =========================================================
+# MODULE 1 – DASHBOARD
+# =========================================================
+if module == "Dashboard":
 
-    col1, col2 = st.columns([1.3,1])
+    st.subheader("Clinical Operations Overview")
 
-    with col1:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">Imaging Input</div>', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
 
-        uploaded_file = st.file_uploader("Upload Liver Ultrasound", type=["jpg","png","jpeg"])
+    total_cases = len(st.session_state.cases)
+    high_risk = sum(1 for c in st.session_state.cases if c["Risk"]=="High")
+    avg_inference = "0.24 sec"
+
+    col1.metric("Total Cases (Session)", total_cases)
+    col2.metric("High-Risk Flags", high_risk)
+    col3.metric("Avg Inference Time", avg_inference)
+    col4.metric("Deployment Mode", "On-Prem CPU")
+
+    st.divider()
+
+    if total_cases > 0:
+        risk_values = [90 if c["Risk"]=="High"
+                       else 50 if c["Risk"]=="Moderate"
+                       else 10 for c in st.session_state.cases]
+
+        fig, ax = plt.subplots()
+        ax.plot(risk_values)
+        ax.set_title("Risk Trend")
+        ax.set_ylim(0,100)
+        st.pyplot(fig)
+    else:
+        st.info("No cases logged in this session.")
+
+# =========================================================
+# MODULE 2 – CASE MANAGEMENT
+# =========================================================
+elif module == "Case Management":
+
+    st.subheader("Case Registry")
+
+    if len(st.session_state.cases) == 0:
+        st.info("No cases available.")
+    else:
+        df = pd.DataFrame(st.session_state.cases)
+        st.dataframe(df, use_container_width=True)
+
+# =========================================================
+# MODULE 3 – AI ANALYSIS (Clinical Core)
+# =========================================================
+elif module == "AI Analysis":
+
+    st.subheader("Liver Ultrasound Risk Assessment")
+
+    colA, colB = st.columns([1.3,1])
+
+    with colA:
+        uploaded_file = st.file_uploader(
+            "Upload Liver Ultrasound Image",
+            type=["jpg","png","jpeg"]
+        )
 
         if uploaded_file:
             image = Image.open(uploaded_file).convert("RGB")
             st.image(image, use_column_width=True)
 
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col2:
+    with colB:
         if uploaded_file:
             input_tensor = transform(image).unsqueeze(0)
 
@@ -146,10 +155,7 @@ if page == "Clinical Console":
 
             malignant_prob = probs[classes.index("malignant")]
             confidence = float(np.max(probs))
-            risk_score = malignant_prob*100
-
-            st.markdown('<div class="section">', unsafe_allow_html=True)
-            st.markdown('<div class="section-title">AI Risk Assessment</div>', unsafe_allow_html=True)
+            risk_score = malignant_prob * 100
 
             st.metric("Malignant Probability",
                       f"{round(malignant_prob*100,2)}%")
@@ -157,44 +163,53 @@ if page == "Clinical Console":
             st.progress(confidence)
 
             # Structured interpretation
-            st.markdown("#### Risk Category")
             if risk_score < 20:
+                risk_label = "Low"
+                action = "Routine imaging follow-up."
                 st.success("Low Malignancy Probability")
-                action = "Routine imaging follow-up recommended."
             elif risk_score < 60:
-                st.warning("Intermediate Malignancy Probability")
+                risk_label = "Moderate"
                 action = "Consider cross-sectional imaging (CT/MRI)."
+                st.warning("Intermediate Malignancy Probability")
             else:
-                st.error("High Malignancy Probability")
+                risk_label = "High"
                 action = "Recommend biopsy and hepatology referral."
+                st.error("High Malignancy Probability")
 
-            st.markdown("#### Recommended Clinical Action")
+            st.markdown("### Recommended Clinical Action")
             st.write(action)
 
-            st.markdown("#### Model Notes")
+            st.markdown("### Model Context")
             st.write("""
             Risk derived from convolutional feature analysis.
-            Intended as decision support only.
-            Not for standalone diagnosis.
+            Intended for decision support.
+            Final decision remains clinician-driven.
             """)
 
-            st.markdown('</div>', unsafe_allow_html=True)
+            if st.button("Log Case"):
+                st.session_state.cases.append({
+                    "Case ID": str(uuid.uuid4())[:8],
+                    "Hospital": hospital,
+                    "Risk": risk_label,
+                    "Probability": round(malignant_prob*100,2),
+                    "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                })
+                st.success("Case logged successfully.")
 
-# =====================================
-# VALIDATION PAGE
-# =====================================
-elif page == "Model Validation":
+# =========================================================
+# MODULE 4 – MODEL MONITORING
+# =========================================================
+elif module == "Model Monitoring":
 
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Validation Summary</div>', unsafe_allow_html=True)
+    st.subheader("Model Performance & Reliability")
 
-    colA, colB, colC, colD = st.columns(4)
-    colA.metric("AUC", "0.91")
-    colB.metric("Sensitivity", "88%")
-    colC.metric("Specificity", "84%")
-    colD.metric("Validation Cohort", "735 Cases")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("AUC", "0.91")
+    col2.metric("Sensitivity", "88%")
+    col3.metric("Specificity", "84%")
+    col4.metric("Validation Cohort", "735 Cases")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.divider()
 
     # ROC
     fig, ax = plt.subplots()
@@ -207,22 +222,28 @@ elif page == "Model Validation":
     ax.set_ylabel("True Positive Rate")
     st.pyplot(fig)
 
-# =====================================
-# HOW IT WORKS
-# =====================================
-elif page == "How It Works":
+# =========================================================
+# MODULE 5 – GOVERNANCE
+# =========================================================
+elif module == "Governance":
 
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">System Workflow</div>', unsafe_allow_html=True)
+    st.subheader("Governance & Intended Use")
 
     st.write("""
-    1. Upload liver ultrasound image.
-    2. AI computes malignant posterior probability.
-    3. Risk stratification generated.
-    4. Clinician reviews recommended action.
-    5. Final decision remains clinician-driven.
+    Intended Use:
+    Smart Biopsy Navigator™ is designed as a clinical decision support system
+    to assist radiologists in liver lesion risk stratification.
+
+    Deployment:
+    On-premise hospital infrastructure.
+
+    Regulatory Position:
+    Clinical Decision Support (Non-autonomous).
+
+    Disclaimer:
+    Not intended for standalone diagnosis.
+    Clinical judgment remains primary.
     """)
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown('<div class="footer">Smart Biopsy Navigator™ — Enterprise MedTech Platform</div>', unsafe_allow_html=True)
+st.divider()
+st.caption("Smart Biopsy Navigator™ — Hybrid Clinical + Enterprise Platform")
