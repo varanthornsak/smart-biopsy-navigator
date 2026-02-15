@@ -138,3 +138,25 @@ body {
 
 st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>AI-Powered Liver Biopsy Decision Support</p>", unsafe_allow_html=True)
+left_col, right_col = st.columns([1.2, 1])
+
+with left_col:
+    st.image(image, use_column_width=True)
+    st.markdown("### Ultrasound Input")
+
+with right_col:
+    st.metric("Prediction", pred_class.upper())
+    st.metric("Confidence", f"{round(confidence*100,2)}%")
+    st.metric("Risk Score", f"{round(risk_score,2)}/100")
+    st.metric("Adequacy Probability", f"{round(adequacy,2)}%")
+with st.spinner("🩺 Scanning..."):
+    time.sleep(1.2)
+if st.button("📄 Download PDF Report"):
+    report_path = generate_pdf_report(case_id, pred_class, confidence, risk_score, adequacy)
+    st.success("Report ready!")
+    st.download_button(
+        label="Download Report",
+        data=open(report_path, "rb"),
+        file_name=f"{case_id}_report.pdf"
+    )
+
