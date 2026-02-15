@@ -4,19 +4,19 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import numpy as np
+import pandas as pd
 import uuid
 import datetime
 import time
-import pandas as pd
 
-# =========================================
+# ========================================
 # CONFIG
-# =========================================
+# ========================================
 st.set_page_config(page_title="Smart Biopsy Navigator™", layout="wide")
 
-# =========================================
-# STYLE (Hospital Enterprise Look)
-# =========================================
+# ========================================
+# STYLE
+# ========================================
 st.markdown("""
 <style>
 body { background-color: #eef2f7; }
@@ -25,18 +25,18 @@ body { background-color: #eef2f7; }
     padding: 20px;
     border-radius: 8px;
     color: white;
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 .card {
     background: white;
     padding: 18px;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    margin-bottom: 15px;
+    margin-bottom: 18px;
 }
 .section-title {
     font-weight: 600;
-    font-size: 15px;
+    font-size: 16px;
     margin-bottom: 8px;
 }
 .low { color: #047857; font-weight:600; }
@@ -49,34 +49,31 @@ body { background-color: #eef2f7; }
 st.markdown("""
 <div class="header">
 <h2>Smart Biopsy Navigator™</h2>
-Enterprise Radiology AI Module — HIS Integrated
+Enterprise Clinical Risk Intelligence Platform — HIS Integrated
 </div>
 """, unsafe_allow_html=True)
 
-# =========================================
-# ROLE SYSTEM
-# =========================================
-role = st.sidebar.selectbox("User Role", ["Radiologist", "Administrator"])
-
+# ========================================
+# SIDEBAR
+# ========================================
 page = st.sidebar.radio(
-    "Navigation",
+    "Platform",
     [
-        "Patient Registry",
-        "Case Detail",
-        "Enterprise Analytics",
-        "PACS Integration",
+        "Executive Overview",
+        "Clinical Workflow",
+        "Enterprise Impact",
         "Governance"
     ]
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("System Status: Operational")
-st.sidebar.markdown("Deployment: On-Premise CPU")
+st.sidebar.markdown("Deployment: Hospital Internal (CPU)")
 st.sidebar.markdown("Model Version: v1.0.0")
+st.sidebar.markdown("Regulatory Position: Clinical Decision Support")
 
-# =========================================
-# MODEL LOAD
-# =========================================
+# ========================================
+# MODEL
+# ========================================
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth"
 
 @st.cache_resource
@@ -99,33 +96,42 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
-# =========================================
-# PATIENT REGISTRY
-# =========================================
-if page == "Patient Registry":
+# ========================================
+# EXECUTIVE OVERVIEW
+# ========================================
+if page == "Executive Overview":
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Active Imaging Cases</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">AI Performance Snapshot (Simulated)</div>', unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("AI-Assisted Cases", "2,184")
+    col2.metric("High-Risk Flag Rate", "14.2%")
+    col3.metric("Avoided Biopsies", "148")
+    col4.metric("Estimated Annual Cost Impact", "$520,000")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ========================================
+# CLINICAL WORKFLOW
+# ========================================
+elif page == "Clinical Workflow":
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Patient Registry</div>', unsafe_allow_html=True)
 
     data = pd.DataFrame({
         "Patient ID": ["P-1001", "P-1002", "P-1003"],
         "Age": [58, 64, 45],
-        "Status": ["Low Risk", "High Risk", "Moderate Risk"],
-        "Last Updated": ["2026-02-15", "2026-02-15", "2026-02-14"]
+        "AI Status": ["Low Risk", "High Risk", "Moderate Risk"]
     })
-
     st.dataframe(data, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# =========================================
-# CASE DETAIL
-# =========================================
-elif page == "Case Detail":
-
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Imaging Case Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Case Analysis</div>', unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
+    uploaded_file = st.file_uploader("Upload Liver Ultrasound", type=["jpg","png","jpeg"])
 
     if uploaded_file is not None:
 
@@ -142,14 +148,11 @@ elif page == "Case Detail":
 
             inference_time = round(time.time() - start, 3)
 
-        pred_idx = np.argmax(probs)
-        pred_class = classes[pred_idx]
         malignant_prob = probs[classes.index("malignant")]
         risk_score = malignant_prob * 100
 
-        st.write(f"Inference Time: {inference_time} sec")
-        st.metric("Predicted Class", pred_class.upper())
         st.metric("Malignant Probability", f"{round(malignant_prob*100,2)}%")
+        st.write(f"Inference Time: {inference_time} sec")
 
         if risk_score < 20:
             st.markdown('<span class="low">LOW RISK</span>', unsafe_allow_html=True)
@@ -158,65 +161,43 @@ elif page == "Case Detail":
         else:
             st.markdown('<span class="high">HIGH RISK</span>', unsafe_allow_html=True)
 
-        if role == "Radiologist":
-            st.text_area("Radiologist Notes")
-
     st.markdown('</div>', unsafe_allow_html=True)
 
-# =========================================
-# ENTERPRISE ANALYTICS
-# =========================================
-elif page == "Enterprise Analytics":
+# ========================================
+# ENTERPRISE IMPACT
+# ========================================
+elif page == "Enterprise Impact":
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Hospital AI Performance Overview</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Revenue Simulation</div>', unsafe_allow_html=True)
 
-    st.metric("Total AI-Assisted Cases", "2,184")
-    st.metric("High-Risk Cases Flagged", "312")
-    st.metric("Avoided Biopsies (Estimated)", "148")
-    st.metric("Estimated Annual Cost Impact", "$520,000")
+    scans = st.slider("Monthly Ultrasound Volume", 500, 5000, 2000)
+    price = st.slider("AI Per-Scan Fee ($)", 5, 20, 10)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    monthly = scans * price
+    annual = monthly * 12
 
-# =========================================
-# PACS INTEGRATION
-# =========================================
-elif page == "PACS Integration":
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">PACS Connectivity Status</div>', unsafe_allow_html=True)
-
-    st.success("PACS Server: Connected")
-    st.success("DICOM Listener: Active")
-    st.success("HL7 Interface: Operational")
-
-    st.write("""
-    Integration Readiness:
-    - DICOM image ingestion
-    - HL7/FHIR support
-    - On-prem deployment ready
-    - API gateway compatible
-    """)
+    st.metric("Projected Monthly Revenue", f"${monthly:,}")
+    st.metric("Projected Annual Revenue", f"${annual:,}")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# =========================================
+# ========================================
 # GOVERNANCE
-# =========================================
+# ========================================
 elif page == "Governance":
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">AI Governance & Compliance</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">AI Governance & Transparency</div>', unsafe_allow_html=True)
 
     st.write("""
-    Model Architecture: ResNet18  
-    Risk Calculation: Malignant posterior probability  
-    Deployment Mode: Hospital internal infrastructure  
-    Intended Use: Clinical Decision Support  
-    Regulatory Strategy: Non-autonomous AI support tool  
-    Data Privacy: Local processing / No external transmission  
+    • Architecture: ResNet18  
+    • Risk Basis: Malignant posterior probability  
+    • Deployment: Hospital internal infrastructure  
+    • Intended Use: Clinical Decision Support  
+    • No autonomous diagnosis  
     """)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="footer">Smart Biopsy Navigator™ — Enterprise HIS Integrated AI Platform</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">Smart Biopsy Navigator™ — Enterprise Clinical AI Infrastructure</div>', unsafe_allow_html=True)
