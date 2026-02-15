@@ -4,62 +4,75 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import numpy as np
-import matplotlib.pyplot as plt
 import uuid
 import datetime
+import time
 
-# =============================
+# ===================================
 # PAGE CONFIG
-# =============================
-st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
+# ===================================
+st.set_page_config(
+    page_title="Smart Biopsy Navigator",
+    layout="wide"
+)
 
-# =============================
-# FUTURISTIC MEDICAL UI
-# =============================
+# ===================================
+# CLEAN CLINICAL UI
+# ===================================
 st.markdown("""
 <style>
 body {
-    background-color: #0f172a;
+    background-color: #f4f6f9;
 }
-.title {
-    font-size: 2.6rem;
+.main-title {
+    font-size: 2.2rem;
     font-weight: 700;
-    color: #22d3ee;
+    color: #1f2937;
 }
 .subtitle {
     font-size: 1rem;
-    color: #94a3b8;
-    margin-bottom: 25px;
+    color: #6b7280;
+    margin-bottom: 20px;
 }
 .card {
-    background: #111827;
-    padding: 25px;
-    border-radius: 18px;
-    box-shadow: 0 0 25px rgba(34,211,238,0.15);
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     margin-bottom: 20px;
-    border: 1px solid rgba(34,211,238,0.2);
+}
+.badge {
+    background: #e5e7eb;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: #374151;
 }
 .footer {
     font-size: 0.8rem;
-    color: #475569;
+    color: #9ca3af;
     margin-top: 40px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='title'>SMART BIOPSY NAVIGATOR</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>AI-Driven Liver Lesion Risk Intelligence System</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>AI-Powered Liver Ultrasound Clinical Decision Support</div>", unsafe_allow_html=True)
+st.markdown("<span class='badge'>Model v1.0.0 • CPU Deployment</span>", unsafe_allow_html=True)
 
-# =============================
-# MODEL LOAD
-# =============================
+# ===================================
+# MODEL LOADING
+# ===================================
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth"
 
 @st.cache_resource
 def load_model():
     model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 3)
-    state_dict = torch.hub.load_state_dict_from_url(MODEL_URL, map_location="cpu")
+    state_dict = torch.hub.load_state_dict_from_url(
+        MODEL_URL,
+        map_location="cpu"
+    )
     model.load_state_dict(state_dict)
     model.eval()
     return model
@@ -67,107 +80,119 @@ def load_model():
 try:
     model = load_model()
 except Exception as e:
-    st.error("AI Core failed to initialize.")
+    st.error(f"Model loading failed: {e}")
     st.stop()
 
 classes = ['benign', 'malignant', 'normal']
 
 transform = transforms.Compose([
-    transforms.Resize((224,224)),
+    transforms.Resize((224, 224)),
     transforms.ToTensor()
 ])
 
-# =============================
-# RISK LOGIC (CLINICALLY CORRECT)
-# =============================
-def get_risk_display(score):
-    if score < 20:
-        return "LOW RISK", "#22c55e"
-    elif score < 60:
-        return "MODERATE RISK", "#facc15"
+# ===================================
+# CLINICAL LOGIC
+# ===================================
+def clinical_recommendation(risk):
+    if risk < 20:
+        return "Routine follow-up suggested."
+    elif risk < 60:
+        return "Recommend further imaging (CT/MRI) and clinical correlation."
     else:
-        return "HIGH RISK", "#ef4444"
+        return "High suspicion. Recommend biopsy and specialist referral."
 
-# =============================
-# LAYOUT
-# =============================
-col1, col2 = st.columns([1.2, 1])
+# ===================================
+# INPUT SECTION
+# ===================================
+left, right = st.columns([1.2, 1])
 
-with col1:
+with left:
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("Upload Ultrasound Scan", type=["jpg","png","jpeg"])
+    uploaded_file = st.file_uploader(
+        "Upload Liver Ultrasound Image",
+        type=["jpg", "jpeg", "png"]
+    )
     age = st.slider("Patient Age", 18, 90, 55)
     gender = st.selectbox("Gender", ["Male", "Female"])
     st.markdown("</div>", unsafe_allow_html=True)
 
+# ===================================
+# INFERENCE
+# ===================================
 if uploaded_file is not None:
 
     image = Image.open(uploaded_file).convert("RGB")
 
-    with col1:
+    with left:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.image(image, use_column_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with col2:
+    with right:
+        with st.spinner("AI analyzing image..."):
+            start_time = time.time()
 
-        with st.spinner("⚡ AI Core Processing..."):
             input_tensor = transform(image).unsqueeze(0)
+
             with torch.no_grad():
-                output = model(input_tensor)
-                probs = torch.softmax(output, dim=1)[0].numpy()
+                logits = model(input_tensor)
+                probs = torch.softmax(logits, dim=1)[0].numpy()
+
+            inference_time = round(time.time() - start_time, 3)
 
         pred_idx = np.argmax(probs)
         pred_class = classes[pred_idx]
         confidence = float(probs[pred_idx])
 
-        # 🔴 RISK CALCULATED FROM MALIGNANT PROBABILITY ONLY
+        # Risk based ONLY on malignant probability
         malignant_index = classes.index("malignant")
         malignant_prob = probs[malignant_index]
         risk_score = malignant_prob * 100
 
-        adequacy = 60 + confidence * 40
         case_id = str(uuid.uuid4())[:8]
-
-        risk_text, risk_color = get_risk_display(risk_score)
 
         st.markdown("<div class='card'>", unsafe_allow_html=True)
 
-        st.subheader("CASE PROFILE")
+        # ---------------- Case Summary ----------------
+        st.subheader("Case Summary")
         st.write(f"Case ID: {case_id}")
         st.write(f"Age: {age} | Gender: {gender}")
         st.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.write(f"Inference Time: {inference_time} sec")
 
-        st.subheader("AI RISK INTELLIGENCE")
-
-        st.metric("Predicted Classification", pred_class.upper())
-        st.metric("Prediction Confidence", f"{round(confidence*100,2)}%")
-
+        # ---------------- AI Assessment ----------------
+        st.subheader("AI Risk Intelligence")
+        st.metric("Predicted Class", pred_class.upper())
         st.metric("Malignant Probability", f"{round(malignant_prob*100,2)}%")
+        st.metric("Prediction Confidence", f"{round(confidence*100,2)}%")
         st.metric("Computed Risk Score", f"{round(risk_score,2)} / 100")
 
-        st.markdown(f"<h3 style='color:{risk_color};'>{risk_text}</h3>", unsafe_allow_html=True)
+        # Risk Interpretation
+        if risk_score < 20:
+            st.success("LOW RISK")
+        elif risk_score < 60:
+            st.warning("MODERATE RISK")
+        else:
+            st.error("HIGH RISK")
 
-        st.metric("Biopsy Adequacy Probability", f"{round(adequacy,2)}%")
+        # Confidence Interpretation
+        if confidence > 0.8:
+            st.info("High model confidence.")
+        elif confidence > 0.5:
+            st.info("Moderate model confidence.")
+        else:
+            st.warning("Low model confidence. Interpret with caution.")
+
+        # Clinical Recommendation
+        st.subheader("Clinical Recommendation")
+        st.write(clinical_recommendation(risk_score))
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.subheader("Probability Matrix")
-
-        fig, ax = plt.subplots()
-        ax.bar(classes, probs)
-        ax.set_ylim(0,1)
-        ax.set_facecolor("#111827")
-        fig.patch.set_facecolor("#111827")
-        ax.tick_params(colors='white')
-        for spine in ax.spines.values():
-            spine.set_color('white')
-
-        st.pyplot(fig)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# =============================
+# ===================================
 # FOOTER
-# =============================
-st.markdown("<div class='footer'>AI Clinical Decision Support Prototype • Not for standalone medical diagnosis</div>", unsafe_allow_html=True)
+# ===================================
+st.markdown(
+    "<div class='footer'>This AI system is intended for decision support only and should not replace clinical judgment.</div>",
+    unsafe_allow_html=True
+)
