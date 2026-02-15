@@ -14,44 +14,44 @@ import datetime
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
 # -----------------------------
-# Professional Clinical Theme
+# Futuristic AI Medical Theme
 # -----------------------------
 st.markdown("""
 <style>
 body {
-    background-color: #f9fafb;
+    background-color: #0f172a;
 }
-.main-title {
-    font-size: 2.4rem;
+.title {
+    font-size: 2.5rem;
     font-weight: 700;
-    color: #111827;
+    color: #22d3ee;
 }
-.sub-title {
+.subtitle {
     font-size: 1rem;
-    color: #6b7280;
-    margin-bottom: 20px;
+    color: #94a3b8;
+    margin-bottom: 25px;
 }
 .card {
-    background: white;
-    padding: 24px;
-    border-radius: 14px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    background: #111827;
+    padding: 25px;
+    border-radius: 18px;
+    box-shadow: 0 0 20px rgba(34,211,238,0.15);
     margin-bottom: 20px;
+    border: 1px solid rgba(34,211,238,0.2);
 }
 .metric-label {
-    font-size: 0.9rem;
-    color: #6b7280;
+    color: #94a3b8;
 }
 .footer {
     font-size: 0.8rem;
-    color: #9ca3af;
+    color: #475569;
     margin-top: 40px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='main-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>AI-Powered Liver Ultrasound Clinical Decision Support System</div>", unsafe_allow_html=True)
+st.markdown("<div class='title'>SMART BIOPSY NAVIGATOR</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>AI-Driven Liver Lesion Risk Intelligence System</div>", unsafe_allow_html=True)
 
 # -----------------------------
 # Model
@@ -70,7 +70,7 @@ def load_model():
 try:
     model = load_model()
 except:
-    st.error("Model failed to load.")
+    st.error("AI Core failed to initialize.")
     st.stop()
 
 classes = ['benign', 'malignant', 'normal']
@@ -81,15 +81,15 @@ transform = transforms.Compose([
 ])
 
 # -----------------------------
-# Risk Color Logic
+# Risk Logic
 # -----------------------------
 def get_risk_display(score):
     if score < 50:
-        return "🟢 Low Risk", "#16a34a"
+        return "LOW RISK", "#22c55e"
     elif score < 75:
-        return "🟡 Moderate Risk", "#ca8a04"
+        return "MODERATE RISK", "#facc15"
     else:
-        return "🔴 High Risk", "#dc2626"
+        return "HIGH RISK", "#ef4444"
 
 # -----------------------------
 # Layout
@@ -98,7 +98,7 @@ col1, col2 = st.columns([1.2, 1])
 
 with col1:
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("Upload Liver Ultrasound Image", type=["jpg","png","jpeg"])
+    uploaded_file = st.file_uploader("Upload Ultrasound Scan", type=["jpg","png","jpeg"])
     age = st.slider("Patient Age", 18, 90, 55)
     gender = st.selectbox("Gender", ["Male", "Female"])
     st.markdown("</div>", unsafe_allow_html=True)
@@ -114,7 +114,7 @@ if uploaded_file is not None:
 
     with col2:
 
-        with st.spinner("AI is analyzing clinical image..."):
+        with st.spinner("⚡ AI Core Processing..."):
             input_tensor = transform(image).unsqueeze(0)
             with torch.no_grad():
                 output = model(input_tensor)
@@ -131,31 +131,36 @@ if uploaded_file is not None:
 
         st.markdown("<div class='card'>", unsafe_allow_html=True)
 
-        st.subheader("Case Summary")
+        st.subheader("CASE PROFILE")
         st.write(f"Case ID: {case_id}")
         st.write(f"Age: {age} | Gender: {gender}")
-        st.write(f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        st.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-        st.subheader("AI Assessment")
-        st.metric("Predicted Class", pred_class.upper())
-        st.metric("Confidence", f"{round(confidence*100,2)}%")
+        st.subheader("AI RISK INTELLIGENCE")
+
+        st.metric("Predicted Classification", pred_class.upper())
+        st.metric("Confidence Level", f"{round(confidence*100,2)}%")
         st.metric("Risk Score", f"{round(risk_score,2)} / 100")
-        st.markdown(f"<span style='color:{risk_color}; font-weight:600'>{risk_text}</span>", unsafe_allow_html=True)
+
+        st.markdown(f"<h3 style='color:{risk_color};'>{risk_text}</h3>", unsafe_allow_html=True)
 
         st.metric("Biopsy Adequacy Probability", f"{round(adequacy,2)}%")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.subheader("Probability Distribution")
+        st.subheader("Probability Matrix")
         fig, ax = plt.subplots()
         ax.bar(classes, probs)
         ax.set_ylim(0,1)
-        ax.set_ylabel("Probability")
+        ax.set_facecolor("#111827")
+        fig.patch.set_facecolor("#111827")
+        ax.tick_params(colors='white')
+        ax.spines[:].set_color('white')
         st.pyplot(fig)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------
 # Footer
 # -----------------------------
-st.markdown("<div class='footer'>For research and educational use only. Not intended for standalone clinical diagnosis.</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer'>AI Clinical Decision Support Prototype • Not for standalone medical diagnosis</div>", unsafe_allow_html=True)
