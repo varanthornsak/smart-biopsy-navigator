@@ -9,19 +9,19 @@ import uuid
 import datetime
 import time
 
-# ========================================
-# CONFIG
-# ========================================
+# =========================================
+# PAGE CONFIG
+# =========================================
 st.set_page_config(page_title="Smart Biopsy Navigator™", layout="wide")
 
-# ========================================
-# STYLE
-# ========================================
+# =========================================
+# ENTERPRISE STYLE
+# =========================================
 st.markdown("""
 <style>
 body { background-color: #eef2f7; }
 .header {
-    background: #1f3c88;
+    background: linear-gradient(90deg, #1f3c88, #2563eb);
     padding: 20px;
     border-radius: 8px;
     color: white;
@@ -30,14 +30,14 @@ body { background-color: #eef2f7; }
 .card {
     background: white;
     padding: 18px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    border-radius: 10px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.05);
     margin-bottom: 18px;
 }
 .section-title {
     font-weight: 600;
     font-size: 16px;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 .low { color: #047857; font-weight:600; }
 .mid { color: #b45309; font-weight:600; }
@@ -49,31 +49,31 @@ body { background-color: #eef2f7; }
 st.markdown("""
 <div class="header">
 <h2>Smart Biopsy Navigator™</h2>
-Enterprise Clinical Risk Intelligence Platform — HIS Integrated
+AI-Powered Clinical Risk Intelligence Platform — HIS Integrated
 </div>
 """, unsafe_allow_html=True)
 
-# ========================================
+# =========================================
 # SIDEBAR
-# ========================================
+# =========================================
 page = st.sidebar.radio(
-    "Platform",
+    "Platform Modules",
     [
         "Executive Overview",
         "Clinical Workflow",
         "Enterprise Impact",
-        "Governance"
+        "AI Governance"
     ]
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("Deployment: Hospital Internal (CPU)")
+st.sidebar.markdown("Deployment: Hospital Internal CPU")
 st.sidebar.markdown("Model Version: v1.0.0")
 st.sidebar.markdown("Regulatory Position: Clinical Decision Support")
 
-# ========================================
-# MODEL
-# ========================================
+# =========================================
+# MODEL LOAD
+# =========================================
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth"
 
 @st.cache_resource
@@ -96,40 +96,42 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
-# ========================================
+# =========================================
 # EXECUTIVE OVERVIEW
-# ========================================
+# =========================================
 if page == "Executive Overview":
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">AI Performance Snapshot (Simulated)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Enterprise AI Performance Snapshot (Simulated)</div>', unsafe_allow_html=True)
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("AI-Assisted Cases", "2,184")
-    col2.metric("High-Risk Flag Rate", "14.2%")
+    col2.metric("High-Risk Detection Rate", "14.2%")
     col3.metric("Avoided Biopsies", "148")
     col4.metric("Estimated Annual Cost Impact", "$520,000")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ========================================
+# =========================================
 # CLINICAL WORKFLOW
-# ========================================
+# =========================================
 elif page == "Clinical Workflow":
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Patient Registry</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Active Patient Registry (Simulated)</div>', unsafe_allow_html=True)
 
     data = pd.DataFrame({
         "Patient ID": ["P-1001", "P-1002", "P-1003"],
         "Age": [58, 64, 45],
-        "AI Status": ["Low Risk", "High Risk", "Moderate Risk"]
+        "AI Risk": ["Low", "High", "Moderate"],
+        "Last Updated": ["2026-02-15", "2026-02-15", "2026-02-14"]
     })
+
     st.dataframe(data, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Case Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Case-Level AI Risk Assessment</div>', unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader("Upload Liver Ultrasound", type=["jpg","png","jpeg"])
 
@@ -138,7 +140,7 @@ elif page == "Clinical Workflow":
         image = Image.open(uploaded_file).convert("RGB")
         st.image(image, use_column_width=True)
 
-        with st.spinner("AI inference running..."):
+        with st.spinner("Running AI inference..."):
             start = time.time()
             input_tensor = transform(image).unsqueeze(0)
 
@@ -163,16 +165,16 @@ elif page == "Clinical Workflow":
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ========================================
+# =========================================
 # ENTERPRISE IMPACT
-# ========================================
+# =========================================
 elif page == "Enterprise Impact":
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Revenue Simulation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Revenue & Cost Simulation</div>', unsafe_allow_html=True)
 
     scans = st.slider("Monthly Ultrasound Volume", 500, 5000, 2000)
-    price = st.slider("AI Per-Scan Fee ($)", 5, 20, 10)
+    price = st.slider("Per-Scan AI Fee ($)", 5, 20, 10)
 
     monthly = scans * price
     annual = monthly * 12
@@ -182,22 +184,22 @@ elif page == "Enterprise Impact":
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ========================================
+# =========================================
 # GOVERNANCE
-# ========================================
-elif page == "Governance":
+# =========================================
+elif page == "AI Governance":
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">AI Governance & Transparency</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">AI Transparency & Compliance</div>', unsafe_allow_html=True)
 
     st.write("""
-    • Architecture: ResNet18  
+    • Model Architecture: ResNet18  
     • Risk Basis: Malignant posterior probability  
-    • Deployment: Hospital internal infrastructure  
     • Intended Use: Clinical Decision Support  
-    • No autonomous diagnosis  
+    • Deployment: On-Premise Hospital Infrastructure  
+    • Non-autonomous system  
     """)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="footer">Smart Biopsy Navigator™ — Enterprise Clinical AI Infrastructure</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">Smart Biopsy Navigator™ — Enterprise Clinical AI Infrastructure Platform</div>', unsafe_allow_html=True)
