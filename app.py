@@ -95,3 +95,46 @@ with right:
         ax.set_ylim(0,1)
         ax.set_ylabel("Probability")
         st.pyplot(fig)
+        import streamlit as st
+import torch
+import torch.nn as nn
+from torchvision import models, transforms
+from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
+import uuid
+import datetime
+
+# -------------------------
+# Page Setup
+# -------------------------
+st.set_page_config(
+    page_title="Smart Biopsy Navigator",
+    layout="wide"
+)
+
+# 👇 ใส่ CSS ตรงนี้
+st.markdown("""
+<style>
+body {
+    background-color: #111827;
+    color: #f8f8f8;
+}
+.big-title {
+    font-size: 2.4rem;
+    font-weight: 700;
+}
+.subtitle {
+    font-size: 1.1rem;
+    color: #cbd5e1;
+}
+.metric-col {
+    background: #1f2937;
+    border-radius: 12px;
+    padding: 14px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>AI-Powered Liver Biopsy Decision Support</p>", unsafe_allow_html=True)
