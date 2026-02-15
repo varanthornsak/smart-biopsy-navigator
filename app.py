@@ -8,37 +8,37 @@ import uuid
 import datetime
 import time
 
-# ===================================
-# CONFIG
-# ===================================
+# =====================================
+# PAGE CONFIG
+# =====================================
 st.set_page_config(
     page_title="Smart Biopsy Navigator™",
     layout="wide"
 )
 
-# ===================================
+# =====================================
 # SIDEBAR NAVIGATION
-# ===================================
+# =====================================
 st.sidebar.title("Smart Biopsy Navigator™")
+
 page = st.sidebar.radio(
     "Platform Modules",
     [
         "Clinical Dashboard",
-        "Clinical Insights",
-        "Business Impact",
-        "AI Governance",
-        "Integration"
+        "Enterprise Analytics",
+        "Business Model",
+        "AI Governance"
     ]
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("Deployment: Enterprise (CPU)")
+st.sidebar.markdown("Deployment: Enterprise CPU")
 st.sidebar.markdown("Model Version: v1.0.0")
-st.sidebar.markdown("Status: Operational")
+st.sidebar.markdown("Regulatory Position: Clinical Decision Support")
 
-# ===================================
+# =====================================
 # MODEL LOAD
-# ===================================
+# =====================================
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth"
 
 @st.cache_resource
@@ -61,13 +61,13 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
-# ===================================
+# =====================================
 # CLINICAL DASHBOARD
-# ===================================
+# =====================================
 if page == "Clinical Dashboard":
 
-    st.title("Enterprise Clinical Risk Dashboard")
-    st.caption("AI-Driven Liver Lesion Risk Stratification")
+    st.title("Clinical Risk Stratification Dashboard")
+    st.caption("Real-Time AI Decision Support for Liver Ultrasound")
 
     left, right = st.columns([1.2, 1])
 
@@ -88,22 +88,20 @@ if page == "Clinical Dashboard":
 
         with right:
             with st.spinner("AI inference in progress..."):
-                start_time = time.time()
-
+                start = time.time()
                 input_tensor = transform(image).unsqueeze(0)
 
                 with torch.no_grad():
                     logits = model(input_tensor)
                     probs = torch.softmax(logits, dim=1)[0].numpy()
 
-                inference_time = round(time.time() - start_time, 3)
+                inference_time = round(time.time() - start, 3)
 
             pred_idx = np.argmax(probs)
             pred_class = classes[pred_idx]
             confidence = float(probs[pred_idx])
 
-            malignant_index = classes.index("malignant")
-            malignant_prob = probs[malignant_index]
+            malignant_prob = probs[classes.index("malignant")]
             risk_score = malignant_prob * 100
 
             case_id = str(uuid.uuid4())[:8]
@@ -116,7 +114,7 @@ if page == "Clinical Dashboard":
             st.subheader("AI Risk Intelligence")
             st.metric("Predicted Class", pred_class.upper())
             st.metric("Malignant Probability", f"{round(malignant_prob*100,2)}%")
-            st.metric("Confidence", f"{round(confidence*100,2)}%")
+            st.metric("Prediction Confidence", f"{round(confidence*100,2)}%")
 
             if risk_score < 20:
                 st.success("LOW RISK")
@@ -125,63 +123,75 @@ if page == "Clinical Dashboard":
             else:
                 st.error("HIGH RISK")
 
-# ===================================
-# CLINICAL INSIGHTS
-# ===================================
-elif page == "Clinical Insights":
-    st.title("Clinical Impact Analysis")
+            st.subheader("Clinical Recommendation")
+
+            if risk_score < 20:
+                st.write("Routine follow-up suggested.")
+            elif risk_score < 60:
+                st.write("Recommend further imaging and clinical correlation.")
+            else:
+                st.write("High suspicion. Recommend biopsy and specialist referral.")
+
+# =====================================
+# ENTERPRISE ANALYTICS
+# =====================================
+elif page == "Enterprise Analytics":
+
+    st.title("Hospital-Level Performance Analytics")
+
+    st.metric("Total AI-Assisted Cases (Simulated)", "1,245")
+    st.metric("High-Risk Cases Flagged", "186")
+    st.metric("Estimated Avoided Biopsies", "92")
 
     st.write("""
-    • Standardized malignant risk scoring  
-    • Reduced inter-observer variability  
-    • Improved triage prioritization  
-    • Supports radiology workflow integration  
+    Platform-Level Value:
+    - Standardized malignant risk scoring
+    - Reduced unnecessary invasive procedures
+    - Improved triage prioritization
+    - Operational efficiency gain
     """)
 
-# ===================================
-# BUSINESS IMPACT
-# ===================================
-elif page == "Business Impact":
-    st.title("Operational & Economic Impact")
+# =====================================
+# BUSINESS MODEL
+# =====================================
+elif page == "Business Model":
+
+    st.title("Enterprise Revenue Model Simulation")
+
+    st.write("Example Revenue Scenarios")
+
+    scans_per_month = st.slider("Estimated Scans per Month (Hospital)", 500, 5000, 1500)
+    price_per_scan = st.slider("Per-Scan SaaS Fee ($)", 3, 20, 8)
+
+    monthly_revenue = scans_per_month * price_per_scan
+    annual_revenue = monthly_revenue * 12
+
+    st.metric("Projected Monthly Revenue", f"${monthly_revenue:,}")
+    st.metric("Projected Annual Revenue", f"${annual_revenue:,}")
 
     st.write("""
-    Estimated Value Propositions:
-    - Reduce unnecessary biopsies
-    - Shorten diagnostic turnaround time
-    - Lower procedural costs
-    - Improve resource allocation efficiency
+    Target Customers:
+    - Tertiary Hospitals
+    - Academic Medical Centers
+    - Imaging Centers
     """)
 
-    st.metric("Estimated Cost Avoidance per Case", "$1,200 (Simulated)")
-    st.metric("Estimated Annual Impact (Mid-size Hospital)", "$450,000 (Simulated)")
-
-# ===================================
+# =====================================
 # AI GOVERNANCE
-# ===================================
+# =====================================
 elif page == "AI Governance":
-    st.title("Model Transparency & Governance")
+
+    st.title("AI Transparency & Governance")
 
     st.write("""
     Model Architecture: ResNet18  
-    Risk Calculation: Malignant posterior probability  
+    Risk Computation: Malignant posterior probability  
     Deployment Mode: CPU inference  
-    Intended Use: Clinical decision support  
-    Not for standalone diagnostic use  
+    Regulatory Strategy: Clinical Decision Support (CDS)  
+    Intended Use: Assistive decision support  
     """)
 
-# ===================================
-# INTEGRATION
-# ===================================
-elif page == "Integration":
-    st.title("Enterprise Integration")
-
-    st.write("""
-    Planned Integration Capabilities:
-    - PACS connectivity
-    - HL7/FHIR compatibility
-    - API-based hospital integration
-    - Edge deployment readiness
-    """)
+    st.warning("Not intended for standalone diagnostic use.")
 
 st.markdown("---")
-st.markdown("Smart Biopsy Navigator™ • Enterprise Clinical AI Platform")
+st.markdown("Smart Biopsy Navigator™ • Enterprise Clinical Risk Intelligence Platform")
