@@ -20,13 +20,21 @@ st.title("🧠 Smart Biopsy Navigator")
 st.caption("AI-Powered Liver Ultrasound Decision Support")
 
 # -------------------------
-# Load Model
+# โหลดโมเดลจาก HuggingFace URL
 # -------------------------
+MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth"
+
 @st.cache_resource
 def load_model():
     model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 3)
-    model.load_state_dict(torch.load("best_liver_model.pth", map_location="cpu"))
+
+    state_dict = torch.hub.load_state_dict_from_url(
+        MODEL_URL,
+        map_location="cpu"
+    )
+
+    model.load_state_dict(state_dict)
     model.eval()
     return model
 
@@ -75,15 +83,12 @@ with right:
         st.metric("Prediction", pred_class.upper())
         st.metric("Confidence", f"{round(confidence*100,2)}%")
 
-        # Risk Score
         risk_score = confidence * 100
         st.metric("Risk Score", f"{round(risk_score,2)}/100")
 
-        # Biopsy Adequacy Probability
         adequacy = 60 + confidence * 40
         st.metric("Biopsy Adequacy Probability", f"{round(adequacy,2)}%")
 
-        # Probability Chart
         st.subheader("Probability Distribution")
         fig, ax = plt.subplots()
         ax.bar(classes, probs)
