@@ -7,11 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import uuid
 import datetime
-import cv2
-
-from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.image import show_cam_on_image
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 # =============================
 # PAGE CONFIG
@@ -19,7 +14,7 @@ from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
 # =============================
-# FUTURISTIC STYLE
+# FUTURISTIC UI
 # =============================
 st.markdown("""
 <style>
@@ -35,25 +30,11 @@ body { background-color: #0f172a; }
     border: 1px solid rgba(34,211,238,0.2);
 }
 .footer { font-size: 0.8rem; color: #475569; margin-top: 40px; }
-.pulse {
-  width: 12px;
-  height: 12px;
-  background: #22d3ee;
-  border-radius: 50%;
-  box-shadow: 0 0 0 rgba(34,211,238, 0.7);
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(34,211,238, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(34,211,238, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34,211,238, 0); }
-}
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<div class='title'>SMART BIOPSY NAVIGATOR</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>AI Risk Intelligence Engine</div>", unsafe_allow_html=True)
-st.markdown("<div class='pulse'></div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>AI-Driven Liver Lesion Risk Intelligence System</div>", unsafe_allow_html=True)
 
 # =============================
 # MODEL LOAD
@@ -69,7 +50,12 @@ def load_model():
     model.eval()
     return model
 
-model = load_model()
+try:
+    model = load_model()
+except:
+    st.error("AI Core failed to initialize.")
+    st.stop()
+
 classes = ['benign', 'malignant', 'normal']
 
 transform = transforms.Compose([
@@ -98,11 +84,18 @@ def clinical_recommendation(risk):
 # CIRCULAR GAUGE
 # =============================
 def draw_gauge(score):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(4,4))
     ax.axis('off')
-    circle = plt.Circle((0.5,0.5), 0.4)
-    ax.add_artist(circle)
-    ax.text(0.5,0.5, f"{int(score)}%", ha='center', va='center', fontsize=24)
+
+    theta = np.linspace(0, 2*np.pi, 100)
+    x = 0.5 + 0.4*np.cos(theta)
+    y = 0.5 + 0.4*np.sin(theta)
+
+    ax.plot(x, y)
+    ax.text(0.5, 0.5, f"{int(score)}%", ha='center', va='center', fontsize=28)
+    ax.set_xlim(0,1)
+    ax.set_ylim(0,1)
+
     st.pyplot(fig)
 
 # =============================
@@ -111,15 +104,15 @@ def draw_gauge(score):
 col1, col2 = st.columns([1.2,1])
 
 with col1:
-    uploaded_file = st.file_uploader("Upload Ultrasound", type=["jpg","png","jpeg"])
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("Upload Ultrasound Scan", type=["jpg","png","jpeg"])
     age = st.slider("Patient Age", 18, 90, 55)
     gender = st.selectbox("Gender", ["Male","Female"])
+    st.markdown("</div>", unsafe_allow_html=True)
 
 if uploaded_file is not None:
 
     image = Image.open(uploaded_file).convert("RGB")
-    img_np = np.array(image)/255.0
-
     st.image(image, use_column_width=True)
 
     with st.spinner("⚡ AI Core Processing..."):
@@ -134,35 +127,54 @@ if uploaded_file is not None:
     pred_class = classes[pred_idx]
     confidence = float(probs[pred_idx])
 
+    # 🔴 Risk based only on malignant probability
     malignant_index = classes.index("malignant")
     malignant_prob = probs[malignant_index]
     risk_score = malignant_prob * 100
 
-    st.subheader("AI Risk Gauge")
-    draw_gauge(risk_score)
+    adequacy = 60 + confidence * 40
+    case_id = str(uuid.uuid4())[:8]
 
-    st.metric("Prediction", pred_class.upper())
-    st.metric("Malignant Probability", f"{round(malignant_prob*100,2)}%")
-    st.metric("Calibrated Confidence", f"{round(confidence*100,2)}%")
+    with col2:
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
 
-    st.subheader("Clinical Recommendation")
-    st.write(clinical_recommendation(risk_score))
+        st.subheader("CASE PROFILE")
+        st.write(f"Case ID: {case_id}")
+        st.write(f"Age: {age} | Gender: {gender}")
+        st.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # =============================
-    # GRAD-CAM
-    # =============================
-    target_layers = [model.layer4[-1]]
-    cam = GradCAM(model=model, target_layers=target_layers)
+        st.subheader("AI RISK INTELLIGENCE")
 
-    targets = [ClassifierOutputTarget(pred_idx)]
-    grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0]
+        st.metric("Predicted Classification", pred_class.upper())
+        st.metric("Malignant Probability", f"{round(malignant_prob*100,2)}%")
+        st.metric("Calibrated Confidence", f"{round(confidence*100,2)}%")
 
-    cam_image = show_cam_on_image(img_np, grayscale_cam, use_rgb=True)
+        st.markdown("### RISK GAUGE")
+        draw_gauge(risk_score)
 
-    st.subheader("AI Heatmap (Explainability)")
-    st.image(cam_image, use_column_width=True)
+        st.subheader("Clinical Recommendation")
+        st.write(clinical_recommendation(risk_score))
+
+        st.metric("Biopsy Adequacy Probability", f"{round(adequacy,2)}%")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st.subheader("Probability Matrix")
+
+        fig, ax = plt.subplots()
+        ax.bar(classes, probs)
+        ax.set_ylim(0,1)
+        ax.set_facecolor("#111827")
+        fig.patch.set_facecolor("#111827")
+        ax.tick_params(colors='white')
+        for spine in ax.spines.values():
+            spine.set_color('white')
+
+        st.pyplot(fig)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # =============================
 # FOOTER
 # =============================
-st.markdown("<div class='footer'>AI Clinical Decision Support • Research Use Only</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer'>AI Clinical Decision Support Prototype • Research Use Only</div>", unsafe_allow_html=True)
