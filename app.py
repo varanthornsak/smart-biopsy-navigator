@@ -10,9 +10,10 @@ import datetime
 import sqlite3
 import os
 import cv2
+import pandas as pd
+import platform
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 
 # =====================================================
@@ -47,7 +48,7 @@ MODEL_REGISTRY = {
 }
 
 # =====================================================
-# DATABASE (SQLite)
+# DATABASE
 # =====================================================
 conn = sqlite3.connect("clinical_audit.db", check_same_thread=False)
 c = conn.cursor()
@@ -65,21 +66,10 @@ CREATE TABLE IF NOT EXISTS audit (
 conn.commit()
 
 # =====================================================
-# ROLE BASED ACCESS
+# ROLE ACCESS
 # =====================================================
 st.sidebar.title("Login")
-
-role = st.sidebar.selectbox(
-    "Select Role",
-    ["Viewer", "Clinician", "Admin"]
-)
-
-if role == "Viewer":
-    st.sidebar.info("Viewer: Read-only access")
-elif role == "Clinician":
-    st.sidebar.success("Clinician: Can run inference & export report")
-else:
-    st.sidebar.warning("Admin: Full access")
+role = st.sidebar.selectbox("Select Role", ["Viewer", "Clinician", "Admin"])
 
 # =====================================================
 # NAVIGATION
@@ -149,7 +139,7 @@ def generate_gradcam(model, image_tensor, target_class):
     return cam
 
 # =====================================================
-# CLINICAL AI PAGE
+# CLINICAL AI
 # =====================================================
 if page == "Clinical AI":
 
@@ -197,10 +187,8 @@ if page == "Clinical AI":
         st.metric("Malignancy Probability", f"{round(malignant_prob*100,2)}%")
         st.write("Interpretation:", interpretation)
 
-        # =========================
-        # REAL ROC CURVE
-        # =========================
-        st.subheader("ROC Curve (Validated)")
+        # ROC
+        st.subheader("ROC Curve")
         fpr = np.linspace(0,1,100)
         tpr = fpr ** (1/model_info["auc"])
         fig, ax = plt.subplots()
@@ -208,9 +196,7 @@ if page == "Clinical AI":
         ax.plot([0,1],[0,1])
         st.pyplot(fig)
 
-        # =========================
-        # GRAD-CAM
-        # =========================
+        # Grad-CAM
         st.subheader("Grad-CAM Explanation")
         cam = generate_gradcam(model, input_tensor, model_info["malignant_index"])
         cam = cv2.resize(cam, (image.size[0], image.size[1]))
@@ -219,19 +205,19 @@ if page == "Clinical AI":
         overlay = np.array(image) * 0.6 + heatmap * 0.4
         st.image(overlay.astype(np.uint8), use_column_width=True)
 
-        # =========================
-        # SAVE TO DATABASE
-        # =========================
+        # SAVE DB
         case_id = str(uuid.uuid4())[:8]
-        c.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?)",
-                  (case_id, organ, hospital, mode,
-                   malignant_prob, interpretation,
-                   str(datetime.datetime.now())))
-        conn.commit()
+        try:
+            c.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?)",
+                      (case_id, organ, hospital, mode,
+                       malignant_prob, interpretation,
+                       str(datetime.datetime.now())))
+            conn.commit()
+        except Exception as e:
+            st.error("Database write error")
+            st.write(str(e))
 
-        # =========================
-        # PDF EXPORT
-        # =========================
+        # PDF
         if role in ["Clinician","Admin"]:
             if st.button("Export PDF Report"):
 
@@ -246,7 +232,6 @@ if page == "Clinical AI":
                 elements.append(Paragraph(f"Organ: {organ}", styles["Normal"]))
                 elements.append(Paragraph(f"Probability: {round(malignant_prob*100,2)}%", styles["Normal"]))
                 elements.append(Paragraph(f"Interpretation: {interpretation}", styles["Normal"]))
-                elements.append(Paragraph(f"Model Version: {model_info['version']}", styles["Normal"]))
                 elements.append(Paragraph("Disclaimer: Not a standalone diagnostic tool.", styles["Normal"]))
 
                 doc.build(elements)
@@ -261,12 +246,18 @@ elif page == "Hospital Analytics":
 
     st.title("Multi-Hospital Analytics")
 
-    df = pd.read_sql_query("SELECT * FROM audit", conn)
-    if not df.empty:
-        st.dataframe(df.tail(20))
-        st.bar_chart(df["hospital"].value_counts())
-    else:
-        st.info("No data yet.")
+    try:
+        df = pd.read_sql_query("SELECT * FROM audit", conn)
+
+        if not df.empty:
+            st.dataframe(df.tail(20))
+            st.bar_chart(df["hospital"].value_counts())
+        else:
+            st.info("No cases recorded yet.")
+
+    except Exception as e:
+        st.error("Database read error")
+        st.write(str(e))
 
 # =====================================================
 # MODEL REGISTRY
@@ -283,36 +274,28 @@ elif page == "Model Registry":
         st.write("---")
 
 # =====================================================
-# DEPLOYMENT DASHBOARD
+# DEPLOYMENT
 # =====================================================
 elif page == "Deployment Dashboard":
 
     st.title("Deployment Metadata")
-
     st.write("Environment:", platform.platform())
     st.write("PyTorch:", torch.__version__)
     st.write("Device:", "CUDA" if torch.cuda.is_available() else "CPU")
-    st.write("Total Models:", len(MODEL_REGISTRY))
 
 # =====================================================
-# FHIR/PACS SIMULATION
+# FHIR SIM
 # =====================================================
 elif page == "FHIR/PACS Simulation":
 
-    st.title("FHIR / PACS Integration Simulation")
-
-    st.markdown("""
-    Example FHIR Resource (DiagnosticReport JSON)
-    """)
+    st.title("FHIR Simulation")
 
     example_fhir = {
         "resourceType": "DiagnosticReport",
         "status": "final",
         "code": {"text": "AI Ultrasound Risk Assessment"},
         "subject": {"reference": "Patient/12345"},
-        "result": [{
-            "valueString": "Suspicious Malignant"
-        }]
+        "result": [{"valueString": "Suspicious Malignant"}]
     }
 
     st.json(example_fhir)
@@ -325,22 +308,10 @@ elif page == "User Guide":
     st.title("User Guide")
 
     st.markdown("""
-    ### How to Use
-
     1. Select hospital (e.g., Sri Nagarind Hospital).
-    2. Select organ (Liver or Thyroid).
-    3. Choose deployment mode:
-        - Screening: maximize sensitivity.
-        - Balanced: balanced precision/recall.
+    2. Choose organ.
+    3. Select Screening or Balanced mode.
     4. Upload ultrasound image.
-    5. Review:
-        - Malignancy probability
-        - Interpretation (Normal/Benign/Malignant)
-        - ROC performance
-        - Grad-CAM explanation
+    5. Review probability & interpretation.
     6. Export PDF if needed.
-
-    ### Clinical Note
-    This system assists decision-making but does not replace physician judgment.
     """)
-
