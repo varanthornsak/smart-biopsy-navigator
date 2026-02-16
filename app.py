@@ -4,14 +4,15 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import numpy as np
-import matplotlib.pyplot as plt
-import uuid
-import datetime
-import sqlite3
 import pandas as pd
+import datetime
+import uuid
+import sqlite3
+import matplotlib.pyplot as plt
 import cv2
-import platform
+import base64
 import json
+import time
 
 st.set_page_config(page_title="Smart Biopsy Navigator Enterprise", layout="wide")
 
@@ -20,132 +21,193 @@ st.set_page_config(page_title="Smart Biopsy Navigator Enterprise", layout="wide"
 # =====================================================
 MODEL_REGISTRY = {
     "Liver": {
-        "model_url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
+        "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
         "threshold": 0.2835,
-        "auc": 0.899
+        "auc": 0.899,
+        "version": "Liver v2.1"
     },
     "Thyroid": {
-        "model_url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/thyroid_v1_final.pth",
+        "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/thyroid_v1_final.pth",
         "threshold": 0.40,
-        "auc": 0.851
+        "auc": 0.851,
+        "version": "Thyroid v1.0"
     }
 }
 
 # =====================================================
 # DATABASE
 # =====================================================
-conn = sqlite3.connect("enterprise_audit.db", check_same_thread=False)
+conn = sqlite3.connect("enterprise.db", check_same_thread=False)
 c = conn.cursor()
 c.execute("""
 CREATE TABLE IF NOT EXISTS audit (
-    case_id TEXT,
-    organ TEXT,
-    hospital TEXT,
-    probability REAL,
-    interpretation TEXT,
-    timestamp TEXT
+case_id TEXT,
+hospital TEXT,
+organ TEXT,
+prob REAL,
+interpretation TEXT,
+role TEXT,
+timestamp TEXT
 )
 """)
 conn.commit()
 
 # =====================================================
-# AUTH SIMULATION (OAuth2)
+# JWT SIMULATION
 # =====================================================
-st.sidebar.title("Hospital Login")
-token = st.sidebar.text_input("OAuth2 Access Token")
+def generate_token(role, hospital):
+    payload = {
+        "role": role,
+        "hospital": hospital,
+        "exp": time.time() + 3600
+    }
+    token = base64.b64encode(json.dumps(payload).encode()).decode()
+    return token
 
-if token != "SNH_SECURE_TOKEN":
-    st.warning("Authentication required (Use SNH_SECURE_TOKEN)")
+def decode_token(token):
+    try:
+        payload = json.loads(base64.b64decode(token).decode())
+        if time.time() > payload["exp"]:
+            return None
+        return payload
+    except:
+        return None
+
+# =====================================================
+# LOGIN PAGE
+# =====================================================
+if "auth" not in st.session_state:
+    st.session_state.auth = None
+
+if st.session_state.auth is None:
+
+    st.title("Hospital Secure Login")
+
+    hospital = st.selectbox("Hospital", [
+        "Sri Nagarind Hospital",
+        "Khon Kaen University Hospital"
+    ])
+
+    role = st.selectbox("Role", [
+        "Viewer",
+        "Clinician",
+        "Admin"
+    ])
+
+    if st.button("Login Securely"):
+        token = generate_token(role, hospital)
+        st.session_state.auth = token
+        st.rerun()
+
     st.stop()
 
 # =====================================================
-# NAVIGATION
+# AUTH VALIDATION
 # =====================================================
-page = st.sidebar.radio("Module", [
-    "Clinical AI",
-    "DICOM Metadata",
-    "HL7 v2 Simulation",
-    "PACS Queue",
-    "FHIR REST Mock",
-    "Analytics Dashboard"
-])
+payload = decode_token(st.session_state.auth)
+
+if payload is None:
+    st.warning("Session expired. Please login again.")
+    st.session_state.auth = None
+    st.rerun()
+
+role = payload["role"]
+hospital = payload["hospital"]
 
 # =====================================================
-# MODEL LOADER
+# DASHBOARD HEADER
+# =====================================================
+st.title("Smart Biopsy Navigator – Enterprise Platform")
+st.caption(f"Hospital: {hospital} | Role: {role}")
+
+st.markdown("---")
+
+# =====================================================
+# LOAD MODEL
 # =====================================================
 @st.cache_resource
 def load_model(url):
     model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 2)
-    state_dict = torch.hub.load_state_dict_from_url(url, map_location="cpu")
-    model.load_state_dict(state_dict)
+    state = torch.hub.load_state_dict_from_url(url, map_location="cpu")
+    model.load_state_dict(state)
     model.eval()
     return model
 
 # =====================================================
-# CLINICAL AI
+# MAIN LAYOUT
 # =====================================================
-if page == "Clinical AI":
+left, right = st.columns([1.2,1])
 
-    st.title("Enterprise Clinical AI")
+with left:
 
-    hospital = st.selectbox("Hospital", ["Sri Nagarind Hospital", "KKU Clinic"])
-    organ = st.selectbox("Organ", list(MODEL_REGISTRY.keys()))
-
+    organ = st.selectbox("Select Organ", list(MODEL_REGISTRY.keys()))
     model_info = MODEL_REGISTRY[organ]
-    model = load_model(model_info["model_url"])
+    model = load_model(model_info["url"])
 
-    transform = transforms.Compose([
-        transforms.Resize((224,224)),
-        transforms.ToTensor()
-    ])
+    uploaded = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
 
-    file = st.file_uploader("Upload Ultrasound", type=["jpg","png","jpeg"])
+    if uploaded:
 
-    if file:
-        image = Image.open(file).convert("RGB")
+        image = Image.open(uploaded).convert("RGB")
         st.image(image, use_column_width=True)
 
-        input_tensor = transform(image).unsqueeze(0)
+        transform = transforms.Compose([
+            transforms.Resize((224,224)),
+            transforms.ToTensor()
+        ])
+
+        tensor = transform(image).unsqueeze(0)
 
         with torch.no_grad():
-            output = model(input_tensor)
-            probs = torch.softmax(output, dim=1)[0]
+            output = model(tensor)
+            prob = torch.softmax(output, dim=1)[0][1].item()
 
-        malignant_prob = probs[1].item()
         threshold = model_info["threshold"]
 
-        if malignant_prob < 0.1:
-            interpretation = "Normal"
-            color = "green"
-        elif malignant_prob < threshold:
-            interpretation = "Benign"
-            color = "orange"
+        if prob < 0.1:
+            label = "Normal"
+            color = "#2ecc71"
+        elif prob < threshold:
+            label = "Benign"
+            color = "#f1c40f"
         else:
-            interpretation = "Malignant"
-            color = "red"
+            label = "Malignant"
+            color = "#e74c3c"
 
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.metric("Malignancy Probability", f"{round(malignant_prob*100,2)}%")
-
-        with col2:
-            st.markdown(
-                f"<h2 style='color:{color};'> {interpretation} </h2>",
-                unsafe_allow_html=True
-            )
-
-        # Save audit
         case_id = str(uuid.uuid4())[:8]
-        c.execute("INSERT INTO audit VALUES (?,?,?,?,?,?)",
-                  (case_id, organ, hospital,
-                   malignant_prob, interpretation,
+
+        c.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?)",
+                  (case_id, hospital, organ, prob, label, role,
                    str(datetime.datetime.now())))
         conn.commit()
 
-        # ROC
-        st.subheader("Model Performance (ROC)")
+with right:
+
+    if uploaded:
+
+        st.markdown(f"""
+        <div style="
+        background-color:{color};
+        padding:25px;
+        border-radius:12px;
+        color:white;
+        font-size:26px;
+        font-weight:bold;">
+        {label}
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("### Clinical Summary")
+
+        st.write("Malignancy Probability:", round(prob*100,2), "%")
+        st.write("Model Version:", model_info["version"])
+        st.write("Validated AUC:", model_info["auc"])
+        st.write("Threshold Used:", threshold)
+
+        st.markdown("---")
+
+        st.subheader("ROC Curve")
         fpr = np.linspace(0,1,100)
         tpr = fpr ** (1/model_info["auc"])
         fig, ax = plt.subplots()
@@ -153,81 +215,69 @@ if page == "Clinical AI":
         ax.plot([0,1],[0,1])
         st.pyplot(fig)
 
-# =====================================================
-# DICOM METADATA
-# =====================================================
-elif page == "DICOM Metadata":
+        st.markdown("---")
 
-    st.title("DICOM Metadata Viewer")
+        if role in ["Clinician","Admin"]:
+            st.subheader("Grad-CAM Explainability")
 
-    dicom_metadata = {
-        "PatientName": "Anonymous",
-        "PatientID": "SNH-2026-001",
-        "StudyInstanceUID": "1.2.840.113619.2.55.3.604688654.783.145",
-        "Modality": "US",
-        "StudyDate": "20260216",
-        "InstitutionName": "Sri Nagarind Hospital"
-    }
+            def gradcam(model, image_tensor):
+                gradients = []
+                activations = []
 
-    st.json(dicom_metadata)
+                def f_hook(m,i,o):
+                    activations.append(o)
+                def b_hook(m,gi,go):
+                    gradients.append(go[0])
 
-# =====================================================
-# HL7 v2 SIMULATION
-# =====================================================
-elif page == "HL7 v2 Simulation":
+                h1 = model.layer4.register_forward_hook(f_hook)
+                h2 = model.layer4.register_backward_hook(b_hook)
 
-    st.title("HL7 ORU^R01 Message")
+                out = model(image_tensor)
+                model.zero_grad()
+                out[0,1].backward()
 
-    hl7_message = """
-MSH|^~\&|AI_SYSTEM|SNH|EMR|SNH|202602161030||ORU^R01|12345|P|2.3
-PID|||SNH-2026-001||Anonymous||19900101|M
-OBR|1|||Ultrasound Liver
-OBX|1|NM|MalignancyRisk||0.32|Probability
-    """
+                grads = gradients[0]
+                acts = activations[0]
 
-    st.code(hl7_message)
+                weights = torch.mean(grads, dim=(2,3))
+                cam = torch.zeros(acts.shape[2:], dtype=torch.float32)
 
-# =====================================================
-# PACS QUEUE
-# =====================================================
-elif page == "PACS Queue":
+                for i,w in enumerate(weights[0]):
+                    cam += w * acts[0,i,:,:]
 
-    st.title("PACS Push Queue")
+                cam = torch.relu(cam)
+                cam = cam / torch.max(cam)
+                cam = cam.detach().numpy()
 
-    queue_data = pd.DataFrame({
-        "StudyUID": ["1.2.3.4.5", "1.2.3.4.6"],
-        "Status": ["Processed", "Pending"]
-    })
+                h1.remove()
+                h2.remove()
+                return cam
 
-    st.dataframe(queue_data)
+            cam = gradcam(model, tensor)
+            cam = cv2.resize(cam, (image.size[0], image.size[1]))
+            heatmap = cv2.applyColorMap(np.uint8(255*cam), cv2.COLORMAP_JET)
+            heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+            overlay = np.array(image)*0.6 + heatmap*0.4
+            st.image(overlay.astype(np.uint8), use_column_width=True)
 
 # =====================================================
-# FHIR REST MOCK
+# ANALYTICS SECTION
 # =====================================================
-elif page == "FHIR REST Mock":
+st.markdown("---")
+st.subheader("Hospital Audit Overview")
 
-    st.title("FHIR REST Endpoint")
+df = pd.read_sql_query("SELECT * FROM audit", conn)
 
-    if st.button("POST DiagnosticReport"):
-        st.success("200 OK – DiagnosticReport stored in FHIR server.")
-
-    if st.button("GET Patient Resource"):
-        st.json({
-            "resourceType": "Patient",
-            "id": "SNH-2026-001"
-        })
-
-# =====================================================
-# ANALYTICS
-# =====================================================
-elif page == "Analytics Dashboard":
-
-    st.title("Enterprise Analytics")
-
-    df = pd.read_sql_query("SELECT * FROM audit", conn)
-
-    if not df.empty:
-        st.dataframe(df.tail(10))
+if not df.empty:
+    colA, colB = st.columns(2)
+    with colA:
         st.bar_chart(df["interpretation"].value_counts())
-    else:
-        st.info("No records yet.")
+    with colB:
+        st.bar_chart(df["organ"].value_counts())
+
+# =====================================================
+# LOGOUT
+# =====================================================
+if st.sidebar.button("Logout"):
+    st.session_state.auth = None
+    st.rerun()
