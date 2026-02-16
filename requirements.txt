@@ -5,5 +5,5 @@ numpy
 pandas
 matplotlib
 Pillow
-reportlab
 opencv-python-headless
+reportlab
