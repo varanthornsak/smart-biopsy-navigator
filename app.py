@@ -10,48 +10,46 @@ import datetime
 # =====================================
 # PAGE CONFIG
 # =====================================
-
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
 # =====================================
-# ENTERPRISE CSS
+# ENTERPRISE UI STYLE
 # =====================================
-
 st.markdown("""
 <style>
 body { background-color: #0f172a; }
-.main-title { font-size: 2.2rem; font-weight: 700; color: white; }
-.sub-title { color: #94a3b8; margin-bottom: 20px; }
+.main-title { font-size: 2.4rem; font-weight: 700; color: white; }
+.sub-title { color: #94a3b8; margin-bottom: 25px; }
 .card { background-color: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 15px; }
 .metric-label { color: #94a3b8; font-size: 0.9rem; }
-.metric-value { font-size: 1.6rem; font-weight: 600; }
+.metric-value { font-size: 1.7rem; font-weight: 600; }
 .high-risk { color: #ef4444; }
 .medium-risk { color: #f59e0b; }
 .low-risk { color: #22c55e; }
+.sidebar .sidebar-content { background-color: #0f172a; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<div class='main-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>Enterprise Multi-Organ Ultrasound AI Platform</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>Enterprise Multi-Organ Clinical AI Platform</div>", unsafe_allow_html=True)
 
 # =====================================
 # MODEL REGISTRY
 # =====================================
-
 MODEL_REGISTRY = {
     "Liver": {
-        "model_url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/best_liver_model.pth",
-        "num_classes": 3,
-        "malignant_index": 2,   # normal=0, benign=1, malignant=2
-        "auc": 0.89,
-        "screening_threshold": 0.18,
+        "model_url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
+        "num_classes": 2,
+        "malignant_index": 1,
+        "auc": 0.899,
+        "screening_threshold": 0.2835,
         "balanced_threshold": 0.5,
-        "version": "Liver v1.0"
+        "version": "Liver v2.1"
     },
     "Thyroid": {
         "model_url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/thyroid_v1_final.pth",
         "num_classes": 2,
-        "malignant_index": 1,   # benign=0, malignant=1
+        "malignant_index": 1,
         "auc": 0.851,
         "screening_threshold": 0.40,
         "balanced_threshold": 0.5,
@@ -62,7 +60,6 @@ MODEL_REGISTRY = {
 # =====================================
 # SIDEBAR
 # =====================================
-
 st.sidebar.header("System Configuration")
 
 selected_organ = st.sidebar.selectbox(
@@ -80,7 +77,6 @@ model_info = MODEL_REGISTRY[selected_organ]
 # =====================================
 # MODEL LOADER
 # =====================================
-
 @st.cache_resource
 def load_model(model_url, num_classes):
     model = models.resnet18(weights=None)
@@ -95,10 +91,7 @@ def load_model(model_url, num_classes):
     model.eval()
     return model
 
-model = load_model(
-    model_info["model_url"],
-    model_info["num_classes"]
-)
+model = load_model(model_info["model_url"], model_info["num_classes"])
 
 transform = transforms.Compose([
     transforms.Resize((224,224)),
@@ -108,7 +101,6 @@ transform = transforms.Compose([
 # =====================================
 # MAIN LAYOUT
 # =====================================
-
 left_col, right_col = st.columns([1.2, 1])
 
 with left_col:
@@ -120,7 +112,7 @@ with left_col:
         st.image(image, use_column_width=True)
 
 with right_col:
-    st.markdown("### AI Assessment")
+    st.markdown("### AI Clinical Assessment")
 
     if uploaded_file:
 
@@ -135,6 +127,7 @@ with right_col:
         malignant_prob = probs[model_info["malignant_index"]].item()
         risk_score = malignant_prob * 100
 
+        # Select threshold based on mode
         if mode == "Screening":
             threshold = model_info["screening_threshold"]
         else:
@@ -142,7 +135,7 @@ with right_col:
 
         risk_flag = 1 if malignant_prob >= threshold else 0
 
-        # Risk color logic
+        # Risk color classification
         if risk_score >= 70:
             risk_class = "high-risk"
         elif risk_score >= 40:
@@ -162,7 +155,7 @@ with right_col:
         st.markdown(f"<div class='metric-value {risk_class}'>{round(risk_score,2)}%</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Recommendation
+        # Clinical Recommendation
         st.markdown("### Clinical Recommendation")
 
         if risk_flag == 1:
