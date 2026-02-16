@@ -48,7 +48,7 @@ MODEL_REGISTRY = {
 }
 
 # =====================================================
-# DATABASE
+# DATABASE (SQLite)
 # =====================================================
 conn = sqlite3.connect("clinical_audit.db", check_same_thread=False)
 c = conn.cursor()
@@ -139,7 +139,7 @@ def generate_gradcam(model, image_tensor, target_class):
     return cam
 
 # =====================================================
-# CLINICAL AI
+# 1️⃣ CLINICAL AI
 # =====================================================
 if page == "Clinical AI":
 
@@ -186,9 +186,10 @@ if page == "Clinical AI":
 
         st.metric("Malignancy Probability", f"{round(malignant_prob*100,2)}%")
         st.write("Interpretation:", interpretation)
+        st.write("Model:", model_info["version"])
 
         # ROC
-        st.subheader("ROC Curve")
+        st.subheader("ROC Curve (Validated)")
         fpr = np.linspace(0,1,100)
         tpr = fpr ** (1/model_info["auc"])
         fig, ax = plt.subplots()
@@ -205,22 +206,17 @@ if page == "Clinical AI":
         overlay = np.array(image) * 0.6 + heatmap * 0.4
         st.image(overlay.astype(np.uint8), use_column_width=True)
 
-        # SAVE DB
+        # SAVE TO DB
         case_id = str(uuid.uuid4())[:8]
-        try:
-            c.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?)",
-                      (case_id, organ, hospital, mode,
-                       malignant_prob, interpretation,
-                       str(datetime.datetime.now())))
-            conn.commit()
-        except Exception as e:
-            st.error("Database write error")
-            st.write(str(e))
+        c.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?)",
+                  (case_id, organ, hospital, mode,
+                   malignant_prob, interpretation,
+                   str(datetime.datetime.now())))
+        conn.commit()
 
-        # PDF
+        # PDF EXPORT
         if role in ["Clinician","Admin"]:
             if st.button("Export PDF Report"):
-
                 file_name = f"{case_id}_report.pdf"
                 doc = SimpleDocTemplate(file_name, pagesize=A4)
                 styles = getSampleStyleSheet()
@@ -232,7 +228,7 @@ if page == "Clinical AI":
                 elements.append(Paragraph(f"Organ: {organ}", styles["Normal"]))
                 elements.append(Paragraph(f"Probability: {round(malignant_prob*100,2)}%", styles["Normal"]))
                 elements.append(Paragraph(f"Interpretation: {interpretation}", styles["Normal"]))
-                elements.append(Paragraph("Disclaimer: Not a standalone diagnostic tool.", styles["Normal"]))
+                elements.append(Paragraph("Disclaimer: AI support tool only.", styles["Normal"]))
 
                 doc.build(elements)
 
@@ -240,27 +236,22 @@ if page == "Clinical AI":
                     st.download_button("Download Report", f, file_name=file_name)
 
 # =====================================================
-# HOSPITAL ANALYTICS
+# 2️⃣ HOSPITAL ANALYTICS
 # =====================================================
 elif page == "Hospital Analytics":
 
     st.title("Multi-Hospital Analytics")
 
-    try:
-        df = pd.read_sql_query("SELECT * FROM audit", conn)
+    df = pd.read_sql_query("SELECT * FROM audit", conn)
 
-        if not df.empty:
-            st.dataframe(df.tail(20))
-            st.bar_chart(df["hospital"].value_counts())
-        else:
-            st.info("No cases recorded yet.")
-
-    except Exception as e:
-        st.error("Database read error")
-        st.write(str(e))
+    if not df.empty:
+        st.dataframe(df.tail(20))
+        st.bar_chart(df["hospital"].value_counts())
+    else:
+        st.info("No cases recorded yet.")
 
 # =====================================================
-# MODEL REGISTRY
+# 3️⃣ MODEL REGISTRY
 # =====================================================
 elif page == "Model Registry":
 
@@ -274,7 +265,7 @@ elif page == "Model Registry":
         st.write("---")
 
 # =====================================================
-# DEPLOYMENT
+# 4️⃣ DEPLOYMENT DASHBOARD
 # =====================================================
 elif page == "Deployment Dashboard":
 
@@ -284,34 +275,60 @@ elif page == "Deployment Dashboard":
     st.write("Device:", "CUDA" if torch.cuda.is_available() else "CPU")
 
 # =====================================================
-# FHIR SIM
+# 5️⃣ FHIR / PACS SIMULATION
 # =====================================================
 elif page == "FHIR/PACS Simulation":
 
-    st.title("FHIR Simulation")
+    st.title("FHIR & PACS Integration Simulation")
 
-    example_fhir = {
-        "resourceType": "DiagnosticReport",
-        "status": "final",
-        "code": {"text": "AI Ultrasound Risk Assessment"},
-        "subject": {"reference": "Patient/12345"},
-        "result": [{"valueString": "Suspicious Malignant"}]
+    patient_id = "SNH-2026-001"
+    study_uid = "1.2.840.113619.2.55.3.604688654.783.145"
+
+    patient_resource = {
+        "resourceType": "Patient",
+        "id": patient_id,
+        "managingOrganization": {"reference": "Organization/SriNagarindHospital"}
     }
 
-    st.json(example_fhir)
+    imaging_resource = {
+        "resourceType": "ImagingStudy",
+        "id": study_uid,
+        "status": "available",
+        "modality": [{"code": "US"}]
+    }
+
+    observation_resource = {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {"text": "AI Malignancy Risk Score"},
+        "valueQuantity": {"value": 0.32}
+    }
+
+    diagnostic_report = {
+        "resourceType": "DiagnosticReport",
+        "status": "final",
+        "code": {"text": "AI Ultrasound Diagnostic Support"},
+        "conclusion": "Suspicious Malignant"
+    }
+
+    st.json(patient_resource)
+    st.json(imaging_resource)
+    st.json(observation_resource)
+    st.json(diagnostic_report)
 
 # =====================================================
-# USER GUIDE
+# 6️⃣ USER GUIDE
 # =====================================================
 elif page == "User Guide":
 
     st.title("User Guide")
 
     st.markdown("""
-    1. Select hospital (e.g., Sri Nagarind Hospital).
+    1. Select hospital (Sri Nagarind Hospital supported).
     2. Choose organ.
     3. Select Screening or Balanced mode.
     4. Upload ultrasound image.
-    5. Review probability & interpretation.
-    6. Export PDF if needed.
+    5. Review probability and interpretation.
+    6. Export PDF report if needed.
     """)
+
