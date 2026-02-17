@@ -631,41 +631,6 @@ with advanced_tabs[3]:
 # =====================================================
 # ROI MODEL
 # =====================================================
-with advanced_tabs[4]:
-
-    st.subheader("Biopsy Avoidance ROI Simulation")
-
-    annual_cases = st.slider("Annual Ultrasound Cases", 1000, 50000, 10000)
-    biopsy_cost = st.slider("Cost per Biopsy (USD)", 500, 5000, 2000)
-    avoided_rate = st.slider("Biopsy Avoidance %", 5, 50, 20)
-
-    savings = annual_cases * (avoided_rate/100) * biopsy_cost
-
-    st.metric("Estimated Annual Cost Savings (USD)", f"{savings:,.0f}")
-
-# =====================================================
-# MULTI-CENTER VALIDATION
-# =====================================================
-with advanced_tabs[5]:
-
-    st.subheader("External Multi-Center Validation (Simulated)")
-
-    centers = ["Sri Nagarind Hospital", "Bangkok Hospital", "Chiang Mai University"]
-    auc_scores = [0.91, 0.88, 0.90]
-
-    df_centers = pd.DataFrame({
-        "Center": centers,
-        "AUC": auc_scores
-    })
-
-    st.dataframe(df_centers)
-
-    fig, ax = plt.subplots()
-    ax.bar(centers, auc_scores)
-    ax.set_ylim(0.8,1.0)
-    ax.set_title("External Validation AUC")
-    st.pyplot(fig)
-
 # =====================================================
 # AI GOVERNANCE DASHBOARD
 # =====================================================
@@ -710,107 +675,67 @@ Pipeline:
 7. Deployment to production registry
 """)
 # =====================================================
-# =============== FHIR COMPLETE MODULE ===============
+# =============== FHIR COMPLETE MODULE (FIXED) =======
 # =====================================================
 
 import json
 import requests
-import datetime
-import uuid
-import base64
 
 st.markdown("---")
 st.markdown("## 🏥 FHIR Complete Integration Module")
 
 fhir_tabs = st.tabs([
-    "Generate FHIR Resources",
-    "Full Transaction Bundle",
+    "Generate Production Bundle",
     "Send to HAPI FHIR",
-    "Official Validator"
+    "Download for Validator",
+    "Bundle Preview"
 ])
 
 # =====================================================
-# SAFE DEFAULT VALUES FROM MODEL
+# SAFE VALUES FROM MODEL SESSION
 # =====================================================
 
 safe_patient_id = st.session_state.get("fhir_patient_id", "HN123456")
-safe_probability = st.session_state.get("fhir_probability", 0.5)
-safe_uploaded = st.session_state.get("uploaded_image", None)
+safe_probability = float(st.session_state.get("fhir_probability", 0.5))
 
 loinc_code = "34543-9"
-practitioner_id = "PRAC001"
 
 # =====================================================
-# 1️⃣ GENERATE FULL FHIR TRANSACTION BUNDLE
+# 1️⃣ GENERATE CLEAN HAPI-COMPATIBLE BUNDLE
 # =====================================================
 
 with fhir_tabs[0]:
 
-    st.subheader("Generate Production-Ready FHIR Bundle")
-
-    patient_input = st.text_input(
-        "Patient ID",
-        safe_patient_id,
-        key="prod_patient_id"
-    )
+    st.subheader("Generate HAPI-Compatible Transaction Bundle")
 
     iso_time = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
-    # UUIDs
-    patient_uuid = f"urn:uuid:{uuid.uuid4()}"
-    practitioner_uuid = f"urn:uuid:{uuid.uuid4()}"
-    observation_uuid = f"urn:uuid:{uuid.uuid4()}"
-    report_uuid = f"urn:uuid:{uuid.uuid4()}"
-
-    # Interpretation Mapping
-    if safe_probability < 0.1:
-        interp_code = "N"
-        interp_display = "Normal"
-    elif safe_probability < DEFAULT_THRESHOLD:
-        interp_code = "L"
-        interp_display = "Low"
-    else:
-        interp_code = "H"
-        interp_display = "High"
+    # deterministic IDs (NO urn:uuid)
+    patient_id = f"patient-{uuid.uuid4().hex[:8]}"
+    practitioner_id = f"practitioner-{uuid.uuid4().hex[:8]}"
+    observation_id = f"observation-{uuid.uuid4().hex[:8]}"
+    report_id = f"report-{uuid.uuid4().hex[:8]}"
 
     # ---------------- PATIENT ----------------
     patient_resource = {
         "resourceType": "Patient",
-        "id": patient_uuid.split(":")[-1],
-        "text": {
-            "status": "generated",
-            "div": "<div>Patient Record for AI Risk Assessment</div>"
-        },
+        "id": patient_id,
         "active": True
     }
 
     # ---------------- PRACTITIONER ----------------
     practitioner_resource = {
         "resourceType": "Practitioner",
-        "id": practitioner_uuid.split(":")[-1],
-        "text": {
-            "status": "generated",
-            "div": "<div>AI Radiology System</div>"
-        },
-        "active": True
+        "id": practitioner_id,
+        "active": True,
+        "name": [{"text": "AI Radiologist"}]
     }
 
     # ---------------- OBSERVATION ----------------
     observation_resource = {
         "resourceType": "Observation",
-        "id": observation_uuid.split(":")[-1],
-        "text": {
-            "status": "generated",
-            "div": "<div>AI Liver Malignancy Risk Assessment</div>"
-        },
+        "id": observation_id,
         "status": "final",
-        "category": [{
-            "coding": [{
-                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
-                "code": "imaging",
-                "display": "Imaging"
-            }]
-        }],
         "code": {
             "coding": [{
                 "system": "http://loinc.org",
@@ -818,131 +743,141 @@ with fhir_tabs[0]:
                 "display": "AI Malignancy Risk"
             }]
         },
-        "subject": {"reference": patient_uuid},
-        "effectiveDateTime": iso_time,
-        "performer": [{"reference": practitioner_uuid}],
-        "valueQuantity": {
-            "value": round(float(safe_probability), 5),
-            "unit": "probability"
+        "subject": {
+            "reference": f"Patient/{patient_id}"
         },
-        "interpretation": [{
-            "coding": [{
-                "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
-                "code": interp_code,
-                "display": interp_display
-            }]
-        }]
+        "effectiveDateTime": iso_time,
+        "performer": [{
+            "reference": f"Practitioner/{practitioner_id}"
+        }],
+        "valueQuantity": {
+            "value": round(safe_probability, 5),
+            "unit": "probability"
+        }
     }
 
     # ---------------- DIAGNOSTIC REPORT ----------------
     diagnostic_report_resource = {
         "resourceType": "DiagnosticReport",
-        "id": report_uuid.split(":")[-1],
-        "text": {
-            "status": "generated",
-            "div": "<div>AI Ultrasound Risk Assessment Report</div>"
-        },
+        "id": report_id,
         "status": "final",
-        "code": {"text": "AI Ultrasound Risk Assessment"},
-        "subject": {"reference": patient_uuid},
-        "effectiveDateTime": iso_time,
+        "code": {
+            "text": "AI Ultrasound Risk Assessment"
+        },
+        "subject": {
+            "reference": f"Patient/{patient_id}"
+        },
         "result": [{
-            "reference": observation_uuid
+            "reference": f"Observation/{observation_id}"
         }]
     }
 
-    # ---------------- FULL BUNDLE ----------------
-    full_bundle = {
+    # ---------------- TRANSACTION BUNDLE ----------------
+    bundle = {
         "resourceType": "Bundle",
         "type": "transaction",
         "entry": [
             {
-                "fullUrl": patient_uuid,
                 "resource": patient_resource,
-                "request": {"method": "POST", "url": "Patient"}
+                "request": {
+                    "method": "PUT",
+                    "url": f"Patient/{patient_id}"
+                }
             },
             {
-                "fullUrl": practitioner_uuid,
                 "resource": practitioner_resource,
-                "request": {"method": "POST", "url": "Practitioner"}
+                "request": {
+                    "method": "PUT",
+                    "url": f"Practitioner/{practitioner_id}"
+                }
             },
             {
-                "fullUrl": observation_uuid,
                 "resource": observation_resource,
-                "request": {"method": "POST", "url": "Observation"}
+                "request": {
+                    "method": "PUT",
+                    "url": f"Observation/{observation_id}"
+                }
             },
             {
-                "fullUrl": report_uuid,
                 "resource": diagnostic_report_resource,
-                "request": {"method": "POST", "url": "DiagnosticReport"}
+                "request": {
+                    "method": "PUT",
+                    "url": f"DiagnosticReport/{report_id}"
+                }
             }
         ]
     }
 
-    st.session_state.production_bundle = full_bundle
+    st.session_state.clean_bundle = bundle
 
-    st.success("Production FHIR Bundle Generated")
-    st.json(full_bundle)
-
+    st.success("HAPI-Compatible Bundle Generated")
+    st.json(bundle)
 
 # =====================================================
-# 2️⃣ SEND TO HAPI
+# 2️⃣ SEND TO PUBLIC HAPI
 # =====================================================
 
 with fhir_tabs[1]:
 
-    st.subheader("Send to HAPI FHIR Test Server")
+    st.subheader("Send to https://hapi.fhir.org/baseR4")
 
-    hapi_url = st.text_input(
-        "HAPI FHIR Endpoint",
-        "https://hapi.fhir.org/baseR4",
-        key="hapi_url_prod"
-    )
+    if st.button("POST Bundle to HAPI"):
 
-    if st.button("POST Production Bundle"):
-
-        if "production_bundle" not in st.session_state:
+        if "clean_bundle" not in st.session_state:
             st.error("Generate bundle first.")
         else:
             try:
                 response = requests.post(
-                    hapi_url,
-                    json=st.session_state.production_bundle,
+                    "https://hapi.fhir.org/baseR4",
+                    json=st.session_state.clean_bundle,
                     headers={"Content-Type": "application/fhir+json"},
-                    timeout=10
+                    timeout=20
                 )
 
                 st.write("Status Code:", response.status_code)
+
                 try:
                     st.json(response.json())
                 except:
-                    st.write("Response received.")
+                    st.write("Response received (non-JSON).")
 
-            except Exception:
-                st.error("Connection failed.")
-
+            except Exception as e:
+                st.error(f"Connection failed: {e}")
 
 # =====================================================
-# 3️⃣ OFFICIAL VALIDATOR
+# 3️⃣ DOWNLOAD FOR OFFICIAL VALIDATOR
 # =====================================================
 
 with fhir_tabs[2]:
 
-    st.subheader("Official FHIR Validator")
+    st.subheader("Download for Official Validator")
 
-    if "production_bundle" not in st.session_state:
-        st.warning("Generate Production Bundle first.")
+    if "clean_bundle" not in st.session_state:
+        st.warning("Generate bundle first.")
     else:
         bundle_json = json.dumps(
-            st.session_state.production_bundle,
+            st.session_state.clean_bundle,
             indent=2
         )
 
         st.download_button(
-            label="Download Validator-Ready Bundle",
+            label="Download Validator-Ready JSON",
             data=bundle_json,
             file_name="validator_ready_bundle.json",
             mime="application/json"
         )
 
         st.info("Upload this file to https://validator.fhir.org/")
+
+# =====================================================
+# 4️⃣ PREVIEW
+# =====================================================
+
+with fhir_tabs[3]:
+
+    st.subheader("Current Bundle in Session")
+
+    if "clean_bundle" in st.session_state:
+        st.json(st.session_state.clean_bundle)
+    else:
+        st.info("No bundle generated yet.")
