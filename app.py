@@ -232,8 +232,8 @@ with tabs[3]:
     **Step 2:** Upload clear transverse liver ultrasound image.  
     **Step 3:** Select Screening (high sensitivity) or Balanced mode.  
     **Step 4:** Review color-coded classification:
-        - 🟢 Green → Likely Normal
-        - 🟡 Yellow → Likely Benign
-        - 🔴 Red → Suspicious Malignant
+        🟢 Green → Likely Normal
+        🟡 Yellow → Likely Benign
+        🔴 Red → Suspicious Malignant
     **Step 5:** Interpretation and risk stored automatically.
     """)
