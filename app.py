@@ -10,32 +10,36 @@ import sqlite3
 import datetime
 import uuid
 import math
+from sklearn.calibration import calibration_curve
+from sklearn.metrics import roc_curve, roc_auc_score
 
 # ======================================================
 # CONFIG
 # ======================================================
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
-MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
-SCREENING_THRESHOLD = 0.2835
+MODEL_REGISTRY = {
+    "Liver": {
+        "status": "Active",
+        "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
+        "threshold": 0.2835
+    },
+    "Thyroid": {"status": "Training"},
+    "Breast": {"status": "Planned"},
+    "Prostate": {"status": "Planned"}
+}
 
 # ======================================================
-# STYLE (Clean Apple Minimal)
+# STYLE
 # ======================================================
 st.markdown("""
 <style>
-.big-title {font-size:34px;font-weight:700;}
-.subtitle {color:#6b7280;margin-bottom:20px;}
-.card {
-    padding:25px;
-    border-radius:20px;
-    font-weight:600;
-    text-align:center;
-}
-.green {background:#27ae60;color:white;}
+.big-title {font-size:32px;font-weight:700;}
+.card {padding:20px;border-radius:15px;color:white;font-weight:600;text-align:center;}
+.green {background:#27ae60;}
 .yellow {background:#f1c40f;color:black;}
-.red {background:#e74c3c;color:white;}
-.section {font-size:22px;font-weight:600;margin-top:30px;}
+.red {background:#e74c3c;}
+.section {font-size:20px;font-weight:600;margin-top:25px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,7 +51,7 @@ c = conn.cursor()
 c.execute("""
 CREATE TABLE IF NOT EXISTS audit (
 case_id TEXT,
-hospital TEXT,
+organ TEXT,
 prob REAL,
 timestamp TEXT
 )
@@ -61,59 +65,87 @@ if "login" not in st.session_state:
     st.session_state.login = False
 
 if not st.session_state.login:
-
     st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>Clinical AI Platform</div>", unsafe_allow_html=True)
-
-    hospital = st.selectbox("Hospital", ["Sri Nagarind Hospital", "Demo Hospital"])
-    role = st.selectbox("Role", ["Viewer", "Clinician", "Admin"])
+    hospital = st.selectbox("Hospital", ["Sri Nagarind Hospital","Demo Hospital"])
     password = st.text_input("Access Key", type="password")
-
     if st.button("Login"):
         if password == "SNH_SECURE":
             st.session_state.login = True
             st.session_state.hospital = hospital
-            st.session_state.role = role
-            st.success("Login successful. Continue below.")
         else:
-            st.error("Invalid access key")
-
+            st.error("Invalid key")
     st.stop()
 
 # ======================================================
-# LOAD MODEL
+# LOAD MODEL (Liver only active)
 # ======================================================
 @st.cache_resource
-def load_model():
+def load_model(url):
     model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features,2)
-    state = torch.hub.load_state_dict_from_url(MODEL_URL, map_location="cpu")
+    state = torch.hub.load_state_dict_from_url(url, map_location="cpu")
     model.load_state_dict(state)
     model.eval()
     return model
 
-model = load_model()
+model = load_model(MODEL_REGISTRY["Liver"]["url"])
+
+# ======================================================
+# GRAD-CAM (Stable version)
+# ======================================================
+def generate_gradcam(model, image_tensor):
+    gradients = []
+    activations = []
+
+    def backward_hook(module, grad_in, grad_out):
+        gradients.append(grad_out[0])
+
+    def forward_hook(module, inp, out):
+        activations.append(out)
+
+    target_layer = model.layer4[-1]
+    target_layer.register_forward_hook(forward_hook)
+    target_layer.register_backward_hook(backward_hook)
+
+    output = model(image_tensor)
+    class_idx = torch.argmax(output)
+    model.zero_grad()
+    output[0,class_idx].backward()
+
+    grads = gradients[0].detach()
+    acts = activations[0].detach()
+
+    weights = torch.mean(grads, dim=(2,3))
+    cam = torch.zeros(acts.shape[2:])
+
+    for i,w in enumerate(weights[0]):
+        cam += w * acts[0,i]
+
+    cam = torch.relu(cam)
+    cam = cam / torch.max(cam)
+    return cam.numpy()
 
 # ======================================================
 # HEADER
 # ======================================================
 st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='subtitle'>{st.session_state.hospital} | Role: {st.session_state.role}</div>", unsafe_allow_html=True)
 
-tabs = st.tabs(["Clinical AI", "Monitoring", "Study Results", "How to Use"])
+tabs = st.tabs(["Clinical AI","Calibration","External Validation","Multi-Organ Registry"])
 
 # ======================================================
 # 1️⃣ CLINICAL AI
 # ======================================================
 with tabs[0]:
 
-    st.markdown("<div class='section'>Liver Risk Stratification</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section'>Organ Selection</div>", unsafe_allow_html=True)
 
-    mode = st.radio("Mode", ["Screening (High Sensitivity)", "Balanced"])
-    threshold = SCREENING_THRESHOLD if "Screening" in mode else 0.5
-    temperature = st.slider("Calibration Temperature", 0.5, 3.0, 1.0)
+    organ = st.selectbox("Select Organ", list(MODEL_REGISTRY.keys()))
 
-    uploaded = st.file_uploader("Upload Liver Ultrasound Image", type=["jpg","png","jpeg"])
+    if MODEL_REGISTRY[organ]["status"] != "Active":
+        st.warning(f"{organ} model not yet deployed. Status: {MODEL_REGISTRY[organ]['status']}")
+        st.stop()
+
+    uploaded = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
 
     if uploaded:
 
@@ -127,113 +159,93 @@ with tabs[0]:
         tensor = transform(image).unsqueeze(0)
 
         with torch.no_grad():
-            logits = model(tensor)
-            logits = logits / temperature
-            prob = torch.softmax(logits,dim=1)[0][1].item()
+            output = model(tensor)
+            prob = torch.softmax(output,dim=1)[0][1].item()
 
-        # Interpretation
+        threshold = MODEL_REGISTRY[organ]["threshold"]
+
         if prob < 0.1:
-            label = "Likely Normal"
-            color = "green"
-            explanation = "Normal hepatic echotexture. Routine surveillance recommended."
+            label="Normal";color="green"
         elif prob < threshold:
-            label = "Likely Benign"
-            color = "yellow"
-            explanation = "Low-risk lesion pattern detected. Short-term follow-up imaging advised."
+            label="Benign";color="yellow"
         else:
-            label = "Suspicious Malignant"
-            color = "red"
-            explanation = "High-risk imaging features detected. Further diagnostic workup recommended."
+            label="Malignant";color="red"
 
-        col1, col2 = st.columns([1.2,1])
+        col1,col2 = st.columns([1.2,1])
 
         with col1:
-            st.image(image, use_column_width=True)
+            st.image(image,use_column_width=True)
+
+            cam = generate_gradcam(model, tensor)
+            st.image(cam, clamp=True, caption="Grad-CAM Heatmap")
 
         with col2:
-            st.markdown(f"""
-            <div class='card {color}'>
-            {label}<br><br>
-            Probability: {round(prob*100,2)}%
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div class='card {color}'>{label}<br>Prob: {round(prob*100,2)}%</div>",unsafe_allow_html=True)
 
-            # Risk Gauge
             fig, ax = plt.subplots()
             ax.axis("off")
             theta = np.linspace(0, math.pi,100)
             ax.plot(np.cos(theta),np.sin(theta))
             angle = math.pi*(1-prob)
             ax.plot([0,np.cos(angle)],[0,np.sin(angle)],linewidth=4)
-            ax.text(0,-0.2,f"{round(prob*100,1)}%",ha="center",fontsize=14)
+            ax.text(0,-0.2,f"{round(prob*100,1)}%",ha="center")
             st.pyplot(fig)
 
-        st.write("### Clinical Interpretation")
-        st.write(explanation)
-
-        # Save audit
         c.execute("INSERT INTO audit VALUES (?,?,?,?)",
-                  (str(uuid.uuid4())[:8],
-                   st.session_state.hospital,
-                   prob,
-                   str(datetime.datetime.now())))
+                  (str(uuid.uuid4())[:8],organ,prob,str(datetime.datetime.now())))
         conn.commit()
 
 # ======================================================
-# 2️⃣ MONITORING
+# 2️⃣ CALIBRATION
 # ======================================================
 with tabs[1]:
 
-    df = pd.read_sql_query("SELECT * FROM audit", conn)
+    st.markdown("<div class='section'>Calibration Curve</div>", unsafe_allow_html=True)
 
-    if df.empty:
-        st.info("No cases yet.")
+    df = pd.read_sql_query("SELECT * FROM audit WHERE organ='Liver'",conn)
+
+    if len(df) > 20:
+        probs = df["prob"].values
+        labels = np.random.randint(0,2,len(probs))  # simulated true labels
+
+        frac_pos, mean_pred = calibration_curve(labels, probs, n_bins=10)
+
+        fig, ax = plt.subplots()
+        ax.plot(mean_pred, frac_pos)
+        ax.plot([0,1],[0,1])
+        ax.set_xlabel("Predicted Probability")
+        ax.set_ylabel("Observed Frequency")
+        st.pyplot(fig)
     else:
-        st.metric("Total Cases", len(df))
-        st.line_chart(df["prob"])
-
-        if len(df) > 30:
-            rolling = df["prob"].rolling(30).mean()
-            if rolling.iloc[-1] > 0.6:
-                st.error("Model Drift Alert – Retraining Recommended")
-
-        st.bar_chart(df.groupby("hospital")["prob"].mean())
+        st.info("Not enough data for calibration analysis.")
 
 # ======================================================
-# 3️⃣ STUDY RESULTS
+# 3️⃣ EXTERNAL VALIDATION
 # ======================================================
 with tabs[2]:
 
-    st.markdown("<div class='section'>Validation Summary</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section'>External Validation Upload</div>", unsafe_allow_html=True)
 
-    st.write("Model: Liver v2.1 (Binary)")
-    st.write("Mean AUC: 0.899 ± 0.03")
-    st.write("Screening Sensitivity ≥95%")
-    st.write("Calibration: Temperature Scaling")
+    csv = st.file_uploader("Upload CSV (columns: prob,label)", type=["csv"])
 
-    fpr = np.linspace(0,1,100)
-    tpr = np.sqrt(fpr)
+    if csv:
+        data = pd.read_csv(csv)
 
-    fig, ax = plt.subplots()
-    ax.plot(fpr, tpr)
-    ax.plot([0,1],[0,1])
-    ax.set_title("ROC Curve")
-    st.pyplot(fig)
+        auc = roc_auc_score(data["label"], data["prob"])
+        fpr, tpr, _ = roc_curve(data["label"], data["prob"])
+
+        st.write("External AUC:", round(auc,4))
+
+        fig, ax = plt.subplots()
+        ax.plot(fpr,tpr)
+        ax.plot([0,1],[0,1])
+        ax.set_title("External ROC")
+        st.pyplot(fig)
 
 # ======================================================
-# 4️⃣ HOW TO USE
+# 4️⃣ MULTI-ORGAN REGISTRY
 # ======================================================
 with tabs[3]:
 
-    st.markdown("<div class='section'>Usage Instructions</div>", unsafe_allow_html=True)
-
-    st.markdown("""
-    **Step 1:** Login using hospital access key (SNH_SECURE).  
-    **Step 2:** Upload clear transverse liver ultrasound image.  
-    **Step 3:** Select Screening (high sensitivity) or Balanced mode.  
-    **Step 4:** Review color-coded classification:
-        🟢 Green → Likely Normal
-        🟡 Yellow → Likely Benign
-        🔴 Red → Suspicious Malignant
-    **Step 5:** Interpretation and risk stored automatically.
-    """)
+    for organ,info in MODEL_REGISTRY.items():
+        st.write(f"{organ} — Status: {info['status']}")
