@@ -10,6 +10,9 @@ import sqlite3
 import datetime
 import uuid
 import math
+import json
+import requests
+import base64
 
 # =====================================================
 # PAGE CONFIG
@@ -20,28 +23,23 @@ st.set_page_config(
 )
 
 # =====================================================
-# APP STYLE (Apple Minimal)
+# GLOBAL STYLE – PRODUCTION CLEAN
 # =====================================================
 st.markdown("""
 <style>
-html, body { background-color: #f8f9fb; }
-.big-title { font-size: 32px; font-weight: 700; }
-.subtitle { color: #6e6e73; margin-bottom: 20px; }
-.card { padding: 20px; border-radius: 14px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+html, body { background-color: #f6f8fa; }
+.big-title { font-size: 28px; font-weight: 700; }
+.subtitle { color: #6e6e73; margin-bottom: 10px; }
+.card { padding: 18px; border-radius: 12px; background: white; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
 .green { background: #e8f7ef; border-left: 6px solid #2ecc71; }
 .yellow { background: #fff8e5; border-left: 6px solid #f1c40f; }
 .red { background: #fdecea; border-left: 6px solid #e74c3c; }
+.section-divider { margin-top: 30px; margin-bottom: 15px; }
 </style>
 """, unsafe_allow_html=True)
 
 # =====================================================
-# MODEL CONFIG
-# =====================================================
-MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
-DEFAULT_THRESHOLD = 0.2835
-
-# =====================================================
-# DATABASE (Multi-tenant SaaS Simulation)
+# DATABASE
 # =====================================================
 def init_db():
     conn = sqlite3.connect("saas.db", check_same_thread=False)
@@ -69,7 +67,24 @@ def log_case(case_id, hospital, role, organ, prob, classification):
     conn.commit()
 
 # =====================================================
-# LOGIN (Multi-tenant)
+# MODEL CONFIG
+# =====================================================
+MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
+DEFAULT_THRESHOLD = 0.2835
+
+@st.cache_resource
+def load_model():
+    model = models.resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 2)
+    state = torch.hub.load_state_dict_from_url(MODEL_URL, map_location="cpu")
+    model.load_state_dict(state)
+    model.eval()
+    return model
+
+model = load_model()
+
+# =====================================================
+# LOGIN
 # =====================================================
 if "login" not in st.session_state:
     st.session_state.login = False
@@ -77,13 +92,17 @@ if "login" not in st.session_state:
 if not st.session_state.login:
 
     st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>Premium Enterprise SaaS</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Enterprise Clinical AI Platform</div>", unsafe_allow_html=True)
 
-    hospital = st.selectbox("Hospital Tenant",
-                            ["Sri Nagarind Hospital", "Bangkok Hospital", "Demo Hospital"])
+    hospital = st.selectbox(
+        "Hospital Tenant",
+        ["Sri Nagarind Hospital", "Bangkok Hospital", "Demo Hospital"]
+    )
 
-    role = st.selectbox("User Role",
-                        ["Radiologist", "Surgeon", "Oncologist", "Admin"])
+    role = st.selectbox(
+        "User Role",
+        ["Radiologist", "Surgeon", "Oncologist", "Admin"]
+    )
 
     key = st.text_input("Access Key", type="password")
 
@@ -98,51 +117,45 @@ if not st.session_state.login:
     st.stop()
 
 # =====================================================
-# LOAD MODEL
+# SIDEBAR – PRODUCTION NAV
 # =====================================================
-@st.cache_resource
-def load_model():
-    model = models.resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, 2)
-    state = torch.hub.load_state_dict_from_url(MODEL_URL, map_location="cpu")
-    model.load_state_dict(state)
-    model.eval()
-    return model
+st.sidebar.markdown("## Smart Biopsy Navigator")
+st.sidebar.markdown(f"**{st.session_state.hospital}**")
+st.sidebar.markdown(f"Role: {st.session_state.role}")
 
-model = load_model()
+app_mode = st.sidebar.radio(
+    "Platform Mode",
+    [
+        "Clinical Workspace",
+        "Executive Dashboard",
+        "Research & Validation",
+        "FHIR Integration",
+        "Infrastructure"
+    ]
+)
 
-# =====================================================
-# HEADER
-# =====================================================
-st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='subtitle'>{st.session_state.hospital} | {st.session_state.role}</div>", unsafe_allow_html=True)
+st.sidebar.markdown("---")
 
-tabs = st.tabs(["Worklist", "Case Viewer", "Analytics", "Billing", "User Guide"])
+organ = st.sidebar.selectbox(
+    "Organ Model",
+    ["Liver (Active)", "Thyroid (Training)", "Breast (Planned)", "Lymph Node (Planned)"]
+)
 
-# =====================================================
-# WORKLIST (PACS STYLE)
-# =====================================================
-with tabs[0]:
-    st.subheader("Case Worklist")
+threshold = st.sidebar.slider(
+    "Operating Threshold",
+    0.1, 0.9, DEFAULT_THRESHOLD
+)
 
-    df = pd.read_sql_query("SELECT * FROM cases WHERE hospital=?",
-                           conn,
-                           params=(st.session_state.hospital,))
-
-    if not df.empty:
-        st.dataframe(df.sort_values("timestamp", ascending=False))
-    else:
-        st.info("No cases yet.")
+st.sidebar.markdown("---")
+st.sidebar.caption("Version: Liver v2.1 | Production Simulation")
 
 # =====================================================
-# CASE VIEWER
+# ================= CLINICAL WORKSPACE =================
 # =====================================================
-with tabs[1]:
+if app_mode == "Clinical Workspace":
 
-    st.subheader("New Case")
-
-    organ = "Liver"
-    threshold = st.slider("Operating Threshold", 0.1, 0.9, DEFAULT_THRESHOLD)
+    st.markdown("<div class='big-title'>Clinical Workspace</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>AI-assisted Ultrasound Risk Stratification</div>", unsafe_allow_html=True)
 
     uploaded = st.file_uploader(
         "Upload Ultrasound Image",
@@ -164,7 +177,6 @@ with tabs[1]:
             output = model(tensor)
             prob = torch.softmax(output, dim=1)[0][1].item()
 
-        # Classification
         if prob < 0.1:
             label = "Normal"
             style = "green"
@@ -177,19 +189,19 @@ with tabs[1]:
 
         case_id = str(uuid.uuid4())[:8]
 
-        col1, col2 = st.columns([1.3, 1])
+        col1, col2 = st.columns([1.3,1])
 
-        # ================= IMAGE =================
+        # IMAGE
         with col1:
             st.image(image, use_column_width=True)
 
-               # ================= RESULT + GAUGE =================
+        # RESULT PANEL
         with col2:
 
             st.markdown(
                 f"""
                 <div class='card {style}'>
-                    <div style="font-size:22px; font-weight:700;">
+                    <div style="font-size:24px; font-weight:700;">
                         {label}
                     </div>
                     <div style="font-size:18px;">
@@ -200,22 +212,16 @@ with tabs[1]:
                 unsafe_allow_html=True
             )
 
-
-            # ===============================
-            # Advanced Clinical Risk Gauge
-            # ===============================
+            # RISK GAUGE
             fig, ax = plt.subplots(figsize=(4,2.5))
-
             ax.set_xlim(-1.2, 1.2)
             ax.set_ylim(-0.2, 1.2)
             ax.axis("off")
 
             theta = np.linspace(0, math.pi, 200)
-
-            ax.fill_between(np.cos(theta[:70]), 0, np.sin(theta[:70]), alpha=0.15)
-            ax.fill_between(np.cos(theta[70:140]), 0, np.sin(theta[70:140]), alpha=0.15)
-            ax.fill_between(np.cos(theta[140:]), 0, np.sin(theta[140:]), alpha=0.15)
-
+            ax.fill_between(np.cos(theta[:70]), 0, np.sin(theta[:70]), alpha=0.12)
+            ax.fill_between(np.cos(theta[70:140]), 0, np.sin(theta[70:140]), alpha=0.12)
+            ax.fill_between(np.cos(theta[140:]), 0, np.sin(theta[140:]), alpha=0.12)
             ax.plot(np.cos(theta), np.sin(theta), linewidth=2)
 
             if label == "Normal":
@@ -234,7 +240,7 @@ with tabs[1]:
                 color=needle_color
             )
 
-            ax.scatter(0, 0, s=80)
+            ax.scatter(0,0,s=80)
 
             ax.text(
                 0, -0.05,
@@ -254,7 +260,7 @@ with tabs[1]:
             plt.tight_layout()
             st.pyplot(fig)
 
-        # ================= REPORT =================
+        # REPORT
         st.markdown("### Structured Clinical Report")
 
         report = f"""
@@ -273,11 +279,11 @@ Recommended Action:
         if label == "Normal":
             report += "Routine surveillance."
         elif label == "Likely Benign":
-            report += "Clinical correlation and short-interval follow-up."
+            report += "Short interval follow-up."
         else:
-            report += "Recommend biopsy and oncologic referral."
+            report += "Biopsy & oncology referral."
 
-        st.text_area("Report Preview", report, height=220)
+        st.text_area("Report Preview", report, height=200)
 
         st.download_button(
             "Export Report",
@@ -285,10 +291,8 @@ Recommended Action:
             file_name=f"{case_id}_report.txt"
         )
 
-        # Sync for FHIR
         st.session_state.fhir_probability = prob
         st.session_state.fhir_patient_id = case_id
-        st.session_state.uploaded_image = uploaded
 
         log_case(
             case_id,
@@ -298,971 +302,431 @@ Recommended Action:
             prob,
             label
         )
-
 # =====================================================
-# ANALYTICS DASHBOARD
+# ================= EXECUTIVE DASHBOARD =================
 # =====================================================
-with tabs[2]:
+elif app_mode == "Executive Dashboard":
 
-    st.subheader("Deployment Analytics")
-
-    df = pd.read_sql_query("SELECT * FROM cases WHERE hospital=?",
-                           conn,
-                           params=(st.session_state.hospital,))
-
-    if not df.empty:
-        st.metric("Total Cases", len(df))
-        st.metric("Average Risk", round(df["prob"].mean(),3))
-        st.line_chart(df["prob"])
-
-        fig, ax = plt.subplots()
-        ax.hist(df["prob"], bins=20)
-        ax.set_title("Risk Distribution")
-        st.pyplot(fig)
-    else:
-        st.info("No data available.")
-
-# =====================================================
-# BILLING SIMULATION
-# =====================================================
-with tabs[3]:
-
-    st.subheader("SaaS Billing Simulation")
-
-    df = pd.read_sql_query("SELECT * FROM cases WHERE hospital=?",
-                           conn,
-                           params=(st.session_state.hospital,))
-
-    price_per_case = 25  # USD simulation
-
-    total_cases = len(df)
-    revenue = total_cases * price_per_case
-
-    st.metric("Cases Processed", total_cases)
-    st.metric("Revenue (Simulated USD)", revenue)
-
-# =====================================================
-# USER GUIDE
-# =====================================================
-with tabs[4]:
-
-    st.subheader("How to Use the System")
-
-    st.write("""
-1. Login with hospital access key.
-2. Navigate to Case Viewer.
-3. Upload ultrasound image.
-4. Review classification:
-   - Green → Normal
-   - Yellow → Likely Benign
-   - Red → Suspicious Malignant
-5. Adjust threshold if needed.
-6. Export structured report for EMR upload.
-7. View analytics and billing in respective tabs.
-""")
-
-    st.write("""
-Intended Use:
-Clinical decision support tool only.
-Not a standalone diagnostic system.
-Final decisions must be made by licensed physicians.
-""")
-# =====================================================
-# ================= BOARD READY MODE ==================
-# =====================================================
-
-st.markdown("---")
-st.markdown("## 🏛 Executive & Regulatory Module")
-
-board_tabs = st.tabs([
-    "Executive Summary",
-    "Regulatory & Compliance",
-    "Calibration Performance",
-    "FHIR Export Mock",
-    "DICOM Metadata",
-    "SLA Dashboard",
-    "Subscription Model"
-])
-
-# =====================================================
-# EXECUTIVE SUMMARY
-# =====================================================
-with board_tabs[0]:
-
-    st.subheader("Hospital Executive Overview")
+    st.markdown("<div class='big-title'>Executive Dashboard</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Enterprise Clinical Performance Overview</div>", unsafe_allow_html=True)
 
     df_all = pd.read_sql_query("SELECT * FROM cases", conn)
 
     if not df_all.empty:
 
         total = len(df_all)
-        high_risk = len(df_all[df_all["classification"] == "Suspicious Malignant"])
+        malignant = len(df_all[df_all["classification"] == "Suspicious Malignant"])
         benign = len(df_all[df_all["classification"] == "Likely Benign"])
         normal = len(df_all[df_all["classification"] == "Normal"])
 
-        # -------------------------
-        # KPI + Chart Layout
-        # -------------------------
-        col_metrics, col_chart = st.columns([1.1, 0.9])
+        col1, col2, col3, col4 = st.columns(4)
 
-        with col_metrics:
-            st.metric("Total Cases", total)
-            st.metric("High Risk", high_risk)
-            st.metric("Likely Benign", benign)
-            st.metric("Normal", normal)
+        col1.metric("Total Cases", total)
+        col2.metric("High Risk", malignant)
+        col3.metric("Likely Benign", benign)
+        col4.metric("Normal", normal)
 
-        with col_chart:
+        st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
 
-            labels = ["Normal", "Likely Benign", "Suspicious Malignant"]
-            values = [normal, benign, high_risk]
-            colors = ["#2ecc71", "#f1c40f", "#e74c3c"]  # เขียว เหลือง แดง
+        colA, colB = st.columns([1.2, 1])
 
-            fig, ax = plt.subplots(figsize=(5,3.5))
+        # Horizontal Bar – Clean Executive Style
+        with colA:
 
-            ax.barh(labels, values, color=colors)
-
-            ax.set_title("Clinical Distribution Overview", fontsize=11)
-            ax.set_xlabel("Number of Cases")
-
-            # remove top/right borders for cleaner look
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-
-            st.pyplot(fig, use_container_width=False)
-
-    else:
-        st.info("No enterprise data available yet.")
-
-# =====================================================
-# REGULATORY
-# =====================================================
-with board_tabs[1]:
-
-    st.subheader("Regulatory & Compliance")
-
-    st.write("""
-Device Classification: Clinical Decision Support (CDS)
-
-Intended Use:
-Ultrasound risk stratification for malignancy probability estimation.
-
-Regulatory Pathway (Simulated):
-- US FDA 510(k) SaMD
-- EU MDR Class IIa
-- Thailand FDA Class 2
-
-Data Governance:
-- Audit trail logging enabled
-- Multi-tenant isolation
-- Role-based access control
-- On-prem or cloud deployment option
-
-This system does NOT replace clinical diagnosis.
-""")
-
-# =====================================================
-# CALIBRATION PANEL
-# =====================================================
-with board_tabs[2]:
-
-    st.subheader("Model Calibration Performance")
-
-    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
-
-    if not df_all.empty:
-
-        probs = df_all["prob"].values
-        bins = np.linspace(0,1,6)
-
-        digitized = np.digitize(probs, bins)
-
-        observed = []
-        predicted = []
-
-        for i in range(1,len(bins)):
-            bin_probs = probs[digitized == i]
-            if len(bin_probs) > 0:
-                observed.append(np.mean(bin_probs))
-                predicted.append(np.mean(bin_probs))
-
-        fig, ax = plt.subplots()
-        ax.plot(predicted, observed, marker="o")
-        ax.plot([0,1],[0,1])
-        ax.set_title("Calibration Curve (Simulated)")
-        ax.set_xlabel("Predicted Risk")
-        ax.set_ylabel("Observed Risk")
-        st.pyplot(fig)
-
-    else:
-        st.info("No calibration data available.")
-
-# =====================================================
-# FHIR EXPORT MOCK
-# =====================================================
-with board_tabs[3]:
-
-    st.subheader("FHIR REST Export Simulation")
-
-    st.code("""
-POST /fhir/Observation
-{
-  "resourceType": "Observation",
-  "status": "final",
-  "code": { "text": "AI Malignancy Risk" },
-  "valueQuantity": {
-      "value": 0.78,
-      "unit": "probability"
-  }
-}
-""")
-
-    st.write("FHIR endpoint ready for EMR integration.")
-
-# =====================================================
-# DICOM METADATA VIEWER
-# =====================================================
-with board_tabs[4]:
-
-    st.subheader("DICOM Metadata (Simulated)")
-
-    st.table(pd.DataFrame({
-        "Tag": [
-            "PatientID",
-            "StudyDate",
-            "Modality",
-            "BodyPartExamined",
-            "Manufacturer"
-        ],
-        "Value": [
-            "HN123456",
-            "2026-02-17",
-            "US",
-            "Liver",
-            "GE Healthcare"
-        ]
-    }))
-
-# =====================================================
-# SLA DASHBOARD
-# =====================================================
-with board_tabs[5]:
-
-    st.subheader("System SLA Monitoring")
-
-    uptime = 99.87
-    inference_latency_ms = 120
-    api_calls_today = np.random.randint(50,150)
-
-    st.metric("Uptime (%)", uptime)
-    st.metric("Avg Inference Latency (ms)", inference_latency_ms)
-    st.metric("API Calls Today", api_calls_today)
-
-# =====================================================
-# SUBSCRIPTION SIMULATOR
-# =====================================================
-with board_tabs[6]:
-
-    st.subheader("SaaS Subscription Model")
-
-    tier = st.selectbox(
-        "Plan",
-        ["Starter", "Professional", "Enterprise"]
-    )
-
-    if tier == "Starter":
-        price = 500
-        cases = 100
-    elif tier == "Professional":
-        price = 2000
-        cases = 1000
-    else:
-        price = 10000
-        cases = "Unlimited"
-
-    st.metric("Monthly Price (USD)", price)
-    st.write("Included Cases:", cases)
-# =====================================================
-# ===== ADVANCED BOARD / VC / ENTERPRISE MODULE ======
-# =====================================================
-
-st.markdown("---")
-st.markdown("## 🚀 Strategic & Enterprise Expansion Layer")
-
-advanced_tabs = st.tabs([
-    "Improved Executive Overview",
-    "FHIR REST (Advanced)",
-    "VC Pitch Simulation",
-    "Market Size (TAM/SAM/SOM)",
-    "ROI & Cost Reduction",
-    "Multi-Center Validation",
-    "AI Governance",
-    "Retraining Pipeline"
-])
-
-# =====================================================
-# IMPROVED EXECUTIVE OVERVIEW (FIX PIE OVERLAP)
-# =====================================================
-with advanced_tabs[0]:
-
-    st.subheader("Enhanced Clinical Distribution Overview")
-
-    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
-
-    if not df_all.empty:
-
-        counts = df_all["classification"].value_counts()
-
-        normal = counts.get("Normal", 0)
-        benign = counts.get("Likely Benign", 0)
-        malignant = counts.get("Suspicious Malignant", 0)
-
-        total = normal + benign + malignant
-
-        col_left, col_right = st.columns([1.1, 1])
-
-        # ==========================
-        # LEFT SIDE – KPI + %
-        # ==========================
-        with col_left:
-
-            st.metric("Total Cases (Enterprise)", total)
-
-            if total > 0:
-                st.metric("Normal (%)", round(normal/total*100,1))
-                st.metric("Benign (%)", round(benign/total*100,1))
-                st.metric("Malignant (%)", round(malignant/total*100,1))
-            else:
-                st.metric("Normal (%)", 0)
-                st.metric("Benign (%)", 0)
-                st.metric("Malignant (%)", 0)
-
-        # ==========================
-        # RIGHT SIDE – Horizontal Bar
-        # ==========================
-        with col_right:
-
-            categories = ["Normal", "Benign", "Malignant"]
+            categories = ["Normal", "Likely Benign", "Suspicious Malignant"]
             values = [normal, benign, malignant]
             colors = ["#2ecc71", "#f1c40f", "#e74c3c"]
 
-            fig, ax = plt.subplots(figsize=(5,3))
-
+            fig, ax = plt.subplots(figsize=(6,3))
             bars = ax.barh(categories, values, color=colors)
 
-            ax.set_title("Enterprise Clinical Distribution", fontsize=11)
             ax.set_xlabel("Number of Cases")
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.spines["left"].set_visible(False)
 
-            max_val = max(values) if max(values) > 0 else 1
-            ax.set_xlim(0, max_val * 1.2)
-
-            # clean look
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-
-            # value labels
             for bar in bars:
                 width = bar.get_width()
-                ax.text(width + (max_val*0.02),
+                ax.text(width + 0.5,
                         bar.get_y() + bar.get_height()/2,
-                        f'{int(width)}',
+                        f"{int(width)}",
                         va='center',
                         fontsize=9)
 
             plt.tight_layout()
             st.pyplot(fig, use_container_width=True)
 
+        # Risk Distribution
+        with colB:
+
+            fig2, ax2 = plt.subplots(figsize=(4,3))
+            ax2.hist(df_all["prob"], bins=20)
+            ax2.set_title("Risk Probability Distribution")
+            ax2.set_xlabel("Predicted Risk")
+            st.pyplot(fig2)
+
     else:
-        st.info("No data yet.")
-# =====================================================
-# ADVANCED FHIR EXPORT
-# =====================================================
-with advanced_tabs[1]:
+        st.info("No enterprise data available yet.")
 
-    st.subheader("FHIR REST Endpoint Simulation (Complete Structure)")
-
-    example_payload = {
-        "resourceType": "Observation",
-        "id": "ai-risk-observation-001",
-        "status": "final",
-        "category": [{
-            "coding": [{
-                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
-                "code": "imaging",
-                "display": "Imaging"
-            }]
-        }],
-        "code": {
-            "text": "AI Liver Malignancy Risk"
-        },
-        "subject": {
-            "reference": "Patient/HN123456"
-        },
-       "effectiveDateTime": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
-        "valueQuantity": {
-            "value": 0.78,
-            "unit": "probability"
-        },
-        "interpretation": [{
-            "text": "Suspicious Malignant"
-        }]
-    }
-
-    st.json(example_payload)
-
-    st.write("Ready to POST to /fhir/Observation endpoint")
 
 # =====================================================
-# VC PITCH SIMULATION
+# ================= RESEARCH & VALIDATION =================
 # =====================================================
-with advanced_tabs[2]:
+elif app_mode == "Research & Validation":
 
-    st.subheader("VC Investment Projection Simulation")
+    st.markdown("<div class='big-title'>Research & Validation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Model Performance & Clinical Utility</div>", unsafe_allow_html=True)
 
-    hospitals = st.slider("Number of Hospitals", 10, 500, 100)
-    monthly_price = st.slider("Monthly Subscription per Hospital (USD)", 1000, 10000, 3000)
+    df_eval = pd.read_sql_query("SELECT * FROM cases", conn)
 
-    annual_revenue = hospitals * monthly_price * 12
-
-    st.metric("Projected Annual Revenue (USD)", f"{annual_revenue:,.0f}")
-
-    fig, ax = plt.subplots()
-    years = [1,2,3,4,5]
-    growth = [annual_revenue * (1.5**(y-1)) for y in years]
-    ax.plot(years, growth)
-    ax.set_title("5-Year Growth Projection")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Revenue")
-    st.pyplot(fig)
-
-# =====================================================
-# MARKET SIZE CALCULATOR
-# =====================================================
-with advanced_tabs[3]:
-
-    st.subheader("TAM / SAM / SOM Calculator")
-
-    total_hospitals = 20000
-    target_region_hospitals = 2000
-    expected_capture = st.slider("Market Capture %", 1, 50, 10)
-
-    tam = total_hospitals * 3000 * 12
-    sam = target_region_hospitals * 3000 * 12
-    som = sam * (expected_capture/100)
-
-    st.metric("TAM (USD)", f"{tam:,.0f}")
-    st.metric("SAM (USD)", f"{sam:,.0f}")
-    st.metric("SOM (USD)", f"{som:,.0f}")
-
-# =====================================================
-# ROI MODEL
-# =====================================================
-# =====================================================
-# AI GOVERNANCE DASHBOARD
-# =====================================================
-with advanced_tabs[6]:
-
-    st.subheader("AI Governance & Risk Control")
-
-    st.write("""
-• Model Version Control Enabled  
-• Audit Trail Logging Active  
-• Multi-Tenant Isolation Enforced  
-• Threshold Monitoring Active  
-• Drift Monitoring Enabled (Simulated)  
-• Retraining Governance Workflow Defined  
-""")
-
-# =====================================================
-# RETRAINING PIPELINE
-# =====================================================
-with advanced_tabs[7]:
-
-    st.subheader("Automated Retraining Trigger Simulation")
-
-    drift_metric = np.random.uniform(0,0.2)
-    threshold_drift = 0.15
-
-    st.metric("Drift Score", round(drift_metric,3))
-
-    if drift_metric > threshold_drift:
-        st.error("Retraining Trigger Activated")
-    else:
-        st.success("Model Performance Stable")
-
-    st.write("""
-Pipeline:
-1. Data aggregation from multi-center
-2. Quality control filtering
-3. Cross-validation training
-4. Calibration
-5. External validation
-6. Version freeze
-7. Deployment to production registry
-""")
-# =====================================================
-# =============== FHIR COMPLETE MODULE (PUBLIC SAFE) =
-# =====================================================
-
-import json
-import requests
-import datetime
-import uuid
-
-st.markdown("---")
-st.markdown("## 🏥 FHIR Complete Integration Module")
-
-fhir_tabs = st.tabs([
-    "Generate Production Bundle",
-    "Send to HAPI FHIR",
-    "Download for Validator",
-    "Bundle Preview"
-])
-
-# =====================================================
-# SAFE VALUES FROM MODEL SESSION
-# =====================================================
-
-safe_patient_id = st.session_state.get("fhir_patient_id", "HN123456")
-safe_probability = float(st.session_state.get("fhir_probability", 0.5))
-
-loinc_code = "34543-9"
-
-# =====================================================
-# 1️⃣ GENERATE CLEAN HAPI-COMPATIBLE BUNDLE
-# =====================================================
-
-with fhir_tabs[0]:
-
-    st.subheader("Generate HAPI-Compatible Transaction Bundle")
-
-    iso_time = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
-
-    # deterministic IDs
-    patient_id = f"patient-{uuid.uuid4().hex[:8]}"
-    practitioner_id = f"practitioner-{uuid.uuid4().hex[:8]}"
-    observation_id = f"observation-{uuid.uuid4().hex[:8]}"
-    report_id = f"report-{uuid.uuid4().hex[:8]}"
-
-    # ---------------- PATIENT ----------------
-    patient_resource = {
-        "resourceType": "Patient",
-        "id": patient_id,
-        "active": True
-    }
-
-    # ---------------- PRACTITIONER ----------------
-    practitioner_resource = {
-        "resourceType": "Practitioner",
-        "id": practitioner_id,
-        "active": True,
-        "name": [{"text": "AI Radiologist"}]
-    }
-
-    # ---------------- OBSERVATION ----------------
-    observation_resource = {
-        "resourceType": "Observation",
-        "id": observation_id,
-        "status": "final",
-        "category": [{
-            "coding": [{
-                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
-                "code": "imaging"
-            }]
-        }],
-        "code": {
-            "coding": [{
-                "system": "http://loinc.org",
-                "code": loinc_code,
-                "display": "AI Malignancy Risk"
-            }]
-        },
-        "subject": {
-            "reference": f"Patient/{patient_id}"
-        },
-        "effectiveDateTime": iso_time,
-        "performer": [{
-            "reference": f"Practitioner/{practitioner_id}"
-        }],
-        "valueQuantity": {
-            "value": round(safe_probability, 5),
-            "unit": "probability"
-        }
-    }
-
-    # ---------------- DIAGNOSTIC REPORT ----------------
-    diagnostic_report_resource = {
-        "resourceType": "DiagnosticReport",
-        "id": report_id,
-        "status": "final",
-        "code": {
-            "text": "AI Ultrasound Risk Assessment"
-        },
-        "subject": {
-            "reference": f"Patient/{patient_id}"
-        },
-        "effectiveDateTime": iso_time,
-        "result": [{
-            "reference": f"Observation/{observation_id}"
-        }]
-    }
-
-    # ---------------- TRANSACTION BUNDLE ----------------
-    bundle = {
-        "resourceType": "Bundle",
-        "type": "transaction",
-        "entry": [
-            {
-                "resource": patient_resource,
-                "request": {
-                    "method": "POST",
-                    "url": "Patient"
-                }
-            },
-            {
-                "resource": practitioner_resource,
-                "request": {
-                    "method": "POST",
-                    "url": "Practitioner"
-                }
-            },
-            {
-                "resource": observation_resource,
-                "request": {
-                    "method": "POST",
-                    "url": "Observation"
-                }
-            },
-            {
-                "resource": diagnostic_report_resource,
-                "request": {
-                    "method": "POST",
-                    "url": "DiagnosticReport"
-                }
-            }
-        ]
-    }
-
-    st.session_state.clean_bundle = bundle
-
-    st.success("HAPI-Compatible Bundle Generated")
-    st.json(bundle)
-
-# =====================================================
-# 2️⃣ SEND TO PUBLIC HAPI
-# =====================================================
-
-with fhir_tabs[1]:
-
-    st.subheader("Send to https://hapi.fhir.org/baseR4/")
-
-    if st.button("POST Bundle to HAPI"):
-
-        if "clean_bundle" not in st.session_state:
-            st.error("Generate bundle first.")
-        else:
-            try:
-                response = requests.post(
-                    "https://hapi.fhir.org/baseR4/",
-                    json=st.session_state.clean_bundle,
-                    headers={
-                        "Content-Type": "application/fhir+json",
-                        "Accept": "application/fhir+json"
-                    },
-                    timeout=20
-                )
-
-                st.write("Status Code:", response.status_code)
-                st.text(response.text)
-
-            except Exception as e:
-                st.error(f"Connection failed: {e}")
-
-# =====================================================
-# 3️⃣ DOWNLOAD FOR OFFICIAL VALIDATOR
-# =====================================================
-
-with fhir_tabs[2]:
-
-    st.subheader("Download for Official Validator")
-
-    if "clean_bundle" not in st.session_state:
-        st.warning("Generate bundle first.")
-    else:
-        bundle_json = json.dumps(
-            st.session_state.clean_bundle,
-            indent=2
+    if not df_eval.empty and len(df_eval) > 5:
+        df_eval["ground_truth"] = df_eval["classification"].apply(
+            lambda x: 1 if x == "Suspicious Malignant" else 0
         )
-
-        st.download_button(
-            label="Download Validator-Ready JSON",
-            data=bundle_json,
-            file_name="validator_ready_bundle.json",
-            mime="application/json"
-        )
-
-        st.info("Upload this file to https://validator.fhir.org/")
-
-# =====================================================
-# 4️⃣ PREVIEW
-# =====================================================
-
-with fhir_tabs[3]:
-
-    st.subheader("Current Bundle in Session")
-
-    if "clean_bundle" in st.session_state:
-        st.json(st.session_state.clean_bundle)
+        probs = df_eval["prob"].values
+        y_true = df_eval["ground_truth"].values
     else:
-        st.info("No bundle generated yet.")
-# =====================================================
-# ========== ADVANCED CLINICAL EVALUATION =============
-# =====================================================
+        probs = np.random.uniform(0,1,50)
+        y_true = np.random.randint(0,2,50)
 
-st.markdown("---")
-st.markdown("## 📊 Advanced Clinical Evaluation Module")
+    research_tabs = st.tabs([
+        "ROC Curve",
+        "Threshold Impact",
+        "Confusion Matrix",
+        "Decision Curve Analysis"
+    ])
 
-evaluation_tabs = st.tabs([
-    "ROC Curve",
-    "Threshold Impact Simulation",
-    "Confusion Matrix",
-    "Decision Curve Analysis"
-])
+    # ---------------- ROC ----------------
+    with research_tabs[0]:
+        from sklearn.metrics import roc_curve, auc
 
-# =====================================================
-# 🔹 Simulated Ground Truth (for demo research mode)
-# =====================================================
+        fpr, tpr, _ = roc_curve(y_true, probs)
+        roc_auc = auc(fpr, tpr)
 
-df_eval = pd.read_sql_query("SELECT * FROM cases", conn)
+        fig, ax = plt.subplots(figsize=(4,4))
+        ax.plot(fpr, tpr)
+        ax.plot([0,1],[0,1])
+        ax.set_title(f"ROC Curve (AUC = {roc_auc:.3f})")
+        ax.set_xlabel("False Positive Rate")
+        ax.set_ylabel("True Positive Rate")
+        st.pyplot(fig)
 
-if not df_eval.empty and len(df_eval) > 5:
+    # ---------------- Threshold ----------------
+    with research_tabs[1]:
 
-    # Simulate ground truth from stored classification
-    df_eval["ground_truth"] = df_eval["classification"].apply(
-        lambda x: 1 if x == "Suspicious Malignant" else 0
-    )
+        th = st.slider("Select Threshold", 0.0, 1.0, 0.28)
 
-    probs = df_eval["prob"].values
-    y_true = df_eval["ground_truth"].values
+        preds = (probs >= th).astype(int)
 
-else:
-    probs = np.random.uniform(0,1,50)
-    y_true = np.random.randint(0,2,50)
-
-# =====================================================
-# 1️⃣ ROC CURVE
-# =====================================================
-with evaluation_tabs[0]:
-
-    from sklearn.metrics import roc_curve, auc
-
-    fpr, tpr, thresholds = roc_curve(y_true, probs)
-    roc_auc = auc(fpr, tpr)
-
-    fig, ax = plt.subplots(figsize=(4,4))
-    ax.plot(fpr, tpr)
-    ax.plot([0,1],[0,1])
-    ax.set_title(f"ROC Curve (AUC = {roc_auc:.3f})")
-    ax.set_xlabel("False Positive Rate")
-    ax.set_ylabel("True Positive Rate")
-    st.pyplot(fig)
-
-# =====================================================
-# 2️⃣ THRESHOLD IMPACT SIMULATION
-# =====================================================
-with evaluation_tabs[1]:
-
-    th = st.slider("Select Threshold", 0.0, 1.0, 0.28)
-
-    preds = (probs >= th).astype(int)
-
-    tp = np.sum((preds == 1) & (y_true == 1))
-    fp = np.sum((preds == 1) & (y_true == 0))
-    tn = np.sum((preds == 0) & (y_true == 0))
-    fn = np.sum((preds == 0) & (y_true == 1))
-
-    sensitivity = tp / (tp + fn + 1e-6)
-    specificity = tn / (tn + fp + 1e-6)
-
-    col1, col2 = st.columns(2)
-    col1.metric("Sensitivity", round(sensitivity,3))
-    col2.metric("Specificity", round(specificity,3))
-
-# =====================================================
-# 3️⃣ CONFUSION MATRIX
-# =====================================================
-with evaluation_tabs[2]:
-
-    from sklearn.metrics import confusion_matrix
-
-    cm = confusion_matrix(y_true, preds)
-
-    fig, ax = plt.subplots(figsize=(4,4))
-    ax.imshow(cm)
-    ax.set_title("Confusion Matrix")
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("Actual")
-
-    for i in range(2):
-        for j in range(2):
-            ax.text(j, i, cm[i, j], ha="center", va="center")
-
-    st.pyplot(fig)
-
-# =====================================================
-# 4️⃣ DECISION CURVE ANALYSIS (Mock)
-# =====================================================
-with evaluation_tabs[3]:
-
-    thresholds = np.linspace(0.01, 0.99, 50)
-    net_benefits = []
-
-    for t in thresholds:
-        preds = (probs >= t).astype(int)
         tp = np.sum((preds == 1) & (y_true == 1))
         fp = np.sum((preds == 1) & (y_true == 0))
+        tn = np.sum((preds == 0) & (y_true == 0))
+        fn = np.sum((preds == 0) & (y_true == 1))
 
-        n = len(y_true)
-        net_benefit = (tp/n) - (fp/n)*(t/(1-t))
-        net_benefits.append(net_benefit)
-
-    fig, ax = plt.subplots(figsize=(4,4))
-    ax.plot(thresholds, net_benefits)
-    ax.set_title("Decision Curve Analysis")
-    ax.set_xlabel("Threshold Probability")
-    ax.set_ylabel("Net Benefit")
-    st.pyplot(fig)
-# =====================================================
-# 🏥 ENTERPRISE CLINICAL ENHANCEMENT LAYER
-# (Add-on Only – Does NOT modify existing logic)
-# =====================================================
-
-st.markdown("---")
-st.markdown("## 🧠 Clinical Intelligence & Impact Dashboard")
-
-enterprise_tabs = st.tabs([
-    "Model Performance",
-    "Clinical Decision Support",
-    "Radiologist Sign-off",
-    "Clinical Impact Summary",
-    "Governance Status"
-])
-
-# =====================================================
-# 1️⃣ MODEL PERFORMANCE PANEL
-# =====================================================
-with enterprise_tabs[0]:
-
-    st.subheader("Model Validation Summary")
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("External AUC", "0.91")
-    col2.metric("Calibration Slope", "0.98")
-    col3.metric("Model Version", "Liver v2.1")
-
-    st.info("""
-Validation:
-• Multi-center dataset (3 tertiary hospitals)
-• N = 4,820 ultrasound studies
-• External validation completed Jan 2026
-• Prospective validation ongoing
-""")
-
-# =====================================================
-# 2️⃣ CLINICAL DECISION SUPPORT TABLE
-# =====================================================
-with enterprise_tabs[1]:
-
-    st.subheader("Risk Stratification Framework")
-
-    import pandas as pd
-
-    risk_table = pd.DataFrame({
-        "Risk % Range": ["< 10%", "10% – 28%", "> 28%"],
-        "Clinical Tier": ["Low Risk", "Intermediate Risk", "High Risk"],
-        "Recommended Action": [
-            "Routine surveillance",
-            "Short interval follow-up",
-            "Biopsy & oncology referral"
-        ]
-    })
-
-    st.table(risk_table)
-
-    current_prob = float(st.session_state.get("fhir_probability", 0.5))
-
-    if current_prob < 0.1:
-        st.success("Current Case Tier: LOW RISK")
-    elif current_prob < 0.2835:
-        st.warning("Current Case Tier: INTERMEDIATE RISK")
-    else:
-        st.error("Current Case Tier: HIGH RISK")
-
-# =====================================================
-# 3️⃣ RADIOLOGIST SIGN-OFF MODULE
-# =====================================================
-with enterprise_tabs[2]:
-
-    st.subheader("Radiologist Review & Sign-Off")
-
-    reviewer = st.text_input("Radiologist Name", "Dr. __________")
-    decision = st.selectbox(
-        "Final Clinical Decision",
-        ["Agree with AI",
-         "Override – Benign",
-         "Override – Malignant",
-         "Need Further Imaging"]
-    )
-
-    if st.button("Confirm & Lock Case"):
-        st.success("Case Signed & Audit Logged")
-        st.write(f"""
-Reviewer: {reviewer}  
-Decision: {decision}  
-Timestamp: {datetime.datetime.utcnow().isoformat(timespec="seconds")}Z  
-""")
-
-# =====================================================
-# 4️⃣ CLINICAL IMPACT SUMMARY
-# =====================================================
-with enterprise_tabs[3]:
-
-    st.subheader("Estimated Clinical & Financial Impact")
-
-    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
-
-    if not df_all.empty:
-
-        total_cases = len(df_all)
-        high_risk = len(df_all[df_all["classification"] == "Suspicious Malignant"])
-
-        estimated_biopsy_cost = 2000  # USD simulated
-        avoided_cases = int(total_cases * 0.18)
-        estimated_savings = avoided_cases * estimated_biopsy_cost
+        sensitivity = tp / (tp + fn + 1e-6)
+        specificity = tn / (tn + fp + 1e-6)
 
         col1, col2 = st.columns(2)
+        col1.metric("Sensitivity", round(sensitivity,3))
+        col2.metric("Specificity", round(specificity,3))
 
-        col1.metric("Biopsy Potentially Avoided", avoided_cases)
-        col2.metric("Estimated Cost Savings (USD)", f"{estimated_savings:,}")
+    # ---------------- Confusion Matrix ----------------
+    with research_tabs[2]:
 
-        st.info("""
-Impact Model Assumptions:
-• 18% unnecessary biopsy reduction (simulated)
-• Average biopsy + pathology cost = $2,000
-• Does not include downstream oncology savings
-""")
-    else:
-        st.info("Insufficient data for impact modeling.")
+        from sklearn.metrics import confusion_matrix
+
+        cm = confusion_matrix(y_true, preds)
+
+        fig, ax = plt.subplots(figsize=(4,4))
+        ax.imshow(cm)
+        ax.set_title("Confusion Matrix")
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("Actual")
+
+        for i in range(2):
+            for j in range(2):
+                ax.text(j, i, cm[i, j], ha="center", va="center")
+
+        st.pyplot(fig)
+
+    # ---------------- DCA ----------------
+    with research_tabs[3]:
+
+        thresholds = np.linspace(0.01, 0.99, 50)
+        net_benefits = []
+
+        for t in thresholds:
+            preds = (probs >= t).astype(int)
+            tp = np.sum((preds == 1) & (y_true == 1))
+            fp = np.sum((preds == 1) & (y_true == 0))
+            n = len(y_true)
+            net_benefit = (tp/n) - (fp/n)*(t/(1-t))
+            net_benefits.append(net_benefit)
+
+        fig, ax = plt.subplots(figsize=(4,4))
+        ax.plot(thresholds, net_benefits)
+        ax.set_title("Decision Curve Analysis")
+        ax.set_xlabel("Threshold Probability")
+        ax.set_ylabel("Net Benefit")
+        st.pyplot(fig)
+# =====================================================
+# ================= FHIR INTEGRATION ==================
+# =====================================================
+elif app_mode == "FHIR Integration":
+
+    st.markdown("<div class='big-title'>FHIR Integration</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Production-Ready Interoperability Layer</div>", unsafe_allow_html=True)
+
+    fhir_tabs = st.tabs([
+        "Generate Bundle",
+        "Send to HAPI Server",
+        "Download for Validator",
+        "Bundle Preview"
+    ])
+
+    safe_patient_id = st.session_state.get("fhir_patient_id", "HN123456")
+    safe_probability = float(st.session_state.get("fhir_probability", 0.5))
+    loinc_code = "34543-9"
+
+    # ---------------- Generate Bundle ----------------
+    with fhir_tabs[0]:
+
+        iso_time = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+        patient_id = f"patient-{uuid.uuid4().hex[:8]}"
+        practitioner_id = f"practitioner-{uuid.uuid4().hex[:8]}"
+        observation_id = f"observation-{uuid.uuid4().hex[:8]}"
+        report_id = f"report-{uuid.uuid4().hex[:8]}"
+
+        bundle = {
+            "resourceType": "Bundle",
+            "type": "transaction",
+            "entry": [
+                {
+                    "resource": {
+                        "resourceType": "Patient",
+                        "id": patient_id,
+                        "active": True
+                    },
+                    "request": {"method": "POST", "url": "Patient"}
+                },
+                {
+                    "resource": {
+                        "resourceType": "Practitioner",
+                        "id": practitioner_id,
+                        "active": True,
+                        "name": [{"text": "AI Radiologist"}]
+                    },
+                    "request": {"method": "POST", "url": "Practitioner"}
+                },
+                {
+                    "resource": {
+                        "resourceType": "Observation",
+                        "id": observation_id,
+                        "status": "final",
+                        "category": [{
+                            "coding": [{
+                                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                                "code": "imaging"
+                            }]
+                        }],
+                        "code": {
+                            "coding": [{
+                                "system": "http://loinc.org",
+                                "code": loinc_code,
+                                "display": "AI Malignancy Risk"
+                            }]
+                        },
+                        "subject": {"reference": f"Patient/{patient_id}"},
+                        "effectiveDateTime": iso_time,
+                        "performer": [{"reference": f"Practitioner/{practitioner_id}"}],
+                        "valueQuantity": {
+                            "value": round(safe_probability, 5),
+                            "unit": "probability"
+                        }
+                    },
+                    "request": {"method": "POST", "url": "Observation"}
+                },
+                {
+                    "resource": {
+                        "resourceType": "DiagnosticReport",
+                        "id": report_id,
+                        "status": "final",
+                        "code": {"text": "AI Ultrasound Risk Assessment"},
+                        "subject": {"reference": f"Patient/{patient_id}"},
+                        "effectiveDateTime": iso_time,
+                        "result": [{"reference": f"Observation/{observation_id}"}]
+                    },
+                    "request": {"method": "POST", "url": "DiagnosticReport"}
+                }
+            ]
+        }
+
+        st.session_state.clean_bundle = bundle
+        st.success("FHIR Transaction Bundle Generated")
+        st.json(bundle)
+
+    # ---------------- Send to HAPI ----------------
+    with fhir_tabs[1]:
+
+        if st.button("Send to https://hapi.fhir.org/baseR4/"):
+
+            if "clean_bundle" not in st.session_state:
+                st.error("Generate bundle first.")
+            else:
+                try:
+                    response = requests.post(
+                        "https://hapi.fhir.org/baseR4/",
+                        json=st.session_state.clean_bundle,
+                        headers={
+                            "Content-Type": "application/fhir+json",
+                            "Accept": "application/fhir+json"
+                        },
+                        timeout=20
+                    )
+                    st.write("Status Code:", response.status_code)
+                    st.text(response.text)
+                except Exception as e:
+                    st.error(f"Connection failed: {e}")
+
+    # ---------------- Download ----------------
+    with fhir_tabs[2]:
+
+        if "clean_bundle" in st.session_state:
+            bundle_json = json.dumps(
+                st.session_state.clean_bundle,
+                indent=2
+            )
+
+            st.download_button(
+                "Download Validator-Ready JSON",
+                data=bundle_json,
+                file_name="validator_ready_bundle.json",
+                mime="application/json"
+            )
+
+            st.info("Upload to https://validator.fhir.org/")
+        else:
+            st.warning("Generate bundle first.")
+
+    # ---------------- Preview ----------------
+    with fhir_tabs[3]:
+
+        if "clean_bundle" in st.session_state:
+            st.json(st.session_state.clean_bundle)
+        else:
+            st.info("No bundle generated yet.")
+
 
 # =====================================================
-# 5️⃣ AI GOVERNANCE BADGE PANEL
+# ================= INFRASTRUCTURE ====================
 # =====================================================
-with enterprise_tabs[4]:
+elif app_mode == "Infrastructure":
 
-    st.subheader("AI Governance & Compliance Status")
+    st.markdown("<div class='big-title'>Infrastructure</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Production Deployment Architecture</div>", unsafe_allow_html=True)
 
-    governance_status = pd.DataFrame({
+    infra_tabs = st.tabs([
+        "JWT Authentication",
+        "API Structure",
+        "Dockerfile",
+        "AWS Architecture",
+        "Audit Log"
+    ])
+
+    # ---------------- JWT ----------------
+    with infra_tabs[0]:
+
+        import base64
+        import json
+
+        def simulate_jwt(user, role):
+            header = base64.urlsafe_b64encode(
+                json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
+            ).decode().rstrip("=")
+
+            payload = base64.urlsafe_b64encode(
+                json.dumps({
+                    "user": user,
+                    "role": role,
+                    "hospital": st.session_state.hospital,
+                    "exp": "2026-12-31T23:59:59Z"
+                }).encode()
+            ).decode().rstrip("=")
+
+            return f"{header}.{payload}.simulated-signature"
+
+        if st.button("Generate JWT"):
+            token = simulate_jwt(
+                st.session_state.role,
+                st.session_state.role
+            )
+            st.code(token)
+            st.success("JWT Token Generated (Simulation)")
+
+    # ---------------- API ----------------
+    with infra_tabs[1]:
+
+        api_structure = """
+POST   /api/v1/auth/login
+GET    /api/v1/cases
+POST   /api/v1/inference
+GET    /api/v1/analytics
+POST   /api/v1/fhir/export
+GET    /api/v1/governance/status
+"""
+        st.code(api_structure)
+
+    # ---------------- Docker ----------------
+    with infra_tabs[2]:
+
+        dockerfile = """
+FROM python:3.11-slim
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+EXPOSE 8501
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+"""
+        st.code(dockerfile, language="dockerfile")
+
+    # ---------------- AWS ----------------
+    with infra_tabs[3]:
+
+        architecture = """
+Route53 / ALB
+      |
+   ECS / EC2 (Streamlit App)
+      |
+   RDS (PostgreSQL)
+      |
+   S3 (Image Archive)
+"""
+        st.code(architecture)
+
+    # ---------------- Audit ----------------
+    with infra_tabs[4]:
+
+        df_all = pd.read_sql_query("SELECT * FROM cases", conn)
+
+        if not df_all.empty:
+            df_all["audit_action"] = "AI Inference Completed"
+            st.dataframe(
+                df_all[["case_id", "hospital", "role", "classification", "timestamp", "audit_action"]]
+            )
+        else:
+            st.info("No audit logs available.")
+
+
+# =====================================================
+# ================= GOVERNANCE ========================
+# =====================================================
+elif app_mode == "Governance":
+
+    st.markdown("<div class='big-title'>AI Governance</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Enterprise Risk & Compliance</div>", unsafe_allow_html=True)
+
+    governance_table = pd.DataFrame({
         "Control Domain": [
             "Model Version Lock",
             "Audit Logging",
@@ -1281,159 +745,6 @@ with enterprise_tabs[4]:
         ]
     })
 
-    st.table(governance_status)
+    st.table(governance_table)
 
     st.success("System Status: Enterprise Deployment Ready (Simulation Mode)")
-    # =====================================================
-# 🔐 AUTH + API + INFRA SIMULATION LAYER
-# (Add-on Only – Does NOT modify existing logic)
-# =====================================================
-
-st.markdown("---")
-st.markdown("## 🛡 Production Infrastructure & API Layer")
-
-infra_tabs = st.tabs([
-    "JWT Authentication",
-    "API Endpoint Simulation",
-    "Docker Deployment",
-    "AWS Architecture",
-    "Audit Trail Log"
-])
-
-# =====================================================
-# 1️⃣ JWT AUTH SIMULATION
-# =====================================================
-with infra_tabs[0]:
-
-    st.subheader("JWT Authentication Simulation")
-
-    import base64
-    import json
-
-    def simulate_jwt(user, role):
-        header = base64.urlsafe_b64encode(
-            json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
-        ).decode().rstrip("=")
-
-        payload = base64.urlsafe_b64encode(
-            json.dumps({
-                "user": user,
-                "role": role,
-                "hospital": st.session_state.hospital,
-                "exp": "2026-12-31T23:59:59Z"
-            }).encode()
-        ).decode().rstrip("=")
-
-        signature = "simulated-signature"
-        return f"{header}.{payload}.{signature}"
-
-    if st.button("Generate JWT Token"):
-        token = simulate_jwt(
-            st.session_state.role,
-            st.session_state.role
-        )
-        st.code(token)
-
-        st.success("JWT Token Generated (Simulation Only)")
-
-# =====================================================
-# 2️⃣ API ENDPOINT STRUCTURE
-# =====================================================
-with infra_tabs[1]:
-
-    st.subheader("REST API Endpoint Structure")
-
-    api_structure = """
-POST   /api/v1/auth/login
-GET    /api/v1/cases
-POST   /api/v1/inference
-GET    /api/v1/analytics
-POST   /api/v1/fhir/export
-GET    /api/v1/governance/status
-"""
-
-    st.code(api_structure)
-
-    st.info("All endpoints protected by JWT middleware (simulation).")
-
-# =====================================================
-# 3️⃣ DOCKER DEPLOYMENT FILE
-# =====================================================
-with infra_tabs[2]:
-
-    st.subheader("Docker Production Deployment (Example)")
-
-    dockerfile = """
-# Dockerfile
-
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY . .
-
-RUN pip install -r requirements.txt
-
-EXPOSE 8501
-
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-"""
-
-    st.code(dockerfile, language="dockerfile")
-
-    st.success("Containerized deployment ready (Simulation)")
-
-# =====================================================
-# 4️⃣ AWS ARCHITECTURE DIAGRAM (TEXTUAL)
-# =====================================================
-with infra_tabs[3]:
-
-    st.subheader("AWS Deployment Architecture")
-
-    architecture = """
-                ┌───────────────────────┐
-                │  Route53 / ALB        │
-                └────────────┬──────────┘
-                             │
-                     ┌───────▼────────┐
-                     │  EC2 / ECS     │
-                     │  Streamlit App │
-                     └───────┬────────┘
-                             │
-              ┌──────────────▼─────────────┐
-              │  RDS (PostgreSQL)          │
-              │  Clinical Case Database    │
-              └──────────────┬─────────────┘
-                             │
-                     ┌───────▼────────┐
-                     │  S3 Storage    │
-                     │  Image Archive │
-                     └────────────────┘
-"""
-
-    st.code(architecture)
-
-    st.info("""
-Security Layers:
-• IAM Role-based access  
-• HTTPS TLS encryption  
-• VPC private subnet for DB  
-• CloudWatch monitoring  
-""")
-
-# =====================================================
-# 5️⃣ AUDIT TRAIL PANEL
-# =====================================================
-with infra_tabs[4]:
-
-    st.subheader("Audit Trail Log")
-
-    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
-
-    if not df_all.empty:
-        df_all["audit_action"] = "AI Inference Completed"
-        st.dataframe(
-            df_all[["case_id", "hospital", "role", "classification", "timestamp", "audit_action"]]
-        )
-    else:
-        st.info("No audit logs available yet.")
