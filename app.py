@@ -183,13 +183,23 @@ with tabs[1]:
         with col1:
             st.image(image, use_column_width=True)
 
-        # ================= RESULT + GAUGE =================
+               # ================= RESULT + GAUGE =================
         with col2:
 
             st.markdown(
-                f"<div class='card {style}'><b>{label}</b><br>{round(prob*100,2)}%</div>",
+                f"""
+                <div class='card {style}'>
+                    <div style="font-size:22px; font-weight:700;">
+                        {label}
+                    </div>
+                    <div style="font-size:18px;">
+                        {round(prob*100,2)}%
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True
             )
+
 
             # ===============================
             # Advanced Clinical Risk Gauge
