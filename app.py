@@ -717,292 +717,52 @@ import json
 import requests
 import datetime
 import uuid
+import base64
 
 st.markdown("---")
 st.markdown("## 🏥 FHIR Complete Integration Module")
 
 fhir_tabs = st.tabs([
     "Generate FHIR Resources",
-    "Bundle Builder",
-    "Validate Structure",
-    "Export JSON",
-    "Send to FHIR Server (Mock)"
-])
-
-# =====================================================
-# 1️⃣ GENERATE OBSERVATION + DIAGNOSTIC REPORT
-# =====================================================
-with fhir_tabs[0]:
-
-    st.subheader("Generate FHIR Observation + DiagnosticReport")
-
-    patient_id = st.text_input("Patient ID", "HN123456")
-    probability_input = st.number_input("AI Probability", 0.0, 1.0, 0.78)
-    interpretation_input = st.selectbox(
-        "Interpretation",
-        ["Normal", "Likely Benign", "Suspicious Malignant"]
-    )
-
-    observation_id = f"ai-risk-{uuid.uuid4().hex[:8]}"
-    report_id = f"ai-report-{uuid.uuid4().hex[:8]}"
-
-    observation = {
-        "resourceType": "Observation",
-        "id": observation_id,
-        "status": "final",
-        "category": [{
-            "coding": [{
-                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
-                "code": "imaging",
-                "display": "Imaging"
-            }]
-        }],
-        "code": {"text": "AI Liver Malignancy Risk"},
-        "subject": {"reference": f"Patient/{patient_id}"},
-        "effectiveDateTime": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
-        "valueQuantity": {
-            "value": probability_input,
-            "unit": "probability"
-        },
-        "interpretation": [{
-            "text": interpretation_input
-        }]
-    }
-
-    diagnostic_report = {
-        "resourceType": "DiagnosticReport",
-        "id": report_id,
-        "status": "final",
-        "code": {"text": "AI Ultrasound Risk Assessment"},
-        "subject": {"reference": f"Patient/{patient_id}"},
-        "effectiveDateTime": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
-        "result": [{
-            "reference": f"Observation/{observation_id}"
-        }]
-    }
-
-    st.json({"Observation": observation, "DiagnosticReport": diagnostic_report})
-
-# =====================================================
-# 2️⃣ BUNDLE BUILDER (TRANSACTION MODE)
-# =====================================================
-with fhir_tabs[1]:
-
-    st.subheader("FHIR Bundle (Transaction)")
-
-    bundle = {
-        "resourceType": "Bundle",
-        "type": "transaction",
-        "entry": [
-            {
-                "resource": observation,
-                "request": {
-                    "method": "POST",
-                    "url": "Observation"
-                }
-            },
-            {
-                "resource": diagnostic_report,
-                "request": {
-                    "method": "POST",
-                    "url": "DiagnosticReport"
-                }
-            }
-        ]
-    }
-
-    st.json(bundle)
-
-# =====================================================
-# 3️⃣ VALIDATION (BASIC STRUCTURE CHECK)
-# =====================================================
-with fhir_tabs[2]:
-
-    st.subheader("FHIR Structure Validation")
-
-    def basic_validate(resource):
-        required = ["resourceType", "status", "subject"]
-        missing = [r for r in required if r not in resource]
-        return missing
-
-    missing_fields = basic_validate(observation)
-
-    if not missing_fields:
-        st.success("Basic structure valid (Observation)")
-    else:
-        st.error(f"Missing fields: {missing_fields}")
-
-# =====================================================
-# 4️⃣ EXPORT JSON
-# =====================================================
-with fhir_tabs[3]:
-
-    st.subheader("Export FHIR Bundle JSON")
-
-    bundle_json = json.dumps(bundle, indent=2)
-
-    st.download_button(
-        label="Download FHIR Bundle",
-        data=bundle_json,
-        file_name="fhir_bundle.json",
-        mime="application/json"
-    )
-
-# =====================================================
-# 5️⃣ MOCK SEND TO FHIR SERVER
-# =====================================================
-with fhir_tabs[4]:
-
-    st.subheader("Send to FHIR Server (Mock Mode)")
-
-    fhir_endpoint = st.text_input("FHIR Server URL",
-                                   "https://hospital-emr.example.com/fhir")
-
-    if st.button("Send Bundle (Mock)"):
-        st.info(f"Simulated POST to {fhir_endpoint}")
-        st.code("POST /fhir Bundle transaction")
-        st.success("Bundle queued for transmission (Simulation)")
-# =====================================================
-# ========== ADVANCED FHIR ENTERPRISE LAYER ===========
-# =====================================================
-
-import requests
-import base64
-
-st.markdown("---")
-st.markdown("## 🔐 Advanced FHIR Enterprise Integration")
-
-advanced_fhir_tabs = st.tabs([
-    "OAuth2 Auth",
-    "LOINC / SNOMED Mapping",
-    "Patient & Practitioner",
-    "Media Resource (Ultrasound)",
     "Full Transaction Bundle",
     "Send to HAPI FHIR",
     "Official Validator"
 ])
 
-# =========================
-# SAFE DEFAULT VARIABLES
-# =========================
+# =====================================================
+# SAFE DEFAULT VALUES FROM MODEL
+# =====================================================
+
 safe_patient_id = st.session_state.get("fhir_patient_id", "HN123456")
 safe_probability = st.session_state.get("fhir_probability", 0.5)
 safe_uploaded = st.session_state.get("uploaded_image", None)
 
 loinc_code = "34543-9"
-snomed_code = "108369006"
 practitioner_id = "PRAC001"
 
 # =====================================================
-# 1️⃣ OAUTH2
+# 1️⃣ GENERATE FULL FHIR TRANSACTION BUNDLE
 # =====================================================
-with advanced_fhir_tabs[0]:
 
-    st.subheader("OAuth2 Bearer Authentication")
+with fhir_tabs[0]:
 
-    token = st.text_input(
-        "OAuth2 Bearer Token",
-        key="oauth_token_input"
-    )
+    st.subheader("Generate Production-Ready FHIR Bundle")
 
-    if token:
-        st.success("Token stored in session")
-        st.session_state.oauth_token = token
-
-# =====================================================
-# 2️⃣ LOINC / SNOMED
-# =====================================================
-with advanced_fhir_tabs[1]:
-
-    st.subheader("Clinical Coding Mapping")
-
-    st.write("LOINC Code:", loinc_code)
-    st.write("SNOMED Code:", snomed_code)
-
-# =====================================================
-# 3️⃣ PATIENT + PRACTITIONER
-# =====================================================
-with advanced_fhir_tabs[2]:
-
-    st.subheader("Patient & Practitioner Resource")
-
-    patient_id = st.text_input(
+    patient_input = st.text_input(
         "Patient ID",
         safe_patient_id,
-        key="advanced_fhir_patient_id"
+        key="prod_patient_id"
     )
-
-    patient_resource = {
-        "resourceType": "Patient",
-        "id": patient_id,
-        "identifier": [{
-            "system": "http://hospital.org/mrn",
-            "value": patient_id
-        }],
-        "active": True
-    }
-
-    practitioner_resource = {
-        "resourceType": "Practitioner",
-        "id": practitioner_id,
-        "active": True,
-        "name": [{"text": "Dr. AI Radiologist"}]
-    }
-
-    st.json({
-        "Patient": patient_resource,
-        "Practitioner": practitioner_resource
-    })
-
-# =====================================================
-# 4️⃣ MEDIA RESOURCE
-# =====================================================
-with advanced_fhir_tabs[3]:
-
-    st.subheader("Media Resource (Ultrasound Reference)")
-
-    if safe_uploaded:
-
-        img_bytes = safe_uploaded.getvalue()
-        encoded_image = base64.b64encode(img_bytes).decode("utf-8")
-
-        media_resource = {
-            "resourceType": "Media",
-            "status": "completed",
-            "type": {
-                "coding": [{
-                    "system": "http://terminology.hl7.org/CodeSystem/media-type",
-                    "code": "image"
-                }]
-            },
-            "subject": {"reference": f"Patient/{patient_id}"},
-            "content": {
-                "contentType": "image/jpeg",
-                "data": encoded_image[:120] + "... (truncated)"
-            }
-        }
-
-        st.json(media_resource)
-
-    else:
-        st.info("Upload image in Case Viewer first.")
-
-# =====================================================
-# 5️⃣ FULL TRANSACTION BUNDLE (FHIR VALIDATOR CLEAN - FIXED)
-# =====================================================
-with advanced_fhir_tabs[4]:
-
-    st.subheader("Full FHIR Transaction Bundle")
 
     iso_time = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
-    # Generate UUIDs for proper FHIR transaction linking
+    # UUIDs
     patient_uuid = f"urn:uuid:{uuid.uuid4()}"
     practitioner_uuid = f"urn:uuid:{uuid.uuid4()}"
     observation_uuid = f"urn:uuid:{uuid.uuid4()}"
     report_uuid = f"urn:uuid:{uuid.uuid4()}"
 
-    # Interpretation mapping based on probability
+    # Interpretation Mapping
     if safe_probability < 0.1:
         interp_code = "N"
         interp_display = "Normal"
@@ -1119,64 +879,70 @@ with advanced_fhir_tabs[4]:
         ]
     }
 
+    st.session_state.production_bundle = full_bundle
+
+    st.success("Production FHIR Bundle Generated")
     st.json(full_bundle)
 
 
 # =====================================================
-# 6️⃣ SEND TO HAPI
+# 2️⃣ SEND TO HAPI
 # =====================================================
-with advanced_fhir_tabs[5]:
+
+with fhir_tabs[1]:
 
     st.subheader("Send to HAPI FHIR Test Server")
 
     hapi_url = st.text_input(
         "HAPI FHIR Endpoint",
         "https://hapi.fhir.org/baseR4",
-        key="hapi_url_input"
+        key="hapi_url_prod"
     )
 
-    if st.button("POST Bundle to HAPI"):
+    if st.button("POST Production Bundle"):
 
-        headers = {
-            "Content-Type": "application/fhir+json"
-        }
-
-        if "oauth_token" in st.session_state:
-            headers["Authorization"] = f"Bearer {st.session_state.oauth_token}"
-
-        try:
-            response = requests.post(
-                hapi_url,
-                json=full_bundle,
-                headers=headers,
-                timeout=10
-            )
-
-            st.write("Status Code:", response.status_code)
+        if "production_bundle" not in st.session_state:
+            st.error("Generate bundle first.")
+        else:
             try:
-                st.json(response.json())
-            except:
-                st.write("Response received (non-JSON).")
+                response = requests.post(
+                    hapi_url,
+                    json=st.session_state.production_bundle,
+                    headers={"Content-Type": "application/fhir+json"},
+                    timeout=10
+                )
 
-        except Exception:
-            st.error("Connection failed or server rejected request.")
+                st.write("Status Code:", response.status_code)
+                try:
+                    st.json(response.json())
+                except:
+                    st.write("Response received.")
+
+            except Exception:
+                st.error("Connection failed.")
+
 
 # =====================================================
-# 7️⃣ VALIDATOR
+# 3️⃣ OFFICIAL VALIDATOR
 # =====================================================
-with advanced_fhir_tabs[6]:
+
+with fhir_tabs[2]:
 
     st.subheader("Official FHIR Validator")
 
-    st.write("1. Download Bundle JSON")
-    st.write("2. Go to https://validator.fhir.org/")
-    st.write("3. Paste Bundle JSON and validate")
+    if "production_bundle" not in st.session_state:
+        st.warning("Generate Production Bundle first.")
+    else:
+        bundle_json = json.dumps(
+            st.session_state.production_bundle,
+            indent=2
+        )
 
-    bundle_json = json.dumps(full_bundle, indent=2)
+        st.download_button(
+            label="Download Validator-Ready Bundle",
+            data=bundle_json,
+            file_name="validator_ready_bundle.json",
+            mime="application/json"
+        )
 
-    st.download_button(
-        label="Download Validator-Ready Bundle",
-        data=bundle_json,
-        file_name="validator_ready_bundle.json",
-        mime="application/json"
-    )
+        st.info("Upload this file to https://validator.fhir.org/")
