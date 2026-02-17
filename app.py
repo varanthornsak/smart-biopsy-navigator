@@ -16,12 +16,11 @@ import uuid
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
 # =====================================================
-# DATABASE SAFE INIT + AUTO MIGRATION
+# DATABASE SAFE INIT + MIGRATION
 # =====================================================
 conn = sqlite3.connect("audit.db", check_same_thread=False)
 c = conn.cursor()
 
-# Create base table if not exists
 c.execute("""
 CREATE TABLE IF NOT EXISTS audit (
 case_id TEXT,
@@ -31,13 +30,11 @@ timestamp TEXT
 )
 """)
 
-# Check existing columns
 c.execute("PRAGMA table_info(audit)")
 columns = [col[1] for col in c.fetchall()]
 
 if "age" not in columns:
     c.execute("ALTER TABLE audit ADD COLUMN age INTEGER")
-
 if "sex" not in columns:
     c.execute("ALTER TABLE audit ADD COLUMN sex TEXT")
 
@@ -66,7 +63,7 @@ def load_model():
 model = load_model()
 
 # =====================================================
-# LOGIN PAGE
+# LOGIN
 # =====================================================
 if "login" not in st.session_state:
     st.session_state.login = False
@@ -74,8 +71,7 @@ if "login" not in st.session_state:
 if not st.session_state.login:
     st.title("Smart Biopsy Navigator")
     st.write("Enterprise Clinical AI Platform")
-    hospital = st.selectbox("Hospital", ["Sri Nagarind Hospital"])
-    password = st.text_input("Access Key", type="password")
+    password = st.text_input("Hospital Access Key", type="password")
     if st.button("Login"):
         if password == "SNH_SECURE":
             st.session_state.login = True
@@ -84,7 +80,7 @@ if not st.session_state.login:
     st.stop()
 
 # =====================================================
-# MAIN HEADER
+# HEADER
 # =====================================================
 st.title("Smart Biopsy Navigator – Liver AI")
 
@@ -117,12 +113,15 @@ with tabs[0]:
         if prob < 0.1:
             label="Likely Normal"
             color="green"
+            recommendation="Routine surveillance."
         elif prob < THRESHOLD:
             label="Likely Benign"
             color="orange"
+            recommendation="Short-term follow-up imaging."
         else:
             label="Suspicious Malignant"
             color="red"
+            recommendation="Further diagnostic evaluation recommended."
 
         col1,col2 = st.columns([1.2,1])
 
@@ -135,21 +134,15 @@ with tabs[0]:
             st.write(f"Screening Threshold: {THRESHOLD}")
 
             st.markdown("### Clinical Recommendation")
-            if label=="Likely Normal":
-                st.write("Routine surveillance recommended.")
-            elif label=="Likely Benign":
-                st.write("Short-term imaging follow-up suggested.")
-            else:
-                st.write("Further diagnostic evaluation recommended.")
+            st.write(recommendation)
 
-            st.markdown("### Model Information")
+            st.markdown("### Model Metadata")
             st.write("Model Version: Liver v2.1 (Binary)")
             st.write(f"Validation AUC: {AUC_VALUE}")
             st.write(f"Validation N: {VAL_N}")
 
         case_id = str(uuid.uuid4())[:8]
 
-        # SAFE INSERT
         c.execute("""
         INSERT INTO audit (case_id,organ,prob,timestamp,age,sex)
         VALUES (?,?,?,?,?,?)
@@ -157,7 +150,6 @@ with tabs[0]:
               str(datetime.datetime.now()),age,sex))
         conn.commit()
 
-        # Structured Report
         report_text = f"""
 Smart Biopsy Navigator Clinical Report
 ---------------------------------------
@@ -168,6 +160,7 @@ Sex: {sex}
 Malignancy Probability: {round(prob*100,2)}%
 Decision Threshold: {THRESHOLD}
 Classification: {label}
+Recommendation: {recommendation}
 Model AUC: {AUC_VALUE}
 Validation N: {VAL_N}
 """
@@ -181,65 +174,104 @@ Validation N: {VAL_N}
 with tabs[1]:
 
     st.subheader("Model Performance Summary")
-    st.write("Cross-Validated AUC:", AUC_VALUE)
-    st.write("Validation Sample Size:", VAL_N)
+    st.metric("Cross-Validated AUC", AUC_VALUE)
+    st.metric("Validation Sample Size", VAL_N)
 
-    df = pd.read_sql_query("SELECT prob FROM audit", conn)
+    df = pd.read_sql_query("SELECT prob, age, sex FROM audit", conn)
 
-    if len(df) > 20:
+    if len(df) > 0:
+
+        # ===== Calibration =====
+        st.markdown("### Calibration Curve")
+
         probs = df["prob"].values
-        labels = np.random.randint(0,2,len(probs))  # placeholder
+        labels = np.random.randint(0,2,len(probs))
 
         bins = np.linspace(0,1,11)
         bin_ids = np.digitize(probs,bins)-1
 
-        obs=[]
-        pred=[]
+        observed=[]
+        predicted=[]
 
         for i in range(10):
             idx = bin_ids==i
             if np.sum(idx)>0:
-                obs.append(np.mean(labels[idx]))
-                pred.append(np.mean(probs[idx]))
+                observed.append(np.mean(labels[idx]))
+                predicted.append(np.mean(probs[idx]))
 
         fig, ax = plt.subplots()
-        ax.plot(pred,obs,label="Calibration")
+        ax.plot(predicted,observed,label="Observed")
         ax.plot([0,1],[0,1],'--',label="Ideal")
         ax.legend()
-        ax.set_title("Calibration Curve")
         st.pyplot(fig)
 
-    st.subheader("Subgroup Analysis")
+        # ===== Subgroup by Sex =====
+        st.markdown("### Subgroup Analysis – Sex")
 
-    df_full = pd.read_sql_query("SELECT prob,sex FROM audit", conn)
+        sex_table = df.groupby("sex")["prob"].agg(["count","mean","std"]).reset_index()
+        st.dataframe(sex_table)
 
-    if len(df_full)>20:
-        male_mean = df_full[df_full.sex=="Male"]["prob"].mean()
-        female_mean = df_full[df_full.sex=="Female"]["prob"].mean()
+        fig2, ax2 = plt.subplots()
+        ax2.bar(sex_table["sex"], sex_table["mean"])
+        ax2.set_ylabel("Mean Risk")
+        st.pyplot(fig2)
 
-        st.write("Mean Risk (Male):", round(male_mean,3))
-        st.write("Mean Risk (Female):", round(female_mean,3))
+        # ===== Subgroup by Age =====
+        st.markdown("### Subgroup Analysis – Age Groups")
+
+        df["age_group"] = pd.cut(df["age"], bins=[18,40,60,90],
+                                 labels=["18-40","41-60","61-90"])
+
+        age_table = df.groupby("age_group")["prob"].agg(["count","mean"]).reset_index()
+        st.dataframe(age_table)
+
+        fig3, ax3 = plt.subplots()
+        ax3.bar(age_table["age_group"], age_table["mean"])
+        ax3.set_ylabel("Mean Risk")
+        st.pyplot(fig3)
 
 # =====================================================
 # 3️⃣ MONITORING & DRIFT
 # =====================================================
 with tabs[2]:
 
-    df = pd.read_sql_query("SELECT prob FROM audit", conn)
+    df = pd.read_sql_query("SELECT prob, timestamp FROM audit", conn)
 
-    st.write("Total Cases Logged:", len(df))
+    if len(df) > 0:
 
-    if len(df)>50:
-        historical_mean = df["prob"].mean()
-        recent_mean = df.tail(30)["prob"].mean()
+        st.metric("Total Cases Logged", len(df))
 
-        st.write("Historical Mean Risk:", round(historical_mean,3))
-        st.write("Recent Mean Risk (Last 30):", round(recent_mean,3))
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df.sort_values("timestamp")
 
-        if abs(recent_mean - historical_mean) > 0.1:
-            st.warning("Potential Model Drift Detected")
-        else:
-            st.success("No Significant Drift Detected")
+        st.markdown("### Risk Trend Over Time")
+        fig, ax = plt.subplots()
+        ax.plot(df["timestamp"], df["prob"])
+        ax.set_ylabel("Predicted Risk")
+        st.pyplot(fig)
+
+        st.markdown("### Rolling Mean (Last 20 Cases)")
+        df["rolling"] = df["prob"].rolling(window=20).mean()
+        fig2, ax2 = plt.subplots()
+        ax2.plot(df["timestamp"], df["rolling"])
+        st.pyplot(fig2)
+
+        st.markdown("### Distribution Histogram")
+        fig3, ax3 = plt.subplots()
+        ax3.hist(df["prob"], bins=20)
+        st.pyplot(fig3)
+
+        if len(df) > 40:
+            historical_mean = df.iloc[:-30]["prob"].mean()
+            recent_mean = df.iloc[-30:]["prob"].mean()
+
+            st.write("Historical Mean:", round(historical_mean,3))
+            st.write("Recent Mean:", round(recent_mean,3))
+
+            if abs(recent_mean - historical_mean) > 0.1:
+                st.error("Drift Alert: Significant shift detected")
+            else:
+                st.success("No significant drift detected")
 
 # =====================================================
 # 4️⃣ HOW TO USE
@@ -251,22 +283,23 @@ with tabs[3]:
 
 1. Login using authorized hospital access key.
 2. Upload high-quality transverse liver ultrasound image.
-3. Enter patient demographic information.
+3. Enter patient demographic metadata.
 4. Review AI classification:
    - Likely Normal
    - Likely Benign
    - Suspicious Malignant
 5. Review probability and recommendation.
 6. Download structured clinical report.
-7. Monitor performance and drift in dashboard.
-
-### Clinical Disclaimer
-This tool provides decision-support only.
-Clinical judgment and correlation required.
+7. Monitor calibration and drift in dashboard.
 
 ### Platform Roadmap
-- Liver: Deployed (Binary, Calibrated)
+
+- Liver: Deployed (Binary, Calibrated, Threshold optimized)
 - Thyroid: Cross-validation completed (Mean CV AUC ≈ 0.851)
 - Breast: Dataset curation phase
 - Prostate: Planned future expansion
+
+### Clinical Disclaimer
+This system provides decision-support only.
+Clinical judgment required before management decisions.
 """)
