@@ -182,89 +182,68 @@ with tabs[1]:
             st.image(image, use_column_width=True)
 
         with col2:
-            st.markdown(f"<div class='card {style}'><b>{label}</b><br>{round(prob*100,2)}%</div>", unsafe_allow_html=True)
 
-            # ===============================
-            # Advanced Clinical Risk Gauge
-            # ===============================
+    st.markdown(
+        f"<div class='card {style}'><b>{label}</b><br>{round(prob*100,2)}%</div>",
+        unsafe_allow_html=True
+    )
 
-        fig, ax = plt.subplots(figsize=(4,2.5))
+    # ===============================
+    # Advanced Clinical Risk Gauge
+    # ===============================
 
-        ax.set_xlim(-1.2, 1.2)
-        ax.set_ylim(-0.2, 1.2)
-        ax.axis("off")
+    fig, ax = plt.subplots(figsize=(4,2.5))
 
-        theta = np.linspace(0, math.pi, 200)
+    ax.set_xlim(-1.2, 1.2)
+    ax.set_ylim(-0.2, 1.2)
+    ax.axis("off")
 
-        # Green zone
-        ax.fill_between(
-            np.cos(theta[:70]),
-            0,
-            np.sin(theta[:70]),
-            alpha=0.15
-        )
+    theta = np.linspace(0, math.pi, 200)
 
-        # Yellow zone
-        ax.fill_between(
-            np.cos(theta[70:140]),
-            0,
-            np.sin(theta[70:140]),
-            alpha=0.15
-        )
+    ax.fill_between(np.cos(theta[:70]), 0, np.sin(theta[:70]), alpha=0.15)
+    ax.fill_between(np.cos(theta[70:140]), 0, np.sin(theta[70:140]), alpha=0.15)
+    ax.fill_between(np.cos(theta[140:]), 0, np.sin(theta[140:]), alpha=0.15)
 
-        # Red zone
-        ax.fill_between(
-            np.cos(theta[140:]),
-            0,
-            np.sin(theta[140:]),
-            alpha=0.15
-        )
+    ax.plot(np.cos(theta), np.sin(theta), linewidth=2)
 
-            # Outer arc
-            ax.plot(np.cos(theta), np.sin(theta), linewidth=2)
-            
-            # Needle color by classification
-            if label == "Normal":
-                needle_color = "#2ecc71"
-            elif label == "Likely Benign":
-                needle_color = "#f1c40f"
-            else:
-                needle_color = "#e74c3c"
-            
-            # Needle
-            angle = math.pi * (1 - prob)
-            ax.plot(
-                [0, np.cos(angle)],
-                [0, np.sin(angle)],
-                linewidth=3,
-                color=needle_color
-            )
-            
-            # Center dot
-            ax.scatter(0, 0, s=80)
-            
-            # Percentage text
-            ax.text(
-                0, -0.05,
-                f"{round(prob*100,1)}%",
-                ha="center",
-                fontsize=20,
-                fontweight="bold"
-            )
+    if label == "Normal":
+        needle_color = "#2ecc71"
+    elif label == "Likely Benign":
+        needle_color = "#f1c40f"
+    else:
+        needle_color = "#e74c3c"
 
-            # Risk label
-            ax.text(
-                0, -0.18,
-                label,
-                ha="center",
-                fontsize=10
-            )
-            
-            plt.tight_layout()
-            st.pyplot(fig)
-            
-            
-                    st.markdown("### Structured Clinical Report")
+    angle = math.pi * (1 - prob)
+
+    ax.plot(
+        [0, np.cos(angle)],
+        [0, np.sin(angle)],
+        linewidth=3,
+        color=needle_color
+    )
+
+    ax.scatter(0, 0, s=80)
+
+    ax.text(
+        0, -0.05,
+        f"{round(prob*100,1)}%",
+        ha="center",
+        fontsize=20,
+        fontweight="bold"
+    )
+
+    ax.text(
+        0, -0.18,
+        label,
+        ha="center",
+        fontsize=10
+    )
+
+    plt.tight_layout()
+    st.pyplot(fig)
+
+# 👇 อันนี้ต้องอยู่นอก with col2
+st.markdown("### Structured Clinical Report")
 
         report = f"""
 Case ID: {case_id}
