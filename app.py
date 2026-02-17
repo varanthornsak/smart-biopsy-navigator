@@ -858,3 +858,205 @@ with fhir_tabs[4]:
         st.info(f"Simulated POST to {fhir_endpoint}")
         st.code("POST /fhir Bundle transaction")
         st.success("Bundle queued for transmission (Simulation)")
+# =====================================================
+# ========== ADVANCED FHIR ENTERPRISE LAYER ===========
+# =====================================================
+
+import requests
+import base64
+
+st.markdown("---")
+st.markdown("## 🔐 Advanced FHIR Enterprise Integration")
+
+advanced_fhir_tabs = st.tabs([
+    "OAuth2 Auth",
+    "LOINC / SNOMED Mapping",
+    "Patient & Practitioner",
+    "Media Resource (Ultrasound)",
+    "Full Transaction Bundle",
+    "Send to HAPI FHIR",
+    "Official Validator"
+])
+
+# =====================================================
+# 1️⃣ OAUTH2 SIMULATION
+# =====================================================
+with advanced_fhir_tabs[0]:
+
+    st.subheader("OAuth2 Bearer Authentication")
+
+    token = st.text_input("OAuth2 Bearer Token")
+
+    if token:
+        st.success("Token attached to session (Simulation)")
+
+# =====================================================
+# 2️⃣ LOINC / SNOMED CODING
+# =====================================================
+with advanced_fhir_tabs[1]:
+
+    st.subheader("Clinical Coding Mapping")
+
+    loinc_code = "LA6576-8"  # example imaging risk
+    snomed_code = "108369006"  # Malignant neoplasm
+
+    st.write("LOINC Code:", loinc_code)
+    st.write("SNOMED Code:", snomed_code)
+
+# =====================================================
+# 3️⃣ PATIENT + PRACTITIONER
+# =====================================================
+with advanced_fhir_tabs[2]:
+
+    st.subheader("Patient & Practitioner Resource")
+
+    patient_id = st.text_input("Patient ID", "HN123456")
+    practitioner_id = "PRAC001"
+
+    patient_resource = {
+        "resourceType": "Patient",
+        "id": patient_id,
+        "identifier": [{
+            "system": "http://hospital.org/mrn",
+            "value": patient_id
+        }],
+        "active": True
+    }
+
+    practitioner_resource = {
+        "resourceType": "Practitioner",
+        "id": practitioner_id,
+        "active": True,
+        "name": [{
+            "text": "Dr. AI Radiologist"
+        }]
+    }
+
+    st.json({"Patient": patient_resource,
+             "Practitioner": practitioner_resource})
+
+# =====================================================
+# 4️⃣ MEDIA RESOURCE (ULTRASOUND IMAGE REFERENCE)
+# =====================================================
+with advanced_fhir_tabs[3]:
+
+    st.subheader("Media Resource (Ultrasound Reference)")
+
+    if uploaded:
+
+        img_bytes = uploaded.getvalue()
+        encoded_image = base64.b64encode(img_bytes).decode("utf-8")
+
+        media_resource = {
+            "resourceType": "Media",
+            "status": "completed",
+            "type": {
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/media-type",
+                    "code": "image"
+                }]
+            },
+            "subject": {"reference": f"Patient/{patient_id}"},
+            "content": {
+                "contentType": "image/jpeg",
+                "data": encoded_image[:100] + "... (truncated)"
+            }
+        }
+
+        st.json(media_resource)
+
+# =====================================================
+# 5️⃣ FULL TRANSACTION BUNDLE
+# =====================================================
+with advanced_fhir_tabs[4]:
+
+    st.subheader("Full FHIR Transaction Bundle")
+
+    observation_resource = {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": loinc_code,
+                "display": "AI Malignancy Risk"
+            }]
+        },
+        "subject": {"reference": f"Patient/{patient_id}"},
+        "performer": [{"reference": f"Practitioner/{practitioner_id}"}],
+        "valueQuantity": {
+            "value": probability_input,
+            "unit": "probability"
+        }
+    }
+
+    diagnostic_report_resource = {
+        "resourceType": "DiagnosticReport",
+        "status": "final",
+        "code": {"text": "AI Ultrasound Risk Assessment"},
+        "subject": {"reference": f"Patient/{patient_id}"},
+        "result": [{"reference": "Observation/ai-risk"}]
+    }
+
+    full_bundle = {
+        "resourceType": "Bundle",
+        "type": "transaction",
+        "entry": [
+            {"resource": patient_resource,
+             "request": {"method": "POST", "url": "Patient"}},
+            {"resource": practitioner_resource,
+             "request": {"method": "POST", "url": "Practitioner"}},
+            {"resource": observation_resource,
+             "request": {"method": "POST", "url": "Observation"}},
+            {"resource": diagnostic_report_resource,
+             "request": {"method": "POST", "url": "DiagnosticReport"}}
+        ]
+    }
+
+    st.json(full_bundle)
+
+# =====================================================
+# 6️⃣ SEND TO HAPI FHIR SERVER
+# =====================================================
+with advanced_fhir_tabs[5]:
+
+    st.subheader("Send to HAPI FHIR Test Server")
+
+    hapi_url = st.text_input(
+        "HAPI FHIR Endpoint",
+        "https://hapi.fhir.org/baseR4"
+    )
+
+    if st.button("POST Bundle to HAPI (Simulation)"):
+        headers = {
+            "Content-Type": "application/fhir+json"
+        }
+
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        try:
+            response = requests.post(
+                hapi_url,
+                json=full_bundle,
+                headers=headers
+            )
+
+            st.write("Status Code:", response.status_code)
+            st.json(response.json())
+
+        except Exception as e:
+            st.error("Connection failed (Test Server may reject large payload)")
+
+# =====================================================
+# 7️⃣ OFFICIAL FHIR VALIDATOR
+# =====================================================
+with advanced_fhir_tabs[6]:
+
+    st.subheader("Official FHIR Validator")
+
+    validator_url = "https://validator.fhir.org/validate"
+
+    if st.button("Validate Bundle (Simulation)"):
+        st.info("Bundle ready for validation.")
+        st.write("Upload exported JSON to official HL7 FHIR Validator.")
