@@ -1,11 +1,7 @@
 streamlit
 torch
 torchvision
+pillow
 numpy
 pandas
 matplotlib
-Pillow
-opencv-python-headless
-reportlab
-pydicom
-scikit-learn
