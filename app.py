@@ -10,14 +10,39 @@ import sqlite3
 import datetime
 import uuid
 import math
-from sklearn.calibration import calibration_curve
-from sklearn.metrics import roc_curve, roc_auc_score
 
 # ======================================================
-# CONFIG
+# PAGE CONFIG
 # ======================================================
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
+# ======================================================
+# DATABASE SAFE INIT
+# ======================================================
+conn = sqlite3.connect("audit.db", check_same_thread=False)
+c = conn.cursor()
+
+c.execute("PRAGMA table_info(audit)")
+columns = [col[1] for col in c.fetchall()]
+
+if not columns:
+    c.execute("""
+    CREATE TABLE audit (
+    case_id TEXT,
+    organ TEXT,
+    prob REAL,
+    timestamp TEXT
+    )
+    """)
+else:
+    if "organ" not in columns:
+        c.execute("ALTER TABLE audit ADD COLUMN organ TEXT")
+
+conn.commit()
+
+# ======================================================
+# MODEL REGISTRY
+# ======================================================
 MODEL_REGISTRY = {
     "Liver": {
         "status": "Active",
@@ -35,28 +60,13 @@ MODEL_REGISTRY = {
 st.markdown("""
 <style>
 .big-title {font-size:32px;font-weight:700;}
-.card {padding:20px;border-radius:15px;color:white;font-weight:600;text-align:center;}
+.card {padding:25px;border-radius:15px;color:white;font-weight:600;text-align:center;font-size:22px;}
 .green {background:#27ae60;}
 .yellow {background:#f1c40f;color:black;}
 .red {background:#e74c3c;}
 .section {font-size:20px;font-weight:600;margin-top:25px;}
 </style>
 """, unsafe_allow_html=True)
-
-# ======================================================
-# DATABASE
-# ======================================================
-conn = sqlite3.connect("audit.db", check_same_thread=False)
-c = conn.cursor()
-c.execute("""
-CREATE TABLE IF NOT EXISTS audit (
-case_id TEXT,
-organ TEXT,
-prob REAL,
-timestamp TEXT
-)
-""")
-conn.commit()
 
 # ======================================================
 # LOGIN
@@ -77,12 +87,12 @@ if not st.session_state.login:
     st.stop()
 
 # ======================================================
-# LOAD MODEL (Liver only active)
+# LOAD MODEL
 # ======================================================
 @st.cache_resource
 def load_model(url):
     model = models.resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features,2)
+    model.fc = nn.Linear(model.fc.in_features, 2)
     state = torch.hub.load_state_dict_from_url(url, map_location="cpu")
     model.load_state_dict(state)
     model.eval()
@@ -91,7 +101,7 @@ def load_model(url):
 model = load_model(MODEL_REGISTRY["Liver"]["url"])
 
 # ======================================================
-# GRAD-CAM (Stable version)
+# GRAD-CAM (stable)
 # ======================================================
 def generate_gradcam(model, image_tensor):
     gradients = []
@@ -110,7 +120,7 @@ def generate_gradcam(model, image_tensor):
     output = model(image_tensor)
     class_idx = torch.argmax(output)
     model.zero_grad()
-    output[0,class_idx].backward()
+    output[0, class_idx].backward()
 
     grads = gradients[0].detach()
     acts = activations[0].detach()
@@ -130,25 +140,22 @@ def generate_gradcam(model, image_tensor):
 # ======================================================
 st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
 
-tabs = st.tabs(["Clinical AI","Calibration","External Validation","Multi-Organ Registry"])
+tabs = st.tabs(["Clinical AI","Calibration","External Validation","Model Registry"])
 
 # ======================================================
 # 1️⃣ CLINICAL AI
 # ======================================================
 with tabs[0]:
 
-    st.markdown("<div class='section'>Organ Selection</div>", unsafe_allow_html=True)
-
     organ = st.selectbox("Select Organ", list(MODEL_REGISTRY.keys()))
 
     if MODEL_REGISTRY[organ]["status"] != "Active":
-        st.warning(f"{organ} model not yet deployed. Status: {MODEL_REGISTRY[organ]['status']}")
+        st.warning(f"{organ} model not yet deployed.")
         st.stop()
 
     uploaded = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
 
     if uploaded:
-
         image = Image.open(uploaded).convert("RGB")
 
         transform = transforms.Compose([
@@ -160,34 +167,37 @@ with tabs[0]:
 
         with torch.no_grad():
             output = model(tensor)
-            prob = torch.softmax(output,dim=1)[0][1].item()
+            prob = torch.softmax(output, dim=1)[0][1].item()
 
         threshold = MODEL_REGISTRY[organ]["threshold"]
 
         if prob < 0.1:
-            label="Normal";color="green"
+            label="Likely Normal"
+            color="green"
         elif prob < threshold:
-            label="Benign";color="yellow"
+            label="Likely Benign"
+            color="yellow"
         else:
-            label="Malignant";color="red"
+            label="Suspicious Malignant"
+            color="red"
 
         col1,col2 = st.columns([1.2,1])
 
         with col1:
-            st.image(image,use_column_width=True)
-
+            st.image(image, use_column_width=True)
             cam = generate_gradcam(model, tensor)
             st.image(cam, clamp=True, caption="Grad-CAM Heatmap")
 
         with col2:
-            st.markdown(f"<div class='card {color}'>{label}<br>Prob: {round(prob*100,2)}%</div>",unsafe_allow_html=True)
+            st.markdown(f"<div class='card {color}'>{label}<br>{round(prob*100,2)}%</div>", unsafe_allow_html=True)
 
+            # Risk gauge
             fig, ax = plt.subplots()
             ax.axis("off")
-            theta = np.linspace(0, math.pi,100)
-            ax.plot(np.cos(theta),np.sin(theta))
+            theta = np.linspace(0, math.pi, 100)
+            ax.plot(np.cos(theta), np.sin(theta))
             angle = math.pi*(1-prob)
-            ax.plot([0,np.cos(angle)],[0,np.sin(angle)],linewidth=4)
+            ax.plot([0,np.cos(angle)],[0,np.sin(angle)], linewidth=4)
             ax.text(0,-0.2,f"{round(prob*100,1)}%",ha="center")
             st.pyplot(fig)
 
@@ -196,56 +206,71 @@ with tabs[0]:
         conn.commit()
 
 # ======================================================
-# 2️⃣ CALIBRATION
+# 2️⃣ CALIBRATION (manual)
 # ======================================================
 with tabs[1]:
 
-    st.markdown("<div class='section'>Calibration Curve</div>", unsafe_allow_html=True)
-
-    df = pd.read_sql_query("SELECT * FROM audit WHERE organ='Liver'",conn)
+    df = pd.read_sql_query("SELECT * FROM audit WHERE organ='Liver'", conn)
 
     if len(df) > 20:
         probs = df["prob"].values
-        labels = np.random.randint(0,2,len(probs))  # simulated true labels
+        labels = np.random.randint(0,2,len(probs))
 
-        frac_pos, mean_pred = calibration_curve(labels, probs, n_bins=10)
+        bins = np.linspace(0,1,11)
+        bin_ids = np.digitize(probs, bins) - 1
+
+        observed = []
+        predicted = []
+
+        for i in range(10):
+            idx = bin_ids == i
+            if np.sum(idx) > 0:
+                observed.append(np.mean(labels[idx]))
+                predicted.append(np.mean(probs[idx]))
 
         fig, ax = plt.subplots()
-        ax.plot(mean_pred, frac_pos)
+        ax.plot(predicted, observed)
         ax.plot([0,1],[0,1])
-        ax.set_xlabel("Predicted Probability")
-        ax.set_ylabel("Observed Frequency")
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("Observed")
         st.pyplot(fig)
     else:
-        st.info("Not enough data for calibration analysis.")
+        st.info("Not enough cases for calibration.")
 
 # ======================================================
 # 3️⃣ EXTERNAL VALIDATION
 # ======================================================
 with tabs[2]:
 
-    st.markdown("<div class='section'>External Validation Upload</div>", unsafe_allow_html=True)
-
     csv = st.file_uploader("Upload CSV (columns: prob,label)", type=["csv"])
 
     if csv:
         data = pd.read_csv(csv)
+        labels = data["label"].values
+        probs = data["prob"].values
 
-        auc = roc_auc_score(data["label"], data["prob"])
-        fpr, tpr, _ = roc_curve(data["label"], data["prob"])
+        thresholds = np.linspace(0,1,100)
+        tpr = []
+        fpr = []
 
-        st.write("External AUC:", round(auc,4))
+        for t in thresholds:
+            preds = (probs >= t).astype(int)
+            TP = np.sum((preds==1)&(labels==1))
+            FP = np.sum((preds==1)&(labels==0))
+            FN = np.sum((preds==0)&(labels==1))
+            TN = np.sum((preds==0)&(labels==0))
+
+            tpr.append(TP/(TP+FN+1e-6))
+            fpr.append(FP/(FP+TN+1e-6))
 
         fig, ax = plt.subplots()
         ax.plot(fpr,tpr)
         ax.plot([0,1],[0,1])
-        ax.set_title("External ROC")
         st.pyplot(fig)
 
 # ======================================================
-# 4️⃣ MULTI-ORGAN REGISTRY
+# 4️⃣ REGISTRY
 # ======================================================
 with tabs[3]:
-
     for organ,info in MODEL_REGISTRY.items():
-        st.write(f"{organ} — Status: {info['status']}")
+        st.write(f"{organ} — {info['status']}")
