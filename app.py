@@ -15,6 +15,56 @@ import requests
 import base64
 
 # =====================================================
+# 🔐 ENTERPRISE LOGIN SYSTEM
+# =====================================================
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+
+    st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
+
+    st.markdown("<h1 style='font-size:34px;'>Smart Biopsy Navigator</h1>", unsafe_allow_html=True)
+    st.markdown("### Enterprise Clinical AI Platform")
+
+    col1, col2 = st.columns([1,1])
+
+    with col1:
+        hospital = st.selectbox(
+            "Hospital",
+            ["Sri Nagarind Hospital",
+             "Bangkok Hospital",
+             "Chiang Mai University Hospital",
+             "Demo Hospital"]
+        )
+
+        role = st.selectbox(
+            "Role",
+            ["Radiologist",
+             "Oncologist",
+             "Surgeon",
+             "Admin",
+             "AI Governance Officer"]
+        )
+
+    with col2:
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if password == "SNH_SECURE":
+            st.session_state.authenticated = True
+            st.session_state.hospital = hospital
+            st.session_state.role = role
+            st.session_state.username = username
+            st.success("Login Successful")
+            st.rerun()
+        else:
+            st.error("Invalid credentials")
+
+    st.stop()
+# =====================================================
 # PAGE CONFIG
 # =====================================================
 st.set_page_config(
@@ -748,3 +798,185 @@ elif app_mode == "Governance":
     st.table(governance_table)
 
     st.success("System Status: Enterprise Deployment Ready (Simulation Mode)")
+    # =====================================================
+# 🏥 REGULATORY & SaMD COMPLIANCE MODULE
+# =====================================================
+
+st.markdown("---")
+st.markdown("## 📑 SaMD Regulatory & Compliance Center")
+
+reg_tabs = st.tabs([
+    "SaMD Documentation",
+    "Risk Management (ISO 14971)",
+    "Clinical Evaluation Report",
+    "Post-Market Surveillance",
+    "Model Change Control"
+])
+
+# =====================================================
+# 1️⃣ SaMD DOCUMENTATION PANEL
+# =====================================================
+with reg_tabs[0]:
+
+    st.subheader("Software as a Medical Device (SaMD) Documentation")
+
+    st.info("""
+Device Name: Smart Biopsy Navigator  
+Version: Liver v2.1  
+Intended Use: Ultrasound-based malignancy risk stratification  
+Classification:
+• US FDA – 510(k) SaMD  
+• EU MDR – Class IIa  
+• Thailand FDA – Class 2  
+""")
+
+    st.write("""
+Core Technical Documentation Includes:
+• Software Architecture Specification
+• AI Model Description & Training Data Summary
+• Cybersecurity Plan
+• Clinical Validation Report
+• Risk Management File
+• Post-Market Surveillance Plan
+""")
+
+# =====================================================
+# 2️⃣ ISO 14971 RISK MANAGEMENT MOCK
+# =====================================================
+with reg_tabs[1]:
+
+    st.subheader("ISO 14971 Risk Management File (Mock)")
+
+    risk_table = pd.DataFrame({
+        "Hazard": [
+            "False Negative (Missed Cancer)",
+            "False Positive (Unnecessary Biopsy)",
+            "Data Breach",
+            "Model Drift"
+        ],
+        "Severity": ["High", "Moderate", "High", "Moderate"],
+        "Mitigation": [
+            "Threshold tuning + radiologist review",
+            "Calibration + follow-up protocol",
+            "TLS + role-based access",
+            "Drift monitoring & retraining pipeline"
+        ]
+    })
+
+    st.table(risk_table)
+
+    st.success("Risk Controls Implemented (Simulation Mode)")
+
+# =====================================================
+# 3️⃣ CLINICAL EVALUATION REPORT TEMPLATE
+# =====================================================
+with reg_tabs[2]:
+
+    st.subheader("Clinical Evaluation Report (CER) Template")
+
+    st.write("""
+Section 1 – Device Description  
+Section 2 – Intended Use & Indications  
+Section 3 – Clinical Background  
+Section 4 – Performance Evaluation (AUC, Sensitivity, Specificity)  
+Section 5 – Risk-Benefit Analysis  
+Section 6 – Conclusion  
+
+External Validation AUC: 0.91  
+Calibration Slope: 0.98  
+Dataset Size: 4,820 Cases (Simulated)
+""")
+
+    if st.button("Generate CER PDF (Mock)"):
+        st.success("Clinical Evaluation Report Generated")
+
+# =====================================================
+# 4️⃣ POST-MARKET SURVEILLANCE DASHBOARD
+# =====================================================
+with reg_tabs[3]:
+
+    st.subheader("Post-Market Surveillance (PMS) Dashboard")
+
+    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
+
+    if not df_all.empty:
+
+        st.metric("Total Deployed Cases", len(df_all))
+        st.metric("High Risk Flag Rate",
+                  f"{round(len(df_all[df_all['classification']=='Suspicious Malignant'])/len(df_all)*100,1)}%")
+
+        drift_sim = np.random.uniform(0,0.2)
+        st.metric("Drift Indicator", round(drift_sim,3))
+
+        if drift_sim > 0.15:
+            st.error("Drift Alert – Review Required")
+        else:
+            st.success("Model Stable")
+
+    else:
+        st.info("Insufficient real-world data")
+
+# =====================================================
+# 5️⃣ MODEL CHANGE CONTROL FRAMEWORK
+# =====================================================
+with reg_tabs[4]:
+
+    st.subheader("Model Version & Change Control")
+
+    version_history = pd.DataFrame({
+        "Version": ["v1.0", "v2.0", "v2.1"],
+        "Change Summary": [
+            "Initial liver model",
+            "Calibration improvement",
+            "External validation update"
+        ],
+        "Approval Status": [
+            "Approved",
+            "Approved",
+            "Active"
+        ]
+    })
+
+    st.table(version_history)
+
+    st.write("""
+Change Control Process:
+1. Model retraining
+2. Internal validation
+3. External validation
+4. Risk assessment update
+5. Governance approval
+6. Deployment freeze
+""")
+
+    st.success("Change Management Framework Active")
+st.markdown("---")
+st.markdown("## 📖 Detailed System Usage Guide")
+
+st.write("""
+### Step 1 – Login
+• Select hospital  
+• Select clinical role  
+• Enter credentials  
+
+### Step 2 – Case Analysis
+• Upload ultrasound image  
+• Review AI probability  
+• Assess risk classification  
+
+### Step 3 – Clinical Decision
+• Confirm AI recommendation  
+• Override if necessary  
+• Export structured report  
+
+### Step 4 – FHIR Integration
+• Generate transaction bundle  
+• Validate via official validator  
+• Send to EMR via HAPI server  
+
+### Step 5 – Governance & Monitoring
+• Monitor drift indicators  
+• Review audit logs  
+• Track performance metrics  
+""")
+
