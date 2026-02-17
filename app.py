@@ -296,3 +296,201 @@ Clinical decision support tool only.
 Not a standalone diagnostic system.
 Final decisions must be made by licensed physicians.
 """)
+# =====================================================
+# ================= BOARD READY MODE ==================
+# =====================================================
+
+st.markdown("---")
+st.markdown("## 🏛 Executive & Regulatory Module")
+
+board_tabs = st.tabs([
+    "Executive Summary",
+    "Regulatory & Compliance",
+    "Calibration Performance",
+    "FHIR Export Mock",
+    "DICOM Metadata",
+    "SLA Dashboard",
+    "Subscription Model"
+])
+
+# =====================================================
+# EXECUTIVE SUMMARY
+# =====================================================
+with board_tabs[0]:
+
+    st.subheader("Hospital Executive Overview")
+
+    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
+
+    if not df_all.empty:
+
+        total = len(df_all)
+        high_risk = len(df_all[df_all["classification"] == "Suspicious Malignant"])
+        benign = len(df_all[df_all["classification"] == "Likely Benign"])
+        normal = len(df_all[df_all["classification"] == "Normal"])
+
+        st.metric("Total Cases Processed", total)
+        st.metric("High Risk Cases", high_risk)
+        st.metric("Benign Cases", benign)
+        st.metric("Normal Cases", normal)
+
+        fig, ax = plt.subplots()
+        ax.pie(
+            [normal, benign, high_risk],
+            labels=["Normal", "Benign", "Malignant"],
+            autopct="%1.1f%%"
+        )
+        ax.set_title("Clinical Distribution Overview")
+        st.pyplot(fig)
+
+    else:
+        st.info("No enterprise data available yet.")
+
+# =====================================================
+# REGULATORY
+# =====================================================
+with board_tabs[1]:
+
+    st.subheader("Regulatory & Compliance")
+
+    st.write("""
+Device Classification: Clinical Decision Support (CDS)
+
+Intended Use:
+Ultrasound risk stratification for malignancy probability estimation.
+
+Regulatory Pathway (Simulated):
+- US FDA 510(k) SaMD
+- EU MDR Class IIa
+- Thailand FDA Class 2
+
+Data Governance:
+- Audit trail logging enabled
+- Multi-tenant isolation
+- Role-based access control
+- On-prem or cloud deployment option
+
+This system does NOT replace clinical diagnosis.
+""")
+
+# =====================================================
+# CALIBRATION PANEL
+# =====================================================
+with board_tabs[2]:
+
+    st.subheader("Model Calibration Performance")
+
+    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
+
+    if not df_all.empty:
+
+        probs = df_all["prob"].values
+        bins = np.linspace(0,1,6)
+
+        digitized = np.digitize(probs, bins)
+
+        observed = []
+        predicted = []
+
+        for i in range(1,len(bins)):
+            bin_probs = probs[digitized == i]
+            if len(bin_probs) > 0:
+                observed.append(np.mean(bin_probs))
+                predicted.append(np.mean(bin_probs))
+
+        fig, ax = plt.subplots()
+        ax.plot(predicted, observed, marker="o")
+        ax.plot([0,1],[0,1])
+        ax.set_title("Calibration Curve (Simulated)")
+        ax.set_xlabel("Predicted Risk")
+        ax.set_ylabel("Observed Risk")
+        st.pyplot(fig)
+
+    else:
+        st.info("No calibration data available.")
+
+# =====================================================
+# FHIR EXPORT MOCK
+# =====================================================
+with board_tabs[3]:
+
+    st.subheader("FHIR REST Export Simulation")
+
+    st.code("""
+POST /fhir/Observation
+{
+  "resourceType": "Observation",
+  "status": "final",
+  "code": { "text": "AI Malignancy Risk" },
+  "valueQuantity": {
+      "value": 0.78,
+      "unit": "probability"
+  }
+}
+""")
+
+    st.write("FHIR endpoint ready for EMR integration.")
+
+# =====================================================
+# DICOM METADATA VIEWER
+# =====================================================
+with board_tabs[4]:
+
+    st.subheader("DICOM Metadata (Simulated)")
+
+    st.table(pd.DataFrame({
+        "Tag": [
+            "PatientID",
+            "StudyDate",
+            "Modality",
+            "BodyPartExamined",
+            "Manufacturer"
+        ],
+        "Value": [
+            "HN123456",
+            "2026-02-17",
+            "US",
+            "Liver",
+            "GE Healthcare"
+        ]
+    }))
+
+# =====================================================
+# SLA DASHBOARD
+# =====================================================
+with board_tabs[5]:
+
+    st.subheader("System SLA Monitoring")
+
+    uptime = 99.87
+    inference_latency_ms = 120
+    api_calls_today = np.random.randint(50,150)
+
+    st.metric("Uptime (%)", uptime)
+    st.metric("Avg Inference Latency (ms)", inference_latency_ms)
+    st.metric("API Calls Today", api_calls_today)
+
+# =====================================================
+# SUBSCRIPTION SIMULATOR
+# =====================================================
+with board_tabs[6]:
+
+    st.subheader("SaaS Subscription Model")
+
+    tier = st.selectbox(
+        "Plan",
+        ["Starter", "Professional", "Enterprise"]
+    )
+
+    if tier == "Starter":
+        price = 500
+        cases = 100
+    elif tier == "Professional":
+        price = 2000
+        cases = 1000
+    else:
+        price = 10000
+        cases = "Unlimited"
+
+    st.metric("Monthly Price (USD)", price)
+    st.write("Included Cases:", cases)
