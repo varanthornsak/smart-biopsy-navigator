@@ -1222,26 +1222,3 @@ with enterprise_plus_tabs[3]:
 
     else:
         st.info("No cross-hospital data available yet.")
-
-
-# =====================================================
-# 5️⃣ PRODUCTION-GRADE SIDEBAR LAYOUT
-# =====================================================
-with enterprise_plus_tabs[4]:
-
-    st.subheader("Production Navigation Layout Preview")
-
-    with st.sidebar:
-
-        st.markdown("### 🏥 Smart Biopsy Navigator")
-        st.markdown("---")
-        st.write("🔎 Worklist")
-        st.write("🧠 Case Viewer")
-        st.write("📊 Analytics")
-        st.write("💰 Billing")
-        st.write("🛡 Governance")
-        st.write("🔐 Infrastructure")
-        st.markdown("---")
-        st.caption("Enterprise Mode Enabled")
-
-    st.info("Sidebar navigation active (visual demo).")
