@@ -705,3 +705,156 @@ Pipeline:
 6. Version freeze
 7. Deployment to production registry
 """)
+# =====================================================
+# =============== FHIR COMPLETE MODULE ===============
+# =====================================================
+
+import json
+import requests
+import datetime
+import uuid
+
+st.markdown("---")
+st.markdown("## 🏥 FHIR Complete Integration Module")
+
+fhir_tabs = st.tabs([
+    "Generate FHIR Resources",
+    "Bundle Builder",
+    "Validate Structure",
+    "Export JSON",
+    "Send to FHIR Server (Mock)"
+])
+
+# =====================================================
+# 1️⃣ GENERATE OBSERVATION + DIAGNOSTIC REPORT
+# =====================================================
+with fhir_tabs[0]:
+
+    st.subheader("Generate FHIR Observation + DiagnosticReport")
+
+    patient_id = st.text_input("Patient ID", "HN123456")
+    probability_input = st.number_input("AI Probability", 0.0, 1.0, 0.78)
+    interpretation_input = st.selectbox(
+        "Interpretation",
+        ["Normal", "Likely Benign", "Suspicious Malignant"]
+    )
+
+    observation_id = f"ai-risk-{uuid.uuid4().hex[:8]}"
+    report_id = f"ai-report-{uuid.uuid4().hex[:8]}"
+
+    observation = {
+        "resourceType": "Observation",
+        "id": observation_id,
+        "status": "final",
+        "category": [{
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "imaging",
+                "display": "Imaging"
+            }]
+        }],
+        "code": {"text": "AI Liver Malignancy Risk"},
+        "subject": {"reference": f"Patient/{patient_id}"},
+        "effectiveDateTime": str(datetime.datetime.utcnow()),
+        "valueQuantity": {
+            "value": probability_input,
+            "unit": "probability"
+        },
+        "interpretation": [{
+            "text": interpretation_input
+        }]
+    }
+
+    diagnostic_report = {
+        "resourceType": "DiagnosticReport",
+        "id": report_id,
+        "status": "final",
+        "code": {"text": "AI Ultrasound Risk Assessment"},
+        "subject": {"reference": f"Patient/{patient_id}"},
+        "effectiveDateTime": str(datetime.datetime.utcnow()),
+        "result": [{
+            "reference": f"Observation/{observation_id}"
+        }]
+    }
+
+    st.json({"Observation": observation, "DiagnosticReport": diagnostic_report})
+
+# =====================================================
+# 2️⃣ BUNDLE BUILDER (TRANSACTION MODE)
+# =====================================================
+with fhir_tabs[1]:
+
+    st.subheader("FHIR Bundle (Transaction)")
+
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "transaction",
+        "entry": [
+            {
+                "resource": observation,
+                "request": {
+                    "method": "POST",
+                    "url": "Observation"
+                }
+            },
+            {
+                "resource": diagnostic_report,
+                "request": {
+                    "method": "POST",
+                    "url": "DiagnosticReport"
+                }
+            }
+        ]
+    }
+
+    st.json(bundle)
+
+# =====================================================
+# 3️⃣ VALIDATION (BASIC STRUCTURE CHECK)
+# =====================================================
+with fhir_tabs[2]:
+
+    st.subheader("FHIR Structure Validation")
+
+    def basic_validate(resource):
+        required = ["resourceType", "status", "subject"]
+        missing = [r for r in required if r not in resource]
+        return missing
+
+    missing_fields = basic_validate(observation)
+
+    if not missing_fields:
+        st.success("Basic structure valid (Observation)")
+    else:
+        st.error(f"Missing fields: {missing_fields}")
+
+# =====================================================
+# 4️⃣ EXPORT JSON
+# =====================================================
+with fhir_tabs[3]:
+
+    st.subheader("Export FHIR Bundle JSON")
+
+    bundle_json = json.dumps(bundle, indent=2)
+
+    st.download_button(
+        label="Download FHIR Bundle",
+        data=bundle_json,
+        file_name="fhir_bundle.json",
+        mime="application/json"
+    )
+
+# =====================================================
+# 5️⃣ MOCK SEND TO FHIR SERVER
+# =====================================================
+with fhir_tabs[4]:
+
+    st.subheader("Send to FHIR Server (Mock Mode)")
+
+    fhir_endpoint = st.text_input("FHIR Server URL",
+                                   "https://hospital-emr.example.com/fhir")
+
+    if st.button("Send Bundle (Mock)"):
+        st.info(f"Simulated POST to {fhir_endpoint}")
+        st.code("POST /fhir Bundle transaction")
+        st.success("Bundle queued for transmission (Simulation)")
