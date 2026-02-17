@@ -878,27 +878,39 @@ advanced_fhir_tabs = st.tabs([
     "Official Validator"
 ])
 
+# =========================
+# SAFE DEFAULT VARIABLES
+# =========================
+safe_patient_id = st.session_state.get("fhir_patient_id", "HN123456")
+safe_probability = st.session_state.get("fhir_probability", 0.5)
+safe_uploaded = st.session_state.get("uploaded_image", None)
+
+loinc_code = "LA6576-8"
+snomed_code = "108369006"
+practitioner_id = "PRAC001"
+
 # =====================================================
-# 1️⃣ OAUTH2 SIMULATION
+# 1️⃣ OAUTH2
 # =====================================================
 with advanced_fhir_tabs[0]:
 
     st.subheader("OAuth2 Bearer Authentication")
 
-    token = st.text_input("OAuth2 Bearer Token")
+    token = st.text_input(
+        "OAuth2 Bearer Token",
+        key="oauth_token_input"
+    )
 
     if token:
-        st.success("Token attached to session (Simulation)")
+        st.success("Token stored in session")
+        st.session_state.oauth_token = token
 
 # =====================================================
-# 2️⃣ LOINC / SNOMED CODING
+# 2️⃣ LOINC / SNOMED
 # =====================================================
 with advanced_fhir_tabs[1]:
 
     st.subheader("Clinical Coding Mapping")
-
-    loinc_code = "LA6576-8"  # example imaging risk
-    snomed_code = "108369006"  # Malignant neoplasm
 
     st.write("LOINC Code:", loinc_code)
     st.write("SNOMED Code:", snomed_code)
@@ -910,8 +922,11 @@ with advanced_fhir_tabs[2]:
 
     st.subheader("Patient & Practitioner Resource")
 
-    patient_id = st.text_input("Patient ID", "HN123456")
-    practitioner_id = "PRAC001"
+    patient_id = st.text_input(
+        "Patient ID",
+        safe_patient_id,
+        key="advanced_fhir_patient_id"
+    )
 
     patient_resource = {
         "resourceType": "Patient",
@@ -927,24 +942,24 @@ with advanced_fhir_tabs[2]:
         "resourceType": "Practitioner",
         "id": practitioner_id,
         "active": True,
-        "name": [{
-            "text": "Dr. AI Radiologist"
-        }]
+        "name": [{"text": "Dr. AI Radiologist"}]
     }
 
-    st.json({"Patient": patient_resource,
-             "Practitioner": practitioner_resource})
+    st.json({
+        "Patient": patient_resource,
+        "Practitioner": practitioner_resource
+    })
 
 # =====================================================
-# 4️⃣ MEDIA RESOURCE (ULTRASOUND IMAGE REFERENCE)
+# 4️⃣ MEDIA RESOURCE
 # =====================================================
 with advanced_fhir_tabs[3]:
 
     st.subheader("Media Resource (Ultrasound Reference)")
 
-    if uploaded:
+    if safe_uploaded:
 
-        img_bytes = uploaded.getvalue()
+        img_bytes = safe_uploaded.getvalue()
         encoded_image = base64.b64encode(img_bytes).decode("utf-8")
 
         media_resource = {
@@ -959,11 +974,14 @@ with advanced_fhir_tabs[3]:
             "subject": {"reference": f"Patient/{patient_id}"},
             "content": {
                 "contentType": "image/jpeg",
-                "data": encoded_image[:100] + "... (truncated)"
+                "data": encoded_image[:120] + "... (truncated)"
             }
         }
 
         st.json(media_resource)
+
+    else:
+        st.info("Upload image in Case Viewer first.")
 
 # =====================================================
 # 5️⃣ FULL TRANSACTION BUNDLE
@@ -985,7 +1003,7 @@ with advanced_fhir_tabs[4]:
         "subject": {"reference": f"Patient/{patient_id}"},
         "performer": [{"reference": f"Practitioner/{practitioner_id}"}],
         "valueQuantity": {
-            "value": probability_input,
+            "value": safe_probability,
             "unit": "probability"
         }
     }
@@ -1016,7 +1034,7 @@ with advanced_fhir_tabs[4]:
     st.json(full_bundle)
 
 # =====================================================
-# 6️⃣ SEND TO HAPI FHIR SERVER
+# 6️⃣ SEND TO HAPI
 # =====================================================
 with advanced_fhir_tabs[5]:
 
@@ -1024,39 +1042,42 @@ with advanced_fhir_tabs[5]:
 
     hapi_url = st.text_input(
         "HAPI FHIR Endpoint",
-        "https://hapi.fhir.org/baseR4"
+        "https://hapi.fhir.org/baseR4",
+        key="hapi_url_input"
     )
 
-    if st.button("POST Bundle to HAPI (Simulation)"):
+    if st.button("POST Bundle to HAPI"):
+
         headers = {
             "Content-Type": "application/fhir+json"
         }
 
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+        if "oauth_token" in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.oauth_token}"
 
         try:
             response = requests.post(
                 hapi_url,
                 json=full_bundle,
-                headers=headers
+                headers=headers,
+                timeout=10
             )
 
             st.write("Status Code:", response.status_code)
-            st.json(response.json())
+            try:
+                st.json(response.json())
+            except:
+                st.write("Response received (non-JSON).")
 
         except Exception as e:
-            st.error("Connection failed (Test Server may reject large payload)")
+            st.error("Connection failed or server rejected request.")
 
 # =====================================================
-# 7️⃣ OFFICIAL FHIR VALIDATOR
+# 7️⃣ VALIDATOR
 # =====================================================
 with advanced_fhir_tabs[6]:
 
     st.subheader("Official FHIR Validator")
 
-    validator_url = "https://validator.fhir.org/validate"
-
-    if st.button("Validate Bundle (Simulation)"):
-        st.info("Bundle ready for validation.")
-        st.write("Upload exported JSON to official HL7 FHIR Validator.")
+    st.write("Export bundle and validate at:")
+    st.write("https://validator.fhir.org/")
