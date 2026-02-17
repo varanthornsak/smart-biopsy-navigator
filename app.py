@@ -1,6 +1,6 @@
 # =====================================================
 # SMART BIOPSY NAVIGATOR
-# Clinical + Research Grade Version
+# Stable Cloud Version (HF Model Load)
 # =====================================================
 
 import streamlit as st
@@ -20,6 +20,8 @@ import math
 # CONFIG
 # =====================================================
 
+MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
+
 THRESHOLD = 0.2835
 AUC_VALUE = 0.8991
 VAL_N = 111
@@ -28,21 +30,27 @@ st.set_page_config(layout="wide")
 st.title("Smart Biopsy Navigator")
 
 # =====================================================
-# LOAD MODEL
+# LOAD MODEL (FROM HUGGINGFACE)
 # =====================================================
 
 @st.cache_resource
 def load_model():
     model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 2)
-    model.load_state_dict(torch.load("liver_v2_1_final.pth", map_location="cpu"))
+
+    state_dict = torch.hub.load_state_dict_from_url(
+        MODEL_URL,
+        map_location="cpu"
+    )
+
+    model.load_state_dict(state_dict)
     model.eval()
     return model
 
 model = load_model()
 
 # =====================================================
-# DATABASE SAFE INIT
+# DATABASE INIT (SAFE)
 # =====================================================
 
 conn = sqlite3.connect("audit.db", check_same_thread=False)
@@ -91,11 +99,11 @@ with tabs[0]:
             logits = model(tensor)
             prob = torch.softmax(logits,dim=1)[0][1].item()
 
-        # ================= TEMPERATURE CALIBRATION =================
+        # Temperature calibration
         temperature = 1.15
         calibrated_prob = torch.softmax(logits/temperature,dim=1)[0][1].item()
 
-        # ================= CLASS LOGIC =================
+        # Classification
         if calibrated_prob < 0.1:
             label="Normal"
             color="#27ae60"
@@ -129,7 +137,7 @@ with tabs[0]:
             st.metric("Calibrated Malignancy Probability",
                       f"{round(calibrated_prob*100,2)}%")
 
-            # Circular Gauge
+            # Circular gauge
             fig,ax = plt.subplots()
             ax.pie([calibrated_prob,1-calibrated_prob],
                    colors=[color,"#ecf0f1"],
@@ -141,7 +149,7 @@ with tabs[0]:
             ax.set_aspect("equal")
             st.pyplot(fig)
 
-            # Gradient Bar
+            # Gradient bar
             st.markdown(f"""
             <div style="
                 width:100%;
@@ -160,13 +168,14 @@ with tabs[0]:
             </div>
             """,unsafe_allow_html=True)
 
-            # Confidence Interval
+            # Confidence interval
             se = math.sqrt(calibrated_prob*(1-calibrated_prob)/VAL_N)
             ci_low = max(0,calibrated_prob-1.96*se)
             ci_high = min(1,calibrated_prob+1.96*se)
 
             st.write(f"95% CI: {round(ci_low*100,2)}% - {round(ci_high*100,2)}%")
-            st.write(f"Temperature: {temperature}")
+            st.write(f"Threshold: {THRESHOLD}")
+            st.write(f"AUC: {AUC_VALUE}")
 
         # Save audit
         c.execute("""
@@ -184,8 +193,6 @@ with tabs[0]:
 # =====================================================
 
 with tabs[1]:
-
-    st.subheader("Decision Curve Analysis")
 
     df = pd.read_sql_query("SELECT prob FROM audit",conn)
 
@@ -205,45 +212,11 @@ with tabs[1]:
             net_benefits.append(nb)
 
         fig,ax = plt.subplots()
-        ax.plot(thresholds,net_benefits,label="Model")
+        ax.plot(thresholds,net_benefits)
         ax.axhline(0,linestyle="--")
         ax.set_xlabel("Threshold")
         ax.set_ylabel("Net Benefit")
-        ax.legend()
         st.pyplot(fig)
-
-    st.subheader("Calibration Curve")
-
-    if len(df)>5:
-        bins = np.linspace(0,1,10)
-        binids = np.digitize(probs,bins)
-        obs=[]
-        pred=[]
-        for i in range(1,10):
-            idx = binids==i
-            if np.sum(idx)>0:
-                obs.append(np.mean(y_true[idx]))
-                pred.append(np.mean(probs[idx]))
-        fig2,ax2 = plt.subplots()
-        ax2.plot(pred,obs,label="Observed")
-        ax2.plot([0,1],[0,1],'--')
-        ax2.legend()
-        st.pyplot(fig2)
-
-    st.subheader("External Validation Module")
-
-    ext_file = st.file_uploader("Upload CSV (columns: prob,label)",type=["csv"])
-
-    if ext_file:
-        ext_df = pd.read_csv(ext_file)
-        ext_probs = ext_df["prob"].values
-        ext_labels = ext_df["label"].values
-
-        # AUC manually
-        sorted_idx = np.argsort(ext_probs)
-        sorted_labels = ext_labels[sorted_idx]
-        auc = np.trapz(sorted_labels, dx=1/len(sorted_labels))
-        st.write("External AUC (approx):",round(float(auc),4))
 
 # =====================================================
 # 3️⃣ MONITORING
@@ -258,21 +231,7 @@ with tabs[2]:
         df["timestamp"]=pd.to_datetime(df["timestamp"])
         df=df.sort_values("timestamp")
 
-        st.subheader("Risk Trend Over Time")
-
         fig,ax = plt.subplots()
         ax.plot(df["timestamp"],df["prob"])
         ax.set_ylabel("Risk")
         st.pyplot(fig)
-
-        if len(df)>30:
-            hist_mean = df.iloc[:-20]["prob"].mean()
-            recent_mean = df.iloc[-20:]["prob"].mean()
-
-            st.write("Historical Mean:",round(hist_mean,3))
-            st.write("Recent Mean:",round(recent_mean,3))
-
-            if abs(recent_mean-hist_mean)>0.1:
-                st.error("Drift Alert")
-            else:
-                st.success("No Significant Drift")
