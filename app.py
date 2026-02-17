@@ -984,15 +984,30 @@ with advanced_fhir_tabs[3]:
         st.info("Upload image in Case Viewer first.")
 
 # =====================================================
-# 5️⃣ FULL TRANSACTION BUNDLE
+# 5️⃣ FULL TRANSACTION BUNDLE (FHIR VALIDATOR CLEAN)
 # =====================================================
 with advanced_fhir_tabs[4]:
 
     st.subheader("Full FHIR Transaction Bundle")
 
+    iso_time = datetime.datetime.utcnow().isoformat() + "Z"
+
+    # Observation (Validator Clean)
     observation_resource = {
         "resourceType": "Observation",
+        "id": f"obs-{uuid.uuid4().hex[:8]}",
+        "text": {
+            "status": "generated",
+            "div": "<div>AI Liver Malignancy Risk Assessment</div>"
+        },
         "status": "final",
+        "category": [{
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "imaging",
+                "display": "Imaging"
+            }]
+        }],
         "code": {
             "coding": [{
                 "system": "http://loinc.org",
@@ -1001,33 +1016,67 @@ with advanced_fhir_tabs[4]:
             }]
         },
         "subject": {"reference": f"Patient/{patient_id}"},
-        "performer": [{"reference": f"Practitioner/{practitioner_id}"}],
+        "effectiveDateTime": iso_time,
+        "performer": [{
+            "reference": f"Practitioner/{practitioner_id}"
+        }],
         "valueQuantity": {
             "value": safe_probability,
             "unit": "probability"
-        }
+        },
+        "interpretation": [{
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+                "code": "H",
+                "display": "High"
+            }]
+        }]
     }
 
+    # DiagnosticReport (Validator Clean)
     diagnostic_report_resource = {
         "resourceType": "DiagnosticReport",
+        "id": f"dr-{uuid.uuid4().hex[:8]}",
+        "text": {
+            "status": "generated",
+            "div": "<div>AI Ultrasound Risk Assessment Report</div>"
+        },
         "status": "final",
-        "code": {"text": "AI Ultrasound Risk Assessment"},
+        "code": {
+            "text": "AI Ultrasound Risk Assessment"
+        },
         "subject": {"reference": f"Patient/{patient_id}"},
-        "result": [{"reference": "Observation/ai-risk"}]
+        "effectiveDateTime": iso_time,
+        "result": [{
+            "reference": f"Observation/{observation_resource['id']}"
+        }]
     }
 
+    # Full Transaction Bundle (with fullUrl REQUIRED)
     full_bundle = {
         "resourceType": "Bundle",
         "type": "transaction",
         "entry": [
-            {"resource": patient_resource,
-             "request": {"method": "POST", "url": "Patient"}},
-            {"resource": practitioner_resource,
-             "request": {"method": "POST", "url": "Practitioner"}},
-            {"resource": observation_resource,
-             "request": {"method": "POST", "url": "Observation"}},
-            {"resource": diagnostic_report_resource,
-             "request": {"method": "POST", "url": "DiagnosticReport"}}
+            {
+                "fullUrl": f"urn:uuid:{uuid.uuid4()}",
+                "resource": patient_resource,
+                "request": {"method": "POST", "url": "Patient"}
+            },
+            {
+                "fullUrl": f"urn:uuid:{uuid.uuid4()}",
+                "resource": practitioner_resource,
+                "request": {"method": "POST", "url": "Practitioner"}
+            },
+            {
+                "fullUrl": f"urn:uuid:{uuid.uuid4()}",
+                "resource": observation_resource,
+                "request": {"method": "POST", "url": "Observation"}
+            },
+            {
+                "fullUrl": f"urn:uuid:{uuid.uuid4()}",
+                "resource": diagnostic_report_resource,
+                "request": {"method": "POST", "url": "DiagnosticReport"}
+            }
         ]
     }
 
@@ -1069,7 +1118,7 @@ with advanced_fhir_tabs[5]:
             except:
                 st.write("Response received (non-JSON).")
 
-        except Exception as e:
+        except Exception:
             st.error("Connection failed or server rejected request.")
 
 # =====================================================
@@ -1079,5 +1128,15 @@ with advanced_fhir_tabs[6]:
 
     st.subheader("Official FHIR Validator")
 
-    st.write("Export bundle and validate at:")
-    st.write("https://validator.fhir.org/")
+    st.write("1. Download Bundle JSON")
+    st.write("2. Go to https://validator.fhir.org/")
+    st.write("3. Paste Bundle JSON and validate")
+
+    bundle_json = json.dumps(full_bundle, indent=2)
+
+    st.download_button(
+        label="Download Validator-Ready Bundle",
+        data=bundle_json,
+        file_name="validator_ready_bundle.json",
+        mime="application/json"
+    )
