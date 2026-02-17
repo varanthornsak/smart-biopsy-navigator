@@ -333,19 +333,35 @@ with board_tabs[0]:
         benign = len(df_all[df_all["classification"] == "Likely Benign"])
         normal = len(df_all[df_all["classification"] == "Normal"])
 
-        st.metric("Total Cases Processed", total)
-        st.metric("High Risk Cases", high_risk)
-        st.metric("Benign Cases", benign)
-        st.metric("Normal Cases", normal)
+        # -------------------------
+        # KPI + Chart Layout
+        # -------------------------
+        col_metrics, col_chart = st.columns([1.1, 0.9])
 
-        fig, ax = plt.subplots()
-        ax.pie(
-            [normal, benign, high_risk],
-            labels=["Normal", "Benign", "Malignant"],
-            autopct="%1.1f%%"
-        )
-        ax.set_title("Clinical Distribution Overview")
-        st.pyplot(fig)
+        with col_metrics:
+            st.metric("Total Cases", total)
+            st.metric("High Risk", high_risk)
+            st.metric("Likely Benign", benign)
+            st.metric("Normal", normal)
+
+        with col_chart:
+
+            labels = ["Normal", "Likely Benign", "Suspicious Malignant"]
+            values = [normal, benign, high_risk]
+            colors = ["#2ecc71", "#f1c40f", "#e74c3c"]  # เขียว เหลือง แดง
+
+            fig, ax = plt.subplots(figsize=(5,3.5))
+
+            ax.barh(labels, values, color=colors)
+
+            ax.set_title("Clinical Distribution Overview", fontsize=11)
+            ax.set_xlabel("Number of Cases")
+
+            # remove top/right borders for cleaner look
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+            st.pyplot(fig, use_container_width=False)
 
     else:
         st.info("No enterprise data available yet.")
