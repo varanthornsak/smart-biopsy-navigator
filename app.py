@@ -20,7 +20,7 @@ MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/l
 SCREENING_THRESHOLD = 0.2835
 
 # ======================================================
-# STYLE (Clean Apple Clinical)
+# STYLE (Clean Apple Minimal)
 # ======================================================
 st.markdown("""
 <style>
@@ -30,11 +30,11 @@ st.markdown("""
     padding:25px;
     border-radius:20px;
     font-weight:600;
-    color:white;
+    text-align:center;
 }
-.green {background:#27ae60;}
+.green {background:#27ae60;color:white;}
 .yellow {background:#f1c40f;color:black;}
-.red {background:#e74c3c;}
+.red {background:#e74c3c;color:white;}
 .section {font-size:22px;font-weight:600;margin-top:30px;}
 </style>
 """, unsafe_allow_html=True)
@@ -55,7 +55,7 @@ timestamp TEXT
 conn.commit()
 
 # ======================================================
-# LOGIN SYSTEM
+# LOGIN
 # ======================================================
 if "login" not in st.session_state:
     st.session_state.login = False
@@ -74,7 +74,7 @@ if not st.session_state.login:
             st.session_state.login = True
             st.session_state.hospital = hospital
             st.session_state.role = role
-            st.experimental_rerun()
+            st.success("Login successful. Continue below.")
         else:
             st.error("Invalid access key")
 
@@ -100,12 +100,12 @@ model = load_model()
 st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='subtitle'>{st.session_state.hospital} | Role: {st.session_state.role}</div>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs(["Clinical AI", "Monitoring", "Study Results", "How to Use"])
+tabs = st.tabs(["Clinical AI", "Monitoring", "Study Results", "How to Use"])
 
 # ======================================================
 # 1️⃣ CLINICAL AI
 # ======================================================
-with tab1:
+with tabs[0]:
 
     st.markdown("<div class='section'>Liver Risk Stratification</div>", unsafe_allow_html=True)
 
@@ -113,7 +113,7 @@ with tab1:
     threshold = SCREENING_THRESHOLD if "Screening" in mode else 0.5
     temperature = st.slider("Calibration Temperature", 0.5, 3.0, 1.0)
 
-    uploaded = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
+    uploaded = st.file_uploader("Upload Liver Ultrasound Image", type=["jpg","png","jpeg"])
 
     if uploaded:
 
@@ -131,7 +131,7 @@ with tab1:
             logits = logits / temperature
             prob = torch.softmax(logits,dim=1)[0][1].item()
 
-        # Interpretation Logic
+        # Interpretation
         if prob < 0.1:
             label = "Likely Normal"
             color = "green"
@@ -139,7 +139,7 @@ with tab1:
         elif prob < threshold:
             label = "Likely Benign"
             color = "yellow"
-            explanation = "Low-risk focal lesion pattern detected. Short-term follow-up imaging advised."
+            explanation = "Low-risk lesion pattern detected. Short-term follow-up imaging advised."
         else:
             label = "Suspicious Malignant"
             color = "red"
@@ -168,6 +168,7 @@ with tab1:
             ax.text(0,-0.2,f"{round(prob*100,1)}%",ha="center",fontsize=14)
             st.pyplot(fig)
 
+        st.write("### Clinical Interpretation")
         st.write(explanation)
 
         # Save audit
@@ -181,7 +182,7 @@ with tab1:
 # ======================================================
 # 2️⃣ MONITORING
 # ======================================================
-with tab2:
+with tabs[1]:
 
     df = pd.read_sql_query("SELECT * FROM audit", conn)
 
@@ -201,7 +202,7 @@ with tab2:
 # ======================================================
 # 3️⃣ STUDY RESULTS
 # ======================================================
-with tab3:
+with tabs[2]:
 
     st.markdown("<div class='section'>Validation Summary</div>", unsafe_allow_html=True)
 
@@ -212,6 +213,7 @@ with tab3:
 
     fpr = np.linspace(0,1,100)
     tpr = np.sqrt(fpr)
+
     fig, ax = plt.subplots()
     ax.plot(fpr, tpr)
     ax.plot([0,1],[0,1])
@@ -221,14 +223,17 @@ with tab3:
 # ======================================================
 # 4️⃣ HOW TO USE
 # ======================================================
-with tab4:
+with tabs[3]:
 
     st.markdown("<div class='section'>Usage Instructions</div>", unsafe_allow_html=True)
 
     st.markdown("""
-    **Step 1:** Login using hospital access key.  
+    **Step 1:** Login using hospital access key (SNH_SECURE).  
     **Step 2:** Upload clear transverse liver ultrasound image.  
     **Step 3:** Select Screening (high sensitivity) or Balanced mode.  
-    **Step 4:** Review risk classification and clinical recommendation.  
-    **Step 5:** Results automatically logged for monitoring.
+    **Step 4:** Review color-coded classification:
+        - 🟢 Green → Likely Normal
+        - 🟡 Yellow → Likely Benign
+        - 🔴 Red → Suspicious Malignant
+    **Step 5:** Interpretation and risk stored automatically.
     """)
