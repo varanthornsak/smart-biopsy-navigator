@@ -144,8 +144,10 @@ with tabs[1]:
     organ = "Liver"
     threshold = st.slider("Operating Threshold", 0.1, 0.9, DEFAULT_THRESHOLD)
 
-    uploaded = st.file_uploader("Upload Ultrasound Image",
-                                type=["jpg", "png", "jpeg"])
+    uploaded = st.file_uploader(
+        "Upload Ultrasound Image",
+        type=["jpg", "png", "jpeg"]
+    )
 
     if uploaded:
 
@@ -158,7 +160,6 @@ with tabs[1]:
 
         tensor = transform(image).unsqueeze(0)
 
-        # API Simulation (internal inference endpoint)
         with torch.no_grad():
             output = model(tensor)
             prob = torch.softmax(output, dim=1)[0][1].item()
@@ -176,74 +177,75 @@ with tabs[1]:
 
         case_id = str(uuid.uuid4())[:8]
 
-        col1, col2 = st.columns([1.3,1])
+        col1, col2 = st.columns([1.3, 1])
 
+        # ================= IMAGE =================
         with col1:
             st.image(image, use_column_width=True)
 
+        # ================= RESULT + GAUGE =================
         with col2:
 
-    st.markdown(
-        f"<div class='card {style}'><b>{label}</b><br>{round(prob*100,2)}%</div>",
-        unsafe_allow_html=True
-    )
+            st.markdown(
+                f"<div class='card {style}'><b>{label}</b><br>{round(prob*100,2)}%</div>",
+                unsafe_allow_html=True
+            )
 
-    # ===============================
-    # Advanced Clinical Risk Gauge
-    # ===============================
+            # ===============================
+            # Advanced Clinical Risk Gauge
+            # ===============================
+            fig, ax = plt.subplots(figsize=(4,2.5))
 
-    fig, ax = plt.subplots(figsize=(4,2.5))
+            ax.set_xlim(-1.2, 1.2)
+            ax.set_ylim(-0.2, 1.2)
+            ax.axis("off")
 
-    ax.set_xlim(-1.2, 1.2)
-    ax.set_ylim(-0.2, 1.2)
-    ax.axis("off")
+            theta = np.linspace(0, math.pi, 200)
 
-    theta = np.linspace(0, math.pi, 200)
+            ax.fill_between(np.cos(theta[:70]), 0, np.sin(theta[:70]), alpha=0.15)
+            ax.fill_between(np.cos(theta[70:140]), 0, np.sin(theta[70:140]), alpha=0.15)
+            ax.fill_between(np.cos(theta[140:]), 0, np.sin(theta[140:]), alpha=0.15)
 
-    ax.fill_between(np.cos(theta[:70]), 0, np.sin(theta[:70]), alpha=0.15)
-    ax.fill_between(np.cos(theta[70:140]), 0, np.sin(theta[70:140]), alpha=0.15)
-    ax.fill_between(np.cos(theta[140:]), 0, np.sin(theta[140:]), alpha=0.15)
+            ax.plot(np.cos(theta), np.sin(theta), linewidth=2)
 
-    ax.plot(np.cos(theta), np.sin(theta), linewidth=2)
+            if label == "Normal":
+                needle_color = "#2ecc71"
+            elif label == "Likely Benign":
+                needle_color = "#f1c40f"
+            else:
+                needle_color = "#e74c3c"
 
-    if label == "Normal":
-        needle_color = "#2ecc71"
-    elif label == "Likely Benign":
-        needle_color = "#f1c40f"
-    else:
-        needle_color = "#e74c3c"
+            angle = math.pi * (1 - prob)
 
-    angle = math.pi * (1 - prob)
+            ax.plot(
+                [0, np.cos(angle)],
+                [0, np.sin(angle)],
+                linewidth=3,
+                color=needle_color
+            )
 
-    ax.plot(
-        [0, np.cos(angle)],
-        [0, np.sin(angle)],
-        linewidth=3,
-        color=needle_color
-    )
+            ax.scatter(0, 0, s=80)
 
-    ax.scatter(0, 0, s=80)
+            ax.text(
+                0, -0.05,
+                f"{round(prob*100,1)}%",
+                ha="center",
+                fontsize=20,
+                fontweight="bold"
+            )
 
-    ax.text(
-        0, -0.05,
-        f"{round(prob*100,1)}%",
-        ha="center",
-        fontsize=20,
-        fontweight="bold"
-    )
+            ax.text(
+                0, -0.18,
+                label,
+                ha="center",
+                fontsize=10
+            )
 
-    ax.text(
-        0, -0.18,
-        label,
-        ha="center",
-        fontsize=10
-    )
+            plt.tight_layout()
+            st.pyplot(fig)
 
-    plt.tight_layout()
-    st.pyplot(fig)
-
-# 👇 อันนี้ต้องอยู่นอก with col2
-st.markdown("### Structured Clinical Report")
+        # ================= REPORT =================
+        st.markdown("### Structured Clinical Report")
 
         report = f"""
 Case ID: {case_id}
@@ -267,19 +269,25 @@ Recommended Action:
 
         st.text_area("Report Preview", report, height=220)
 
-        st.download_button("Export Report", data=report,
-                           file_name=f"{case_id}_report.txt")
+        st.download_button(
+            "Export Report",
+            data=report,
+            file_name=f"{case_id}_report.txt"
+        )
 
+        # Sync for FHIR
         st.session_state.fhir_probability = prob
         st.session_state.fhir_patient_id = case_id
         st.session_state.uploaded_image = uploaded
 
-        log_case(case_id,
-                 st.session_state.hospital,
-                 st.session_state.role,
-                 organ,
-                 prob,
-                 label)
+        log_case(
+            case_id,
+            st.session_state.hospital,
+            st.session_state.role,
+            organ,
+            prob,
+            label
+        )
 
 # =====================================================
 # ANALYTICS DASHBOARD
