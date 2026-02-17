@@ -948,4 +948,120 @@ with fhir_tabs[3]:
         st.json(st.session_state.clean_bundle)
     else:
         st.info("No bundle generated yet.")
+# =====================================================
+# ========== ADVANCED CLINICAL EVALUATION =============
+# =====================================================
 
+st.markdown("---")
+st.markdown("## 📊 Advanced Clinical Evaluation Module")
+
+evaluation_tabs = st.tabs([
+    "ROC Curve",
+    "Threshold Impact Simulation",
+    "Confusion Matrix",
+    "Decision Curve Analysis"
+])
+
+# =====================================================
+# 🔹 Simulated Ground Truth (for demo research mode)
+# =====================================================
+
+df_eval = pd.read_sql_query("SELECT * FROM cases", conn)
+
+if not df_eval.empty and len(df_eval) > 5:
+
+    # Simulate ground truth from stored classification
+    df_eval["ground_truth"] = df_eval["classification"].apply(
+        lambda x: 1 if x == "Suspicious Malignant" else 0
+    )
+
+    probs = df_eval["prob"].values
+    y_true = df_eval["ground_truth"].values
+
+else:
+    probs = np.random.uniform(0,1,50)
+    y_true = np.random.randint(0,2,50)
+
+# =====================================================
+# 1️⃣ ROC CURVE
+# =====================================================
+with evaluation_tabs[0]:
+
+    from sklearn.metrics import roc_curve, auc
+
+    fpr, tpr, thresholds = roc_curve(y_true, probs)
+    roc_auc = auc(fpr, tpr)
+
+    fig, ax = plt.subplots(figsize=(4,4))
+    ax.plot(fpr, tpr)
+    ax.plot([0,1],[0,1])
+    ax.set_title(f"ROC Curve (AUC = {roc_auc:.3f})")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    st.pyplot(fig)
+
+# =====================================================
+# 2️⃣ THRESHOLD IMPACT SIMULATION
+# =====================================================
+with evaluation_tabs[1]:
+
+    th = st.slider("Select Threshold", 0.0, 1.0, 0.28)
+
+    preds = (probs >= th).astype(int)
+
+    tp = np.sum((preds == 1) & (y_true == 1))
+    fp = np.sum((preds == 1) & (y_true == 0))
+    tn = np.sum((preds == 0) & (y_true == 0))
+    fn = np.sum((preds == 0) & (y_true == 1))
+
+    sensitivity = tp / (tp + fn + 1e-6)
+    specificity = tn / (tn + fp + 1e-6)
+
+    col1, col2 = st.columns(2)
+    col1.metric("Sensitivity", round(sensitivity,3))
+    col2.metric("Specificity", round(specificity,3))
+
+# =====================================================
+# 3️⃣ CONFUSION MATRIX
+# =====================================================
+with evaluation_tabs[2]:
+
+    from sklearn.metrics import confusion_matrix
+
+    cm = confusion_matrix(y_true, preds)
+
+    fig, ax = plt.subplots(figsize=(4,4))
+    ax.imshow(cm)
+    ax.set_title("Confusion Matrix")
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, cm[i, j], ha="center", va="center")
+
+    st.pyplot(fig)
+
+# =====================================================
+# 4️⃣ DECISION CURVE ANALYSIS (Mock)
+# =====================================================
+with evaluation_tabs[3]:
+
+    thresholds = np.linspace(0.01, 0.99, 50)
+    net_benefits = []
+
+    for t in thresholds:
+        preds = (probs >= t).astype(int)
+        tp = np.sum((preds == 1) & (y_true == 1))
+        fp = np.sum((preds == 1) & (y_true == 0))
+
+        n = len(y_true)
+        net_benefit = (tp/n) - (fp/n)*(t/(1-t))
+        net_benefits.append(net_benefit)
+
+    fig, ax = plt.subplots(figsize=(4,4))
+    ax.plot(thresholds, net_benefits)
+    ax.set_title("Decision Curve Analysis")
+    ax.set_xlabel("Threshold Probability")
+    ax.set_ylabel("Net Benefit")
+    st.pyplot(fig)
