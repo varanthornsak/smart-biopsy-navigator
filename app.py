@@ -1,265 +1,274 @@
-# =====================================================
-# SMART BIOPSY NAVIGATOR (STABLE VERSION)
-# HuggingFace Model + Safe SQLite Schema
-# =====================================================
-
 import streamlit as st
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import numpy as np
-import matplotlib.pyplot as plt
-import uuid
-import datetime
-import sqlite3
 import pandas as pd
+import matplotlib.pyplot as plt
+import sqlite3
+import datetime
+import uuid
 import math
 
-# =====================================================
+# =========================================================
 # CONFIG
-# =====================================================
+# =========================================================
+st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
-THRESHOLD = 0.2835
-AUC_VALUE = 0.8991
-VAL_N = 111
+SCREENING_THRESHOLD = 0.2835
 
-st.set_page_config(layout="wide")
-st.title("Smart Biopsy Navigator")
+# =========================================================
+# STYLE
+# =========================================================
+st.markdown("""
+<style>
+.big-title {font-size:34px;font-weight:700;}
+.subtitle {color:#6b7280;margin-bottom:20px;}
+.card {padding:25px;border-radius:18px;font-weight:600;text-align:center;}
+.green {background:#27ae60;color:white;}
+.yellow {background:#f1c40f;color:black;}
+.red {background:#e74c3c;color:white;}
+.section {font-size:22px;font-weight:600;margin-top:30px;}
+</style>
+""", unsafe_allow_html=True)
 
-# =====================================================
-# LOAD MODEL FROM HUGGINGFACE
-# =====================================================
+# =========================================================
+# SAFE DB INIT
+# =========================================================
+conn = sqlite3.connect("audit.db", check_same_thread=False)
+c = conn.cursor()
+c.execute("""
+CREATE TABLE IF NOT EXISTS audit (
+case_id TEXT,
+hospital TEXT,
+organ TEXT,
+prob REAL,
+timestamp TEXT
+)
+""")
+conn.commit()
 
+# =========================================================
+# LOGIN
+# =========================================================
+if "login" not in st.session_state:
+    st.session_state.login = False
+
+if not st.session_state.login:
+    st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Enterprise Clinical AI Platform</div>", unsafe_allow_html=True)
+
+    hospital = st.selectbox("Hospital", ["Sri Nagarind Hospital", "Demo Hospital"])
+    access = st.text_input("Access Key", type="password")
+
+    if st.button("Login"):
+        if access == "SNH_SECURE":
+            st.session_state.login = True
+            st.session_state.hospital = hospital
+        else:
+            st.error("Invalid Access Key")
+    st.stop()
+
+# =========================================================
+# LOAD MODEL
+# =========================================================
 @st.cache_resource
 def load_model():
     model = models.resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, 2)
-
-    state_dict = torch.hub.load_state_dict_from_url(
-        MODEL_URL,
-        map_location="cpu"
-    )
-
-    model.load_state_dict(state_dict)
+    model.fc = nn.Linear(model.fc.in_features,2)
+    state = torch.hub.load_state_dict_from_url(MODEL_URL, map_location="cpu")
+    model.load_state_dict(state)
     model.eval()
     return model
 
 model = load_model()
 
-# =====================================================
-# SAFE DATABASE INIT (AUTO MIGRATION)
-# =====================================================
+# =========================================================
+# GRAD-CAM (Stable, no cv2)
+# =========================================================
+def generate_gradcam(model, image_tensor):
+    finalconv = model.layer4[-1].conv2
+    gradients = []
+    activations = []
 
-conn = sqlite3.connect("audit.db", check_same_thread=False)
-c = conn.cursor()
+    def backward_hook(module, grad_in, grad_out):
+        gradients.append(grad_out[0])
 
-c.execute("PRAGMA table_info(audit)")
-columns = [col[1] for col in c.fetchall()]
+    def forward_hook(module, input, output):
+        activations.append(output)
 
-if not columns:
-    c.execute("""
-    CREATE TABLE audit (
-        case_id TEXT,
-        organ TEXT,
-        prob REAL,
-        age INTEGER,
-        sex TEXT,
-        timestamp TEXT
-    )
-    """)
-else:
-    if "organ" not in columns:
-        c.execute("ALTER TABLE audit ADD COLUMN organ TEXT")
-    if "age" not in columns:
-        c.execute("ALTER TABLE audit ADD COLUMN age INTEGER")
-    if "sex" not in columns:
-        c.execute("ALTER TABLE audit ADD COLUMN sex TEXT")
-    if "timestamp" not in columns:
-        c.execute("ALTER TABLE audit ADD COLUMN timestamp TEXT")
+    handle_f = finalconv.register_forward_hook(forward_hook)
+    handle_b = finalconv.register_backward_hook(backward_hook)
 
-conn.commit()
+    output = model(image_tensor)
+    pred = output[:,1]
+    pred.backward()
 
-# =====================================================
-# TABS
-# =====================================================
+    grads = gradients[0]
+    acts = activations[0]
+    weights = torch.mean(grads, dim=(2,3), keepdim=True)
+    cam = torch.sum(weights * acts, dim=1).squeeze()
+    cam = torch.relu(cam)
+    cam = cam.detach().numpy()
+    cam = (cam - cam.min())/(cam.max()-cam.min()+1e-8)
 
-tabs = st.tabs(["Clinical AI","Research Dashboard","Monitoring"])
+    handle_f.remove()
+    handle_b.remove()
 
-# =====================================================
+    return cam
+
+# =========================================================
+# HEADER
+# =========================================================
+st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='subtitle'>{st.session_state.hospital}</div>", unsafe_allow_html=True)
+
+tabs = st.tabs(["Clinical AI", "External Validation", "Monitoring"])
+
+# =========================================================
 # 1️⃣ CLINICAL AI
-# =====================================================
-
+# =========================================================
 with tabs[0]:
 
+    st.markdown("<div class='section'>Multi-Organ Selection</div>", unsafe_allow_html=True)
+
+    organ = st.selectbox("Organ", ["Liver (Active)", "Thyroid (Training)", "Breast (Coming Soon)", "Prostate (Coming Soon)"])
+
+    if "Liver" not in organ:
+        st.info("Model under development.")
+        st.stop()
+
+    mode = st.radio("Mode", ["Screening", "Balanced"])
+    threshold = SCREENING_THRESHOLD if mode=="Screening" else 0.5
+    temperature = st.slider("Calibration Temperature", 0.5, 3.0, 1.0)
+
     uploaded = st.file_uploader("Upload Liver Ultrasound", type=["jpg","png","jpeg"])
-    age = st.slider("Age",18,90,55)
-    sex = st.selectbox("Sex",["Male","Female"])
 
     if uploaded:
 
         image = Image.open(uploaded).convert("RGB")
-
         transform = transforms.Compose([
             transforms.Resize((224,224)),
             transforms.ToTensor()
         ])
-
         tensor = transform(image).unsqueeze(0)
 
         with torch.no_grad():
-            logits = model(tensor)
+            logits = model(tensor)/temperature
             prob = torch.softmax(logits,dim=1)[0][1].item()
 
-        # Temperature calibration
-        temperature = 1.15
-        calibrated_prob = torch.softmax(logits/temperature,dim=1)[0][1].item()
-
-        # Classification
-        if calibrated_prob < 0.1:
-            label="Normal"
-            color="#27ae60"
-        elif calibrated_prob < THRESHOLD:
-            label="Benign"
-            color="#f1c40f"
+        # Threshold logic
+        if prob < 0.1:
+            label="Normal";color="green"
+        elif prob < threshold:
+            label="Benign";color="yellow"
         else:
-            label="Malignant"
-            color="#e74c3c"
+            label="Malignant";color="red"
 
         col1,col2 = st.columns([1.2,1])
 
         with col1:
             st.image(image,use_column_width=True)
 
-        with col2:
-
-            st.markdown(f"""
-            <div style="
-                background:{color};
-                padding:25px;
-                border-radius:12px;
-                text-align:center;
-                font-size:24px;
-                font-weight:700;
-                color:white;">
-                {label}
-            </div>
-            """,unsafe_allow_html=True)
-
-            st.metric("Calibrated Malignancy Probability",
-                      f"{round(calibrated_prob*100,2)}%")
-
-            # Circular Gauge
-            fig,ax = plt.subplots()
-            ax.pie([calibrated_prob,1-calibrated_prob],
-                   colors=[color,"#ecf0f1"],
-                   startangle=90,
-                   counterclock=False,
-                   wedgeprops={'width':0.3})
-            ax.text(0,0,f"{round(calibrated_prob*100,1)}%",
-                    ha='center',va='center',fontsize=18)
-            ax.set_aspect("equal")
+            cam = generate_gradcam(model,tensor)
+            fig,ax=plt.subplots()
+            ax.imshow(image)
+            ax.imshow(cam, cmap="jet", alpha=0.4)
+            ax.axis("off")
             st.pyplot(fig)
 
-            # Gradient Bar
-            st.markdown(f"""
-            <div style="
-                width:100%;
-                height:20px;
-                background:linear-gradient(to right,#27ae60,#f1c40f,#e74c3c);
-                border-radius:10px;
-                position:relative;">
-                <div style="
-                    position:absolute;
-                    left:{calibrated_prob*100}%;
-                    top:-5px;
-                    width:4px;
-                    height:30px;
-                    background:black;">
-                </div>
-            </div>
-            """,unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"<div class='card {color}'>{label}<br>{round(prob*100,2)}%</div>",unsafe_allow_html=True)
 
-            # Confidence Interval
-            se = math.sqrt(calibrated_prob*(1-calibrated_prob)/VAL_N)
-            ci_low = max(0,calibrated_prob-1.96*se)
-            ci_high = min(1,calibrated_prob+1.96*se)
+            # Circular gauge
+            fig2, ax2 = plt.subplots()
+            ax2.axis("off")
+            theta = np.linspace(0,math.pi,100)
+            ax2.plot(np.cos(theta),np.sin(theta))
+            angle = math.pi*(1-prob)
+            ax2.plot([0,np.cos(angle)],[0,np.sin(angle)],linewidth=4)
+            ax2.text(0,-0.2,f"{round(prob*100,1)}%",ha="center")
+            st.pyplot(fig2)
 
-            st.write(f"95% CI: {round(ci_low*100,2)}% - {round(ci_high*100,2)}%")
-            st.write(f"Threshold: {THRESHOLD}")
-            st.write(f"AUC: {AUC_VALUE}")
-
-        # SAFE INSERT (COLUMN SPECIFIED)
-        c.execute("""
-        INSERT INTO audit (case_id, organ, prob, age, sex, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,(
-            str(uuid.uuid4())[:8],
-            "Liver",
-            float(calibrated_prob),
-            age,
-            sex,
-            str(datetime.datetime.now())
-        ))
+        # Save audit
+        c.execute("INSERT INTO audit VALUES (?,?,?,?,?)",
+                  (str(uuid.uuid4())[:8],
+                   st.session_state.hospital,
+                   "Liver",
+                   prob,
+                   str(datetime.datetime.now())))
         conn.commit()
 
-# =====================================================
-# 2️⃣ RESEARCH DASHBOARD
-# =====================================================
-
+# =========================================================
+# 2️⃣ EXTERNAL VALIDATION
+# =========================================================
 with tabs[1]:
 
-    df = pd.read_sql_query("SELECT prob FROM audit",conn)
+    st.markdown("<div class='section'>External Validation Upload</div>",unsafe_allow_html=True)
 
-    if len(df)>5:
+    val_file = st.file_uploader("Upload CSV (prob,label)", type=["csv"])
+
+    if val_file:
+        df = pd.read_csv(val_file)
 
         probs = df["prob"].values
-        y_true = np.random.randint(0,2,len(probs))
+        labels = df["label"].values
 
-        thresholds = np.linspace(0.01,0.99,50)
-        net_benefits=[]
+        # Manual ROC
+        thresholds = np.linspace(0,1,100)
+        tpr_list=[]
+        fpr_list=[]
 
         for t in thresholds:
-            preds = probs>=t
-            tp = np.sum((preds==1)&(y_true==1))
-            fp = np.sum((preds==1)&(y_true==0))
-            nb = (tp/len(y_true)) - (fp/len(y_true))*(t/(1-t))
-            net_benefits.append(nb)
+            preds = (probs>=t).astype(int)
+            tp = np.sum((preds==1)&(labels==1))
+            fp = np.sum((preds==1)&(labels==0))
+            fn = np.sum((preds==0)&(labels==1))
+            tn = np.sum((preds==0)&(labels==0))
+            tpr = tp/(tp+fn+1e-8)
+            fpr = fp/(fp+tn+1e-8)
+            tpr_list.append(tpr)
+            fpr_list.append(fpr)
 
-        fig,ax = plt.subplots()
-        ax.plot(thresholds,net_benefits)
-        ax.axhline(0,linestyle="--")
-        ax.set_xlabel("Threshold")
-        ax.set_ylabel("Net Benefit")
+        fig,ax=plt.subplots()
+        ax.plot(fpr_list,tpr_list)
+        ax.plot([0,1],[0,1])
+        ax.set_title("External ROC Curve")
         st.pyplot(fig)
 
-# =====================================================
-# 3️⃣ MONITORING
-# =====================================================
+        # Manual Calibration
+        bins = np.linspace(0,1,6)
+        bin_means=[]
+        bin_true=[]
 
+        for i in range(len(bins)-1):
+            idx = (probs>=bins[i])&(probs<bins[i+1])
+            if np.sum(idx)>0:
+                bin_means.append(np.mean(probs[idx]))
+                bin_true.append(np.mean(labels[idx]))
+
+        fig2,ax2=plt.subplots()
+        ax2.plot(bin_means,bin_true,'o-')
+        ax2.plot([0,1],[0,1])
+        ax2.set_title("Calibration Curve")
+        st.pyplot(fig2)
+
+# =========================================================
+# 3️⃣ MONITORING
+# =========================================================
 with tabs[2]:
 
-    df = pd.read_sql_query("SELECT prob,timestamp FROM audit",conn)
+    df = pd.read_sql_query("SELECT * FROM audit", conn)
 
-    if len(df)>0:
-
-        df["timestamp"]=pd.to_datetime(df["timestamp"])
-        df=df.sort_values("timestamp")
-
-        fig,ax = plt.subplots()
-        ax.plot(df["timestamp"],df["prob"])
-        ax.set_ylabel("Risk")
-        st.pyplot(fig)
+    if df.empty:
+        st.info("No audit data yet.")
+    else:
+        st.metric("Total Cases", len(df))
+        st.line_chart(df["prob"])
 
         if len(df)>30:
-            hist_mean = df.iloc[:-20]["prob"].mean()
-            recent_mean = df.iloc[-20:]["prob"].mean()
-
-            st.write("Historical Mean:",round(hist_mean,3))
-            st.write("Recent Mean:",round(recent_mean,3))
-
-            if abs(recent_mean-hist_mean)>0.1:
-                st.error("Drift Alert")
-            else:
-                st.success("No Significant Drift")
+            rolling=df["prob"].rolling(30).mean()
+            if rolling.iloc[-1]>0.6:
+                st.error("Drift detected – Retraining recommended")
