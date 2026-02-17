@@ -675,11 +675,13 @@ Pipeline:
 7. Deployment to production registry
 """)
 # =====================================================
-# =============== FHIR COMPLETE MODULE (FIXED) =======
+# =============== FHIR COMPLETE MODULE (PUBLIC SAFE) =
 # =====================================================
 
 import json
 import requests
+import datetime
+import uuid
 
 st.markdown("---")
 st.markdown("## 🏥 FHIR Complete Integration Module")
@@ -710,7 +712,7 @@ with fhir_tabs[0]:
 
     iso_time = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
-    # deterministic IDs (NO urn:uuid)
+    # deterministic IDs
     patient_id = f"patient-{uuid.uuid4().hex[:8]}"
     practitioner_id = f"practitioner-{uuid.uuid4().hex[:8]}"
     observation_id = f"observation-{uuid.uuid4().hex[:8]}"
@@ -736,6 +738,12 @@ with fhir_tabs[0]:
         "resourceType": "Observation",
         "id": observation_id,
         "status": "final",
+        "category": [{
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "imaging"
+            }]
+        }],
         "code": {
             "coding": [{
                 "system": "http://loinc.org",
@@ -767,6 +775,7 @@ with fhir_tabs[0]:
         "subject": {
             "reference": f"Patient/{patient_id}"
         },
+        "effectiveDateTime": iso_time,
         "result": [{
             "reference": f"Observation/{observation_id}"
         }]
@@ -780,29 +789,29 @@ with fhir_tabs[0]:
             {
                 "resource": patient_resource,
                 "request": {
-                    "method": "PUT",
-                    "url": f"Patient/{patient_id}"
+                    "method": "POST",
+                    "url": "Patient"
                 }
             },
             {
                 "resource": practitioner_resource,
                 "request": {
-                    "method": "PUT",
-                    "url": f"Practitioner/{practitioner_id}"
+                    "method": "POST",
+                    "url": "Practitioner"
                 }
             },
             {
                 "resource": observation_resource,
                 "request": {
-                    "method": "PUT",
-                    "url": f"Observation/{observation_id}"
+                    "method": "POST",
+                    "url": "Observation"
                 }
             },
             {
                 "resource": diagnostic_report_resource,
                 "request": {
-                    "method": "PUT",
-                    "url": f"DiagnosticReport/{report_id}"
+                    "method": "POST",
+                    "url": "DiagnosticReport"
                 }
             }
         ]
@@ -819,7 +828,7 @@ with fhir_tabs[0]:
 
 with fhir_tabs[1]:
 
-    st.subheader("Send to https://hapi.fhir.org/baseR4")
+    st.subheader("Send to https://hapi.fhir.org/baseR4/")
 
     if st.button("POST Bundle to HAPI"):
 
@@ -828,18 +837,17 @@ with fhir_tabs[1]:
         else:
             try:
                 response = requests.post(
-                    "https://hapi.fhir.org/baseR4",
+                    "https://hapi.fhir.org/baseR4/",
                     json=st.session_state.clean_bundle,
-                    headers={"Content-Type": "application/fhir+json"},
+                    headers={
+                        "Content-Type": "application/fhir+json",
+                        "Accept": "application/fhir+json"
+                    },
                     timeout=20
                 )
 
                 st.write("Status Code:", response.status_code)
-
-                try:
-                    st.json(response.json())
-                except:
-                    st.write("Response received (non-JSON).")
+                st.text(response.text)
 
             except Exception as e:
                 st.error(f"Connection failed: {e}")
@@ -881,3 +889,4 @@ with fhir_tabs[3]:
         st.json(st.session_state.clean_bundle)
     else:
         st.info("No bundle generated yet.")
+
