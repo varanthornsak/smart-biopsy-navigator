@@ -549,21 +549,64 @@ with advanced_tabs[0]:
         benign = counts.get("Likely Benign", 0)
         malignant = counts.get("Suspicious Malignant", 0)
 
-        fig, ax = plt.subplots(figsize=(6,6))
-        wedges, texts, autotexts = ax.pie(
-            [normal, benign, malignant],
-            labels=["Normal", "Benign", "Malignant"],
-            autopct="%1.1f%%",
-            startangle=90,
-            textprops={'fontsize': 10}
-        )
-        ax.axis("equal")
-        plt.tight_layout()
-        st.pyplot(fig)
+        total = normal + benign + malignant
+
+        col_left, col_right = st.columns([1.1, 1])
+
+        # ==========================
+        # LEFT SIDE – KPI + %
+        # ==========================
+        with col_left:
+
+            st.metric("Total Cases (Enterprise)", total)
+
+            if total > 0:
+                st.metric("Normal (%)", round(normal/total*100,1))
+                st.metric("Benign (%)", round(benign/total*100,1))
+                st.metric("Malignant (%)", round(malignant/total*100,1))
+            else:
+                st.metric("Normal (%)", 0)
+                st.metric("Benign (%)", 0)
+                st.metric("Malignant (%)", 0)
+
+        # ==========================
+        # RIGHT SIDE – Horizontal Bar
+        # ==========================
+        with col_right:
+
+            categories = ["Normal", "Benign", "Malignant"]
+            values = [normal, benign, malignant]
+            colors = ["#2ecc71", "#f1c40f", "#e74c3c"]
+
+            fig, ax = plt.subplots(figsize=(5,3))
+
+            bars = ax.barh(categories, values, color=colors)
+
+            ax.set_title("Enterprise Clinical Distribution", fontsize=11)
+            ax.set_xlabel("Number of Cases")
+
+            max_val = max(values) if max(values) > 0 else 1
+            ax.set_xlim(0, max_val * 1.2)
+
+            # clean look
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+
+            # value labels
+            for bar in bars:
+                width = bar.get_width()
+                ax.text(width + (max_val*0.02),
+                        bar.get_y() + bar.get_height()/2,
+                        f'{int(width)}',
+                        va='center',
+                        fontsize=9)
+
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
 
     else:
         st.info("No data yet.")
-
 # =====================================================
 # ADVANCED FHIR EXPORT
 # =====================================================
