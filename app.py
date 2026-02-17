@@ -984,18 +984,57 @@ with advanced_fhir_tabs[3]:
         st.info("Upload image in Case Viewer first.")
 
 # =====================================================
-# 5️⃣ FULL TRANSACTION BUNDLE (FHIR VALIDATOR CLEAN)
+# 5️⃣ FULL TRANSACTION BUNDLE (FHIR VALIDATOR CLEAN - FIXED)
 # =====================================================
 with advanced_fhir_tabs[4]:
 
     st.subheader("Full FHIR Transaction Bundle")
 
-    iso_time = datetime.datetime.utcnow().isoformat() + "Z"
+    iso_time = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
-    # Observation (Validator Clean)
+    # Generate UUIDs for proper FHIR transaction linking
+    patient_uuid = f"urn:uuid:{uuid.uuid4()}"
+    practitioner_uuid = f"urn:uuid:{uuid.uuid4()}"
+    observation_uuid = f"urn:uuid:{uuid.uuid4()}"
+    report_uuid = f"urn:uuid:{uuid.uuid4()}"
+
+    # Interpretation mapping based on probability
+    if safe_probability < 0.1:
+        interp_code = "N"
+        interp_display = "Normal"
+    elif safe_probability < DEFAULT_THRESHOLD:
+        interp_code = "L"
+        interp_display = "Low"
+    else:
+        interp_code = "H"
+        interp_display = "High"
+
+    # ---------------- PATIENT ----------------
+    patient_resource = {
+        "resourceType": "Patient",
+        "id": patient_uuid.split(":")[-1],
+        "text": {
+            "status": "generated",
+            "div": "<div>Patient Record for AI Risk Assessment</div>"
+        },
+        "active": True
+    }
+
+    # ---------------- PRACTITIONER ----------------
+    practitioner_resource = {
+        "resourceType": "Practitioner",
+        "id": practitioner_uuid.split(":")[-1],
+        "text": {
+            "status": "generated",
+            "div": "<div>AI Radiology System</div>"
+        },
+        "active": True
+    }
+
+    # ---------------- OBSERVATION ----------------
     observation_resource = {
         "resourceType": "Observation",
-        "id": f"obs-{uuid.uuid4().hex[:8]}",
+        "id": observation_uuid.split(":")[-1],
         "text": {
             "status": "generated",
             "div": "<div>AI Liver Malignancy Risk Assessment</div>"
@@ -1015,65 +1054,61 @@ with advanced_fhir_tabs[4]:
                 "display": "AI Malignancy Risk"
             }]
         },
-        "subject": {"reference": f"Patient/{patient_id}"},
+        "subject": {"reference": patient_uuid},
         "effectiveDateTime": iso_time,
-        "performer": [{
-            "reference": f"Practitioner/{practitioner_id}"
-        }],
+        "performer": [{"reference": practitioner_uuid}],
         "valueQuantity": {
-            "value": safe_probability,
+            "value": round(float(safe_probability), 5),
             "unit": "probability"
         },
         "interpretation": [{
             "coding": [{
                 "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
-                "code": "H",
-                "display": "High"
+                "code": interp_code,
+                "display": interp_display
             }]
         }]
     }
 
-    # DiagnosticReport (Validator Clean)
+    # ---------------- DIAGNOSTIC REPORT ----------------
     diagnostic_report_resource = {
         "resourceType": "DiagnosticReport",
-        "id": f"dr-{uuid.uuid4().hex[:8]}",
+        "id": report_uuid.split(":")[-1],
         "text": {
             "status": "generated",
             "div": "<div>AI Ultrasound Risk Assessment Report</div>"
         },
         "status": "final",
-        "code": {
-            "text": "AI Ultrasound Risk Assessment"
-        },
-        "subject": {"reference": f"Patient/{patient_id}"},
+        "code": {"text": "AI Ultrasound Risk Assessment"},
+        "subject": {"reference": patient_uuid},
         "effectiveDateTime": iso_time,
         "result": [{
-            "reference": f"Observation/{observation_resource['id']}"
+            "reference": observation_uuid
         }]
     }
 
-    # Full Transaction Bundle (with fullUrl REQUIRED)
+    # ---------------- FULL BUNDLE ----------------
     full_bundle = {
         "resourceType": "Bundle",
         "type": "transaction",
         "entry": [
             {
-                "fullUrl": f"urn:uuid:{uuid.uuid4()}",
+                "fullUrl": patient_uuid,
                 "resource": patient_resource,
                 "request": {"method": "POST", "url": "Patient"}
             },
             {
-                "fullUrl": f"urn:uuid:{uuid.uuid4()}",
+                "fullUrl": practitioner_uuid,
                 "resource": practitioner_resource,
                 "request": {"method": "POST", "url": "Practitioner"}
             },
             {
-                "fullUrl": f"urn:uuid:{uuid.uuid4()}",
+                "fullUrl": observation_uuid,
                 "resource": observation_resource,
                 "request": {"method": "POST", "url": "Observation"}
             },
             {
-                "fullUrl": f"urn:uuid:{uuid.uuid4()}",
+                "fullUrl": report_uuid,
                 "resource": diagnostic_report_resource,
                 "request": {"method": "POST", "url": "DiagnosticReport"}
             }
@@ -1081,6 +1116,7 @@ with advanced_fhir_tabs[4]:
     }
 
     st.json(full_bundle)
+
 
 # =====================================================
 # 6️⃣ SEND TO HAPI
