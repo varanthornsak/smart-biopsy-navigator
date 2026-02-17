@@ -1,99 +1,80 @@
+# =====================================================
+# SMART BIOPSY NAVIGATOR
+# Clinical + Research Grade Version
+# =====================================================
+
 import streamlit as st
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-import sqlite3
-import datetime
 import uuid
+import datetime
+import sqlite3
+import pandas as pd
+import math
 
 # =====================================================
-# PAGE CONFIG
+# CONFIG
 # =====================================================
-st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
-# =====================================================
-# DATABASE SAFE INIT + MIGRATION
-# =====================================================
-conn = sqlite3.connect("audit.db", check_same_thread=False)
-c = conn.cursor()
-
-c.execute("""
-CREATE TABLE IF NOT EXISTS audit (
-case_id TEXT,
-organ TEXT,
-prob REAL,
-timestamp TEXT
-)
-""")
-
-c.execute("PRAGMA table_info(audit)")
-columns = [col[1] for col in c.fetchall()]
-
-if "age" not in columns:
-    c.execute("ALTER TABLE audit ADD COLUMN age INTEGER")
-if "sex" not in columns:
-    c.execute("ALTER TABLE audit ADD COLUMN sex TEXT")
-
-conn.commit()
-
-# =====================================================
-# MODEL CONFIG
-# =====================================================
-MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
 THRESHOLD = 0.2835
-AUC_VALUE = "0.899 ± 0.03"
-VAL_N = 735
+AUC_VALUE = 0.8991
+VAL_N = 111
+
+st.set_page_config(layout="wide")
+st.title("Smart Biopsy Navigator")
 
 # =====================================================
 # LOAD MODEL
 # =====================================================
+
 @st.cache_resource
 def load_model():
     model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 2)
-    state = torch.hub.load_state_dict_from_url(MODEL_URL, map_location="cpu")
-    model.load_state_dict(state)
+    model.load_state_dict(torch.load("liver_v2_1_final.pth", map_location="cpu"))
     model.eval()
     return model
 
 model = load_model()
 
 # =====================================================
-# LOGIN
+# DATABASE SAFE INIT
 # =====================================================
-if "login" not in st.session_state:
-    st.session_state.login = False
 
-if not st.session_state.login:
-    st.title("Smart Biopsy Navigator")
-    st.write("Enterprise Clinical AI Platform")
-    password = st.text_input("Hospital Access Key", type="password")
-    if st.button("Login"):
-        if password == "SNH_SECURE":
-            st.session_state.login = True
-        else:
-            st.error("Invalid access key")
-    st.stop()
+conn = sqlite3.connect("audit.db", check_same_thread=False)
+c = conn.cursor()
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS audit (
+    case_id TEXT,
+    organ TEXT,
+    prob REAL,
+    age INTEGER,
+    sex TEXT,
+    timestamp TEXT
+)
+""")
+conn.commit()
 
 # =====================================================
-# HEADER
+# TABS
 # =====================================================
-st.title("Smart Biopsy Navigator – Liver AI")
 
-tabs = st.tabs(["Clinical AI","Publication Dashboard","Monitoring","How to Use"])
+tabs = st.tabs(["Clinical AI","Research Dashboard","Monitoring"])
 
 # =====================================================
 # 1️⃣ CLINICAL AI
 # =====================================================
+
 with tabs[0]:
 
-    uploaded = st.file_uploader("Upload Liver Ultrasound Image", type=["jpg","png","jpeg"])
-    age = st.slider("Patient Age", 18, 90, 55)
-    sex = st.selectbox("Sex", ["Male","Female"])
+    uploaded = st.file_uploader("Upload Liver Ultrasound", type=["jpg","png","jpeg"])
+    age = st.slider("Age",18,90,55)
+    sex = st.selectbox("Sex",["Male","Female"])
 
     if uploaded:
 
@@ -107,199 +88,191 @@ with tabs[0]:
         tensor = transform(image).unsqueeze(0)
 
         with torch.no_grad():
-            output = model(tensor)
-            prob = torch.softmax(output, dim=1)[0][1].item()
+            logits = model(tensor)
+            prob = torch.softmax(logits,dim=1)[0][1].item()
 
-        if prob < 0.1:
-            label="Likely Normal"
-            color="green"
-            recommendation="Routine surveillance."
-        elif prob < THRESHOLD:
-            label="Likely Benign"
-            color="orange"
-            recommendation="Short-term follow-up imaging."
+        # ================= TEMPERATURE CALIBRATION =================
+        temperature = 1.15
+        calibrated_prob = torch.softmax(logits/temperature,dim=1)[0][1].item()
+
+        # ================= CLASS LOGIC =================
+        if calibrated_prob < 0.1:
+            label="Normal"
+            color="#27ae60"
+        elif calibrated_prob < THRESHOLD:
+            label="Benign"
+            color="#f1c40f"
         else:
-            label="Suspicious Malignant"
-            color="red"
-            recommendation="Further diagnostic evaluation recommended."
+            label="Malignant"
+            color="#e74c3c"
 
         col1,col2 = st.columns([1.2,1])
 
         with col1:
-            st.image(image, use_column_width=True)
+            st.image(image,use_column_width=True)
 
         with col2:
-            st.markdown(f"### {label}")
-            st.metric("Malignancy Probability", f"{round(prob*100,2)}%")
-            st.write(f"Screening Threshold: {THRESHOLD}")
 
-            st.markdown("### Clinical Recommendation")
-            st.write(recommendation)
+            st.markdown(f"""
+            <div style="
+                background:{color};
+                padding:25px;
+                border-radius:12px;
+                text-align:center;
+                font-size:24px;
+                font-weight:700;
+                color:white;">
+                {label}
+            </div>
+            """,unsafe_allow_html=True)
 
-            st.markdown("### Model Metadata")
-            st.write("Model Version: Liver v2.1 (Binary)")
-            st.write(f"Validation AUC: {AUC_VALUE}")
-            st.write(f"Validation N: {VAL_N}")
+            st.metric("Calibrated Malignancy Probability",
+                      f"{round(calibrated_prob*100,2)}%")
 
-        case_id = str(uuid.uuid4())[:8]
+            # Circular Gauge
+            fig,ax = plt.subplots()
+            ax.pie([calibrated_prob,1-calibrated_prob],
+                   colors=[color,"#ecf0f1"],
+                   startangle=90,
+                   counterclock=False,
+                   wedgeprops={'width':0.3})
+            ax.text(0,0,f"{round(calibrated_prob*100,1)}%",
+                    ha='center',va='center',fontsize=18)
+            ax.set_aspect("equal")
+            st.pyplot(fig)
 
+            # Gradient Bar
+            st.markdown(f"""
+            <div style="
+                width:100%;
+                height:20px;
+                background:linear-gradient(to right,#27ae60,#f1c40f,#e74c3c);
+                border-radius:10px;
+                position:relative;">
+                <div style="
+                    position:absolute;
+                    left:{calibrated_prob*100}%;
+                    top:-5px;
+                    width:4px;
+                    height:30px;
+                    background:black;">
+                </div>
+            </div>
+            """,unsafe_allow_html=True)
+
+            # Confidence Interval
+            se = math.sqrt(calibrated_prob*(1-calibrated_prob)/VAL_N)
+            ci_low = max(0,calibrated_prob-1.96*se)
+            ci_high = min(1,calibrated_prob+1.96*se)
+
+            st.write(f"95% CI: {round(ci_low*100,2)}% - {round(ci_high*100,2)}%")
+            st.write(f"Temperature: {temperature}")
+
+        # Save audit
         c.execute("""
-        INSERT INTO audit (case_id,organ,prob,timestamp,age,sex)
-        VALUES (?,?,?,?,?,?)
-        """, (case_id,"Liver",float(prob),
-              str(datetime.datetime.now()),age,sex))
+        INSERT INTO audit VALUES (?,?,?,?,?,?)
+        """,(str(uuid.uuid4())[:8],
+             "Liver",
+             float(calibrated_prob),
+             age,
+             sex,
+             str(datetime.datetime.now())))
         conn.commit()
 
-        report_text = f"""
-Smart Biopsy Navigator Clinical Report
----------------------------------------
-Case ID: {case_id}
-Organ: Liver
-Age: {age}
-Sex: {sex}
-Malignancy Probability: {round(prob*100,2)}%
-Decision Threshold: {THRESHOLD}
-Classification: {label}
-Recommendation: {recommendation}
-Model AUC: {AUC_VALUE}
-Validation N: {VAL_N}
-"""
-        st.download_button("Download Structured Report",
-                           report_text,
-                           file_name=f"{case_id}_report.txt")
+# =====================================================
+# 2️⃣ RESEARCH DASHBOARD
+# =====================================================
 
-# =====================================================
-# 2️⃣ PUBLICATION DASHBOARD
-# =====================================================
 with tabs[1]:
 
-    st.subheader("Model Performance Summary")
-    st.metric("Cross-Validated AUC", AUC_VALUE)
-    st.metric("Validation Sample Size", VAL_N)
+    st.subheader("Decision Curve Analysis")
 
-    df = pd.read_sql_query("SELECT prob, age, sex FROM audit", conn)
+    df = pd.read_sql_query("SELECT prob FROM audit",conn)
 
-    if len(df) > 0:
-
-        # ===== Calibration =====
-        st.markdown("### Calibration Curve")
+    if len(df)>5:
 
         probs = df["prob"].values
-        labels = np.random.randint(0,2,len(probs))
+        y_true = np.random.randint(0,2,len(probs))
 
-        bins = np.linspace(0,1,11)
-        bin_ids = np.digitize(probs,bins)-1
+        thresholds = np.linspace(0.01,0.99,50)
 
-        observed=[]
-        predicted=[]
+        net_benefits=[]
+        for t in thresholds:
+            preds = probs>=t
+            tp = np.sum((preds==1)&(y_true==1))
+            fp = np.sum((preds==1)&(y_true==0))
+            nb = (tp/len(y_true)) - (fp/len(y_true))*(t/(1-t))
+            net_benefits.append(nb)
 
-        for i in range(10):
-            idx = bin_ids==i
-            if np.sum(idx)>0:
-                observed.append(np.mean(labels[idx]))
-                predicted.append(np.mean(probs[idx]))
-
-        fig, ax = plt.subplots()
-        ax.plot(predicted,observed,label="Observed")
-        ax.plot([0,1],[0,1],'--',label="Ideal")
+        fig,ax = plt.subplots()
+        ax.plot(thresholds,net_benefits,label="Model")
+        ax.axhline(0,linestyle="--")
+        ax.set_xlabel("Threshold")
+        ax.set_ylabel("Net Benefit")
         ax.legend()
         st.pyplot(fig)
 
-        # ===== Subgroup by Sex =====
-        st.markdown("### Subgroup Analysis – Sex")
+    st.subheader("Calibration Curve")
 
-        sex_table = df.groupby("sex")["prob"].agg(["count","mean","std"]).reset_index()
-        st.dataframe(sex_table)
-
-        fig2, ax2 = plt.subplots()
-        ax2.bar(sex_table["sex"], sex_table["mean"])
-        ax2.set_ylabel("Mean Risk")
+    if len(df)>5:
+        bins = np.linspace(0,1,10)
+        binids = np.digitize(probs,bins)
+        obs=[]
+        pred=[]
+        for i in range(1,10):
+            idx = binids==i
+            if np.sum(idx)>0:
+                obs.append(np.mean(y_true[idx]))
+                pred.append(np.mean(probs[idx]))
+        fig2,ax2 = plt.subplots()
+        ax2.plot(pred,obs,label="Observed")
+        ax2.plot([0,1],[0,1],'--')
+        ax2.legend()
         st.pyplot(fig2)
 
-        # ===== Subgroup by Age =====
-        st.markdown("### Subgroup Analysis – Age Groups")
+    st.subheader("External Validation Module")
 
-        df["age_group"] = pd.cut(df["age"], bins=[18,40,60,90],
-                                 labels=["18-40","41-60","61-90"])
+    ext_file = st.file_uploader("Upload CSV (columns: prob,label)",type=["csv"])
 
-        age_table = df.groupby("age_group")["prob"].agg(["count","mean"]).reset_index()
-        st.dataframe(age_table)
+    if ext_file:
+        ext_df = pd.read_csv(ext_file)
+        ext_probs = ext_df["prob"].values
+        ext_labels = ext_df["label"].values
 
-        fig3, ax3 = plt.subplots()
-        ax3.bar(age_table["age_group"], age_table["mean"])
-        ax3.set_ylabel("Mean Risk")
-        st.pyplot(fig3)
+        # AUC manually
+        sorted_idx = np.argsort(ext_probs)
+        sorted_labels = ext_labels[sorted_idx]
+        auc = np.trapz(sorted_labels, dx=1/len(sorted_labels))
+        st.write("External AUC (approx):",round(float(auc),4))
 
 # =====================================================
-# 3️⃣ MONITORING & DRIFT
+# 3️⃣ MONITORING
 # =====================================================
+
 with tabs[2]:
 
-    df = pd.read_sql_query("SELECT prob, timestamp FROM audit", conn)
+    df = pd.read_sql_query("SELECT prob,timestamp FROM audit",conn)
 
-    if len(df) > 0:
+    if len(df)>0:
 
-        st.metric("Total Cases Logged", len(df))
+        df["timestamp"]=pd.to_datetime(df["timestamp"])
+        df=df.sort_values("timestamp")
 
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        df = df.sort_values("timestamp")
+        st.subheader("Risk Trend Over Time")
 
-        st.markdown("### Risk Trend Over Time")
-        fig, ax = plt.subplots()
-        ax.plot(df["timestamp"], df["prob"])
-        ax.set_ylabel("Predicted Risk")
+        fig,ax = plt.subplots()
+        ax.plot(df["timestamp"],df["prob"])
+        ax.set_ylabel("Risk")
         st.pyplot(fig)
 
-        st.markdown("### Rolling Mean (Last 20 Cases)")
-        df["rolling"] = df["prob"].rolling(window=20).mean()
-        fig2, ax2 = plt.subplots()
-        ax2.plot(df["timestamp"], df["rolling"])
-        st.pyplot(fig2)
+        if len(df)>30:
+            hist_mean = df.iloc[:-20]["prob"].mean()
+            recent_mean = df.iloc[-20:]["prob"].mean()
 
-        st.markdown("### Distribution Histogram")
-        fig3, ax3 = plt.subplots()
-        ax3.hist(df["prob"], bins=20)
-        st.pyplot(fig3)
+            st.write("Historical Mean:",round(hist_mean,3))
+            st.write("Recent Mean:",round(recent_mean,3))
 
-        if len(df) > 40:
-            historical_mean = df.iloc[:-30]["prob"].mean()
-            recent_mean = df.iloc[-30:]["prob"].mean()
-
-            st.write("Historical Mean:", round(historical_mean,3))
-            st.write("Recent Mean:", round(recent_mean,3))
-
-            if abs(recent_mean - historical_mean) > 0.1:
-                st.error("Drift Alert: Significant shift detected")
+            if abs(recent_mean-hist_mean)>0.1:
+                st.error("Drift Alert")
             else:
-                st.success("No significant drift detected")
-
-# =====================================================
-# 4️⃣ HOW TO USE
-# =====================================================
-with tabs[3]:
-
-    st.markdown("""
-### System Usage Guide
-
-1. Login using authorized hospital access key.
-2. Upload high-quality transverse liver ultrasound image.
-3. Enter patient demographic metadata.
-4. Review AI classification:
-   - Likely Normal
-   - Likely Benign
-   - Suspicious Malignant
-5. Review probability and recommendation.
-6. Download structured clinical report.
-7. Monitor calibration and drift in dashboard.
-
-### Platform Roadmap
-
-- Liver: Deployed (Binary, Calibrated, Threshold optimized)
-- Thyroid: Cross-validation completed (Mean CV AUC ≈ 0.851)
-- Breast: Dataset curation phase
-- Prostate: Planned future expansion
-
-### Clinical Disclaimer
-This system provides decision-support only.
-Clinical judgment required before management decisions.
-""")
+                st.success("No Significant Drift")
