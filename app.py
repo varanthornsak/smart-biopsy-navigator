@@ -13,6 +13,7 @@ import cv2
 import base64
 import json
 import time
+import platform
 
 st.set_page_config(page_title="Smart Biopsy Navigator Enterprise", layout="wide")
 
@@ -24,13 +25,15 @@ MODEL_REGISTRY = {
         "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
         "threshold": 0.2835,
         "auc": 0.899,
-        "version": "Liver v2.1"
+        "version": "Liver v2.1",
+        "dataset": 735
     },
     "Thyroid": {
         "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/thyroid_v1_final.pth",
         "threshold": 0.40,
         "auc": 0.851,
-        "version": "Thyroid v1.0"
+        "version": "Thyroid v1.0",
+        "dataset": 3115
     }
 }
 
@@ -61,8 +64,7 @@ def generate_token(role, hospital):
         "hospital": hospital,
         "exp": time.time() + 3600
     }
-    token = base64.b64encode(json.dumps(payload).encode()).decode()
-    return token
+    return base64.b64encode(json.dumps(payload).encode()).decode()
 
 def decode_token(token):
     try:
@@ -81,7 +83,7 @@ if "auth" not in st.session_state:
 
 if st.session_state.auth is None:
 
-    st.title("Hospital Secure Login")
+    st.title("Secure Hospital Access")
 
     hospital = st.selectbox("Hospital", [
         "Sri Nagarind Hospital",
@@ -94,36 +96,31 @@ if st.session_state.auth is None:
         "Admin"
     ])
 
-    if st.button("Login Securely"):
-        token = generate_token(role, hospital)
-        st.session_state.auth = token
+    if st.button("Login"):
+        st.session_state.auth = generate_token(role, hospital)
         st.rerun()
 
     st.stop()
 
-# =====================================================
-# AUTH VALIDATION
-# =====================================================
 payload = decode_token(st.session_state.auth)
-
 if payload is None:
-    st.warning("Session expired. Please login again.")
     st.session_state.auth = None
+    st.warning("Session expired.")
     st.rerun()
 
 role = payload["role"]
 hospital = payload["hospital"]
 
 # =====================================================
-# DASHBOARD HEADER
+# HEADER
 # =====================================================
-st.title("Smart Biopsy Navigator – Enterprise Platform")
-st.caption(f"Hospital: {hospital} | Role: {role}")
+st.title("Smart Biopsy Navigator – Enterprise Clinical AI")
+st.caption(f"{hospital} | Role: {role}")
 
 st.markdown("---")
 
 # =====================================================
-# LOAD MODEL
+# MODEL LOADER
 # =====================================================
 @st.cache_resource
 def load_model(url):
@@ -135,7 +132,7 @@ def load_model(url):
     return model
 
 # =====================================================
-# MAIN LAYOUT
+# MAIN DASHBOARD
 # =====================================================
 left, right = st.columns([1.2,1])
 
@@ -167,13 +164,13 @@ with left:
 
         if prob < 0.1:
             label = "Normal"
-            color = "#2ecc71"
+            color = "#27ae60"
         elif prob < threshold:
             label = "Benign"
-            color = "#f1c40f"
+            color = "#f39c12"
         else:
             label = "Malignant"
-            color = "#e74c3c"
+            color = "#c0392b"
 
         case_id = str(uuid.uuid4())[:8]
 
@@ -190,24 +187,27 @@ with right:
         <div style="
         background-color:{color};
         padding:25px;
-        border-radius:12px;
+        border-radius:10px;
         color:white;
-        font-size:26px;
+        font-size:28px;
         font-weight:bold;">
         {label}
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("### Clinical Summary")
+        st.markdown("### Clinical Risk Summary")
 
-        st.write("Malignancy Probability:", round(prob*100,2), "%")
+        colA, colB = st.columns(2)
+        colA.metric("Malignancy Probability", f"{round(prob*100,2)}%")
+        colB.metric("Threshold", threshold)
+
         st.write("Model Version:", model_info["version"])
         st.write("Validated AUC:", model_info["auc"])
-        st.write("Threshold Used:", threshold)
+        st.write("Dataset Size:", model_info["dataset"])
 
         st.markdown("---")
 
-        st.subheader("ROC Curve")
+        st.subheader("ROC Performance")
         fpr = np.linspace(0,1,100)
         tpr = fpr ** (1/model_info["auc"])
         fig, ax = plt.subplots()
@@ -215,9 +215,8 @@ with right:
         ax.plot([0,1],[0,1])
         st.pyplot(fig)
 
-        st.markdown("---")
-
         if role in ["Clinician","Admin"]:
+            st.markdown("---")
             st.subheader("Grad-CAM Explainability")
 
             def gradcam(model, image_tensor):
@@ -238,7 +237,6 @@ with right:
 
                 grads = gradients[0]
                 acts = activations[0]
-
                 weights = torch.mean(grads, dim=(2,3))
                 cam = torch.zeros(acts.shape[2:], dtype=torch.float32)
 
@@ -261,19 +259,38 @@ with right:
             st.image(overlay.astype(np.uint8), use_column_width=True)
 
 # =====================================================
-# ANALYTICS SECTION
+# MONITORING & ANALYTICS
 # =====================================================
 st.markdown("---")
-st.subheader("Hospital Audit Overview")
+st.subheader("Enterprise Monitoring Dashboard")
 
 df = pd.read_sql_query("SELECT * FROM audit", conn)
 
 if not df.empty:
-    colA, colB = st.columns(2)
-    with colA:
-        st.bar_chart(df["interpretation"].value_counts())
-    with colB:
-        st.bar_chart(df["organ"].value_counts())
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Cases", len(df))
+    col2.metric("Malignant Rate", f"{round((df['interpretation']=='Malignant').mean()*100,2)}%")
+    col3.metric("Last Case", df.iloc[-1]["timestamp"])
+
+    st.bar_chart(df["interpretation"].value_counts())
+else:
+    st.info("No data recorded yet.")
+
+# =====================================================
+# DEPLOYMENT METADATA
+# =====================================================
+st.markdown("---")
+st.subheader("Deployment Metadata")
+
+st.write("Platform:", platform.platform())
+st.write("PyTorch:", torch.__version__)
+st.write("Device:", "CUDA" if torch.cuda.is_available() else "CPU")
+
+# =====================================================
+# REGULATORY DISCLAIMER
+# =====================================================
+st.markdown("---")
+st.caption("For research and clinical decision support use only. Not a standalone diagnostic device.")
 
 # =====================================================
 # LOGOUT
