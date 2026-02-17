@@ -494,3 +494,214 @@ with board_tabs[6]:
 
     st.metric("Monthly Price (USD)", price)
     st.write("Included Cases:", cases)
+# =====================================================
+# ===== ADVANCED BOARD / VC / ENTERPRISE MODULE ======
+# =====================================================
+
+st.markdown("---")
+st.markdown("## 🚀 Strategic & Enterprise Expansion Layer")
+
+advanced_tabs = st.tabs([
+    "Improved Executive Overview",
+    "FHIR REST (Advanced)",
+    "VC Pitch Simulation",
+    "Market Size (TAM/SAM/SOM)",
+    "ROI & Cost Reduction",
+    "Multi-Center Validation",
+    "AI Governance",
+    "Retraining Pipeline"
+])
+
+# =====================================================
+# IMPROVED EXECUTIVE OVERVIEW (FIX PIE OVERLAP)
+# =====================================================
+with advanced_tabs[0]:
+
+    st.subheader("Enhanced Clinical Distribution Overview")
+
+    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
+
+    if not df_all.empty:
+
+        counts = df_all["classification"].value_counts()
+
+        normal = counts.get("Normal", 0)
+        benign = counts.get("Likely Benign", 0)
+        malignant = counts.get("Suspicious Malignant", 0)
+
+        fig, ax = plt.subplots(figsize=(6,6))
+        wedges, texts, autotexts = ax.pie(
+            [normal, benign, malignant],
+            labels=["Normal", "Benign", "Malignant"],
+            autopct="%1.1f%%",
+            startangle=90,
+            textprops={'fontsize': 10}
+        )
+        ax.axis("equal")
+        plt.tight_layout()
+        st.pyplot(fig)
+
+    else:
+        st.info("No data yet.")
+
+# =====================================================
+# ADVANCED FHIR EXPORT
+# =====================================================
+with advanced_tabs[1]:
+
+    st.subheader("FHIR REST Endpoint Simulation (Complete Structure)")
+
+    example_payload = {
+        "resourceType": "Observation",
+        "id": "ai-risk-observation-001",
+        "status": "final",
+        "category": [{
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "imaging",
+                "display": "Imaging"
+            }]
+        }],
+        "code": {
+            "text": "AI Liver Malignancy Risk"
+        },
+        "subject": {
+            "reference": "Patient/HN123456"
+        },
+        "effectiveDateTime": str(datetime.datetime.now()),
+        "valueQuantity": {
+            "value": 0.78,
+            "unit": "probability"
+        },
+        "interpretation": [{
+            "text": "Suspicious Malignant"
+        }]
+    }
+
+    st.json(example_payload)
+
+    st.write("Ready to POST to /fhir/Observation endpoint")
+
+# =====================================================
+# VC PITCH SIMULATION
+# =====================================================
+with advanced_tabs[2]:
+
+    st.subheader("VC Investment Projection Simulation")
+
+    hospitals = st.slider("Number of Hospitals", 10, 500, 100)
+    monthly_price = st.slider("Monthly Subscription per Hospital (USD)", 1000, 10000, 3000)
+
+    annual_revenue = hospitals * monthly_price * 12
+
+    st.metric("Projected Annual Revenue (USD)", f"{annual_revenue:,.0f}")
+
+    fig, ax = plt.subplots()
+    years = [1,2,3,4,5]
+    growth = [annual_revenue * (1.5**(y-1)) for y in years]
+    ax.plot(years, growth)
+    ax.set_title("5-Year Growth Projection")
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Revenue")
+    st.pyplot(fig)
+
+# =====================================================
+# MARKET SIZE CALCULATOR
+# =====================================================
+with advanced_tabs[3]:
+
+    st.subheader("TAM / SAM / SOM Calculator")
+
+    total_hospitals = 20000
+    target_region_hospitals = 2000
+    expected_capture = st.slider("Market Capture %", 1, 50, 10)
+
+    tam = total_hospitals * 3000 * 12
+    sam = target_region_hospitals * 3000 * 12
+    som = sam * (expected_capture/100)
+
+    st.metric("TAM (USD)", f"{tam:,.0f}")
+    st.metric("SAM (USD)", f"{sam:,.0f}")
+    st.metric("SOM (USD)", f"{som:,.0f}")
+
+# =====================================================
+# ROI MODEL
+# =====================================================
+with advanced_tabs[4]:
+
+    st.subheader("Biopsy Avoidance ROI Simulation")
+
+    annual_cases = st.slider("Annual Ultrasound Cases", 1000, 50000, 10000)
+    biopsy_cost = st.slider("Cost per Biopsy (USD)", 500, 5000, 2000)
+    avoided_rate = st.slider("Biopsy Avoidance %", 5, 50, 20)
+
+    savings = annual_cases * (avoided_rate/100) * biopsy_cost
+
+    st.metric("Estimated Annual Cost Savings (USD)", f"{savings:,.0f}")
+
+# =====================================================
+# MULTI-CENTER VALIDATION
+# =====================================================
+with advanced_tabs[5]:
+
+    st.subheader("External Multi-Center Validation (Simulated)")
+
+    centers = ["Sri Nagarind Hospital", "Bangkok Hospital", "Chiang Mai University"]
+    auc_scores = [0.91, 0.88, 0.90]
+
+    df_centers = pd.DataFrame({
+        "Center": centers,
+        "AUC": auc_scores
+    })
+
+    st.dataframe(df_centers)
+
+    fig, ax = plt.subplots()
+    ax.bar(centers, auc_scores)
+    ax.set_ylim(0.8,1.0)
+    ax.set_title("External Validation AUC")
+    st.pyplot(fig)
+
+# =====================================================
+# AI GOVERNANCE DASHBOARD
+# =====================================================
+with advanced_tabs[6]:
+
+    st.subheader("AI Governance & Risk Control")
+
+    st.write("""
+• Model Version Control Enabled  
+• Audit Trail Logging Active  
+• Multi-Tenant Isolation Enforced  
+• Threshold Monitoring Active  
+• Drift Monitoring Enabled (Simulated)  
+• Retraining Governance Workflow Defined  
+""")
+
+# =====================================================
+# RETRAINING PIPELINE
+# =====================================================
+with advanced_tabs[7]:
+
+    st.subheader("Automated Retraining Trigger Simulation")
+
+    drift_metric = np.random.uniform(0,0.2)
+    threshold_drift = 0.15
+
+    st.metric("Drift Score", round(drift_metric,3))
+
+    if drift_metric > threshold_drift:
+        st.error("Retraining Trigger Activated")
+    else:
+        st.success("Model Performance Stable")
+
+    st.write("""
+Pipeline:
+1. Data aggregation from multi-center
+2. Quality control filtering
+3. Cross-validation training
+4. Calibration
+5. External validation
+6. Version freeze
+7. Deployment to production registry
+""")
