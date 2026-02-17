@@ -221,6 +221,10 @@ Recommended Action:
         st.download_button("Export Report", data=report,
                            file_name=f"{case_id}_report.txt")
 
+        st.session_state.fhir_probability = prob
+        st.session_state.fhir_patient_id = case_id
+        st.session_state.uploaded_image = uploaded
+
         log_case(case_id,
                  st.session_state.hospital,
                  st.session_state.role,
@@ -568,7 +572,7 @@ with advanced_tabs[1]:
         "subject": {
             "reference": "Patient/HN123456"
         },
-        "effectiveDateTime": str(datetime.datetime.now()),
+       "effectiveDateTime": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "valueQuantity": {
             "value": 0.78,
             "unit": "probability"
@@ -755,7 +759,7 @@ with fhir_tabs[0]:
         }],
         "code": {"text": "AI Liver Malignancy Risk"},
         "subject": {"reference": f"Patient/{patient_id}"},
-        "effectiveDateTime": str(datetime.datetime.utcnow()),
+        "effectiveDateTime": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "valueQuantity": {
             "value": probability_input,
             "unit": "probability"
@@ -771,7 +775,7 @@ with fhir_tabs[0]:
         "status": "final",
         "code": {"text": "AI Ultrasound Risk Assessment"},
         "subject": {"reference": f"Patient/{patient_id}"},
-        "effectiveDateTime": str(datetime.datetime.utcnow()),
+        "effectiveDateTime": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "result": [{
             "reference": f"Observation/{observation_id}"
         }]
@@ -885,7 +889,7 @@ safe_patient_id = st.session_state.get("fhir_patient_id", "HN123456")
 safe_probability = st.session_state.get("fhir_probability", 0.5)
 safe_uploaded = st.session_state.get("uploaded_image", None)
 
-loinc_code = "LA6576-8"
+loinc_code = "34543-9"
 snomed_code = "108369006"
 practitioner_id = "PRAC001"
 
