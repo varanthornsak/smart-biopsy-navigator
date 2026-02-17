@@ -1,6 +1,6 @@
 # =====================================================
-# SMART BIOPSY NAVIGATOR
-# Stable Cloud Version (HF Model Load)
+# SMART BIOPSY NAVIGATOR (STABLE VERSION)
+# HuggingFace Model + Safe SQLite Schema
 # =====================================================
 
 import streamlit as st
@@ -21,7 +21,6 @@ import math
 # =====================================================
 
 MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
-
 THRESHOLD = 0.2835
 AUC_VALUE = 0.8991
 VAL_N = 111
@@ -30,7 +29,7 @@ st.set_page_config(layout="wide")
 st.title("Smart Biopsy Navigator")
 
 # =====================================================
-# LOAD MODEL (FROM HUGGINGFACE)
+# LOAD MODEL FROM HUGGINGFACE
 # =====================================================
 
 @st.cache_resource
@@ -50,22 +49,36 @@ def load_model():
 model = load_model()
 
 # =====================================================
-# DATABASE INIT (SAFE)
+# SAFE DATABASE INIT (AUTO MIGRATION)
 # =====================================================
 
 conn = sqlite3.connect("audit.db", check_same_thread=False)
 c = conn.cursor()
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS audit (
-    case_id TEXT,
-    organ TEXT,
-    prob REAL,
-    age INTEGER,
-    sex TEXT,
-    timestamp TEXT
-)
-""")
+c.execute("PRAGMA table_info(audit)")
+columns = [col[1] for col in c.fetchall()]
+
+if not columns:
+    c.execute("""
+    CREATE TABLE audit (
+        case_id TEXT,
+        organ TEXT,
+        prob REAL,
+        age INTEGER,
+        sex TEXT,
+        timestamp TEXT
+    )
+    """)
+else:
+    if "organ" not in columns:
+        c.execute("ALTER TABLE audit ADD COLUMN organ TEXT")
+    if "age" not in columns:
+        c.execute("ALTER TABLE audit ADD COLUMN age INTEGER")
+    if "sex" not in columns:
+        c.execute("ALTER TABLE audit ADD COLUMN sex TEXT")
+    if "timestamp" not in columns:
+        c.execute("ALTER TABLE audit ADD COLUMN timestamp TEXT")
+
 conn.commit()
 
 # =====================================================
@@ -137,7 +150,7 @@ with tabs[0]:
             st.metric("Calibrated Malignancy Probability",
                       f"{round(calibrated_prob*100,2)}%")
 
-            # Circular gauge
+            # Circular Gauge
             fig,ax = plt.subplots()
             ax.pie([calibrated_prob,1-calibrated_prob],
                    colors=[color,"#ecf0f1"],
@@ -149,7 +162,7 @@ with tabs[0]:
             ax.set_aspect("equal")
             st.pyplot(fig)
 
-            # Gradient bar
+            # Gradient Bar
             st.markdown(f"""
             <div style="
                 width:100%;
@@ -168,7 +181,7 @@ with tabs[0]:
             </div>
             """,unsafe_allow_html=True)
 
-            # Confidence interval
+            # Confidence Interval
             se = math.sqrt(calibrated_prob*(1-calibrated_prob)/VAL_N)
             ci_low = max(0,calibrated_prob-1.96*se)
             ci_high = min(1,calibrated_prob+1.96*se)
@@ -177,15 +190,18 @@ with tabs[0]:
             st.write(f"Threshold: {THRESHOLD}")
             st.write(f"AUC: {AUC_VALUE}")
 
-        # Save audit
+        # SAFE INSERT (COLUMN SPECIFIED)
         c.execute("""
-        INSERT INTO audit VALUES (?,?,?,?,?,?)
-        """,(str(uuid.uuid4())[:8],
-             "Liver",
-             float(calibrated_prob),
-             age,
-             sex,
-             str(datetime.datetime.now())))
+        INSERT INTO audit (case_id, organ, prob, age, sex, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,(
+            str(uuid.uuid4())[:8],
+            "Liver",
+            float(calibrated_prob),
+            age,
+            sex,
+            str(datetime.datetime.now())
+        ))
         conn.commit()
 
 # =====================================================
@@ -202,8 +218,8 @@ with tabs[1]:
         y_true = np.random.randint(0,2,len(probs))
 
         thresholds = np.linspace(0.01,0.99,50)
-
         net_benefits=[]
+
         for t in thresholds:
             preds = probs>=t
             tp = np.sum((preds==1)&(y_true==1))
@@ -235,3 +251,15 @@ with tabs[2]:
         ax.plot(df["timestamp"],df["prob"])
         ax.set_ylabel("Risk")
         st.pyplot(fig)
+
+        if len(df)>30:
+            hist_mean = df.iloc[:-20]["prob"].mean()
+            recent_mean = df.iloc[-20:]["prob"].mean()
+
+            st.write("Historical Mean:",round(hist_mean,3))
+            st.write("Recent Mean:",round(recent_mean,3))
+
+            if abs(recent_mean-hist_mean)>0.1:
+                st.error("Drift Alert")
+            else:
+                st.success("No Significant Drift")
