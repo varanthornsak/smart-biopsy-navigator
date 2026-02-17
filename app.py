@@ -1,4 +1,4 @@
-import streamlit as st
+importimport streamlit as st
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
@@ -10,43 +10,36 @@ import sqlite3
 import datetime
 import uuid
 import math
+import io
 
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config(page_title="Smart Biopsy Navigator – Hospital Mode", layout="wide")
+st.set_page_config(page_title="Smart Biopsy Navigator – Enterprise Pro", layout="wide")
 
-MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
-DEFAULT_THRESHOLD = 0.2835
-
-# =========================================================
-# STYLE
-# =========================================================
-st.markdown("""
-<style>
-.big-title {font-size:34px;font-weight:700;}
-.subtitle {color:#6b7280;margin-bottom:20px;}
-.section {font-size:22px;font-weight:600;margin-top:30px;}
-.card {padding:22px;border-radius:16px;font-weight:600;text-align:center;}
-.green {background:#27ae60;color:white;}
-.yellow {background:#f1c40f;color:black;}
-.red {background:#e74c3c;color:white;}
-.metric-box {background:#f4f6f9;padding:15px;border-radius:12px;}
-</style>
-""", unsafe_allow_html=True)
+MODEL_REGISTRY = {
+    "Liver": {
+        "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
+        "threshold": 0.2835,
+        "version": "v2.1 Binary"
+    },
+    "Thyroid": {"url": None, "threshold": 0.5, "version": "Coming Soon"},
+    "Breast": {"url": None, "threshold": 0.5, "version": "Planned"},
+}
 
 # =========================================================
-# SAFE AUDIT DB
+# SAFE DATABASE
 # =========================================================
 def init_db():
     try:
-        conn = sqlite3.connect("audit.db", check_same_thread=False)
+        conn = sqlite3.connect("enterprise.db", check_same_thread=False)
         conn.execute("""
-        CREATE TABLE IF NOT EXISTS audit (
+        CREATE TABLE IF NOT EXISTS cases (
             case_id TEXT,
-            role TEXT,
             organ TEXT,
+            role TEXT,
             prob REAL,
+            classification TEXT,
             timestamp TEXT
         )
         """)
@@ -57,37 +50,39 @@ def init_db():
 
 conn = init_db()
 
-def safe_log(case_id, role, organ, prob):
+def log_case(case_id, organ, role, prob, classification):
     if conn:
         try:
-            conn.execute("INSERT INTO audit VALUES (?, ?, ?, ?, ?)",
-                         (case_id, role, organ, prob, str(datetime.datetime.now())))
+            conn.execute(
+                "INSERT INTO cases VALUES (?, ?, ?, ?, ?, ?)",
+                (case_id, organ, role, prob, classification, str(datetime.datetime.now()))
+            )
             conn.commit()
         except:
             pass
 
 # =========================================================
-# LOGIN PAGE
+# LOGIN SYSTEM
 # =========================================================
 if "login" not in st.session_state:
     st.session_state.login = False
 
 if not st.session_state.login:
 
-    st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>Clinical Decision Support System</div>", unsafe_allow_html=True)
+    st.title("Smart Biopsy Navigator – Enterprise")
+    st.caption("Hospital Deployment System")
 
-    role = st.selectbox("Select Role",
+    role = st.selectbox("User Role",
                         ["Radiologist", "Surgeon", "Oncologist", "Admin"])
 
-    hospital_key = st.text_input("Hospital Access Key", type="password")
+    key = st.text_input("Access Key", type="password")
 
     if st.button("Login"):
-        if hospital_key == "SNH_SECURE":
+        if key == "SNH_SECURE":
             st.session_state.login = True
             st.session_state.role = role
         else:
-            st.error("Invalid access key.")
+            st.error("Invalid access key")
 
     st.stop()
 
@@ -95,35 +90,58 @@ if not st.session_state.login:
 # LOAD MODEL
 # =========================================================
 @st.cache_resource
-def load_model():
+def load_model(url):
     model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 2)
-    state = torch.hub.load_state_dict_from_url(MODEL_URL, map_location="cpu")
+    state = torch.hub.load_state_dict_from_url(url, map_location="cpu")
     model.load_state_dict(state)
     model.eval()
     return model
 
-model = load_model()
-
 # =========================================================
 # HEADER
 # =========================================================
-st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='subtitle'>Logged in as: {st.session_state.role}</div>", unsafe_allow_html=True)
+st.title("Smart Biopsy Navigator")
+st.caption(f"Logged in as: {st.session_state.role}")
 
-tabs = st.tabs(["Clinical Assessment", "Monitoring", "User Guide"])
+tabs = st.tabs(["Worklist", "Case Viewer", "Monitoring", "System Info"])
 
 # =========================================================
-# CLINICAL ASSESSMENT
+# WORKLIST (PACS-style)
 # =========================================================
 with tabs[0]:
 
-    st.markdown("<div class='section'>Step 1 – Upload Ultrasound</div>", unsafe_allow_html=True)
+    st.subheader("Case Worklist")
 
-    organ = st.selectbox("Organ", ["Liver"])
-    threshold = st.slider("Operating Threshold", 0.1, 0.9, DEFAULT_THRESHOLD)
+    if conn:
+        try:
+            df = pd.read_sql_query("SELECT * FROM cases", conn)
+            if not df.empty:
+                st.dataframe(df.sort_values("timestamp", ascending=False))
+            else:
+                st.info("No cases processed yet.")
+        except:
+            st.info("Database unavailable.")
 
-    uploaded = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
+# =========================================================
+# CASE VIEWER
+# =========================================================
+with tabs[1]:
+
+    st.subheader("New Case")
+
+    organ = st.selectbox("Organ", list(MODEL_REGISTRY.keys()))
+
+    info = MODEL_REGISTRY[organ]
+
+    if info["url"] is None:
+        st.warning("Model not yet deployed.")
+        st.stop()
+
+    model = load_model(info["url"])
+    threshold = st.slider("Operating Threshold", 0.1, 0.9, info["threshold"])
+
+    uploaded = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
 
     if uploaded:
 
@@ -137,16 +155,15 @@ with tabs[0]:
         tensor = transform(image).unsqueeze(0)
 
         with torch.no_grad():
-            logits = model(tensor)
-            prob = torch.softmax(logits, dim=1)[0][1].item()
+            prob = torch.softmax(model(tensor), dim=1)[0][1].item()
 
-        # 3-band logic
+        # Classification bands
         if prob < 0.1:
             label = "Normal"
             color = "green"
         elif prob < threshold:
             label = "Likely Benign"
-            color = "yellow"
+            color = "orange"
         else:
             label = "Suspicious Malignant"
             color = "red"
@@ -159,7 +176,8 @@ with tabs[0]:
             st.image(image, use_column_width=True)
 
         with col2:
-            st.markdown(f"<div class='card {color}'>{label}<br>{round(prob*100,2)}%</div>", unsafe_allow_html=True)
+            st.markdown(f"### {label}")
+            st.metric("Malignancy Probability", f"{round(prob*100,2)}%")
 
             # Risk Gauge
             fig, ax = plt.subplots()
@@ -171,92 +189,85 @@ with tabs[0]:
             ax.text(0,-0.2,f"{round(prob*100,1)}%",ha="center")
             st.pyplot(fig)
 
-        st.markdown("<div class='section'>Clinical Interpretation</div>", unsafe_allow_html=True)
+        st.subheader("Structured Clinical Report")
 
-        interpretation_table = pd.DataFrame({
-            "Parameter": [
-                "Predicted Probability",
-                "Applied Threshold",
-                "Classification"
-            ],
-            "Value": [
-                round(prob,4),
-                threshold,
-                label
-            ]
-        })
+        report = f"""
+        Case ID: {case_id}
+        Organ: {organ}
+        Model Version: {info['version']}
 
-        st.table(interpretation_table)
+        Predicted Malignancy Probability: {round(prob,4)}
+        Applied Threshold: {threshold}
 
-        # Suggested Action
-        st.markdown("### Recommended Next Step")
+        Classification: {label}
+
+        Recommended Action:
+        """
 
         if label == "Normal":
-            st.success("Routine follow-up recommended.")
+            report += "Routine surveillance.\n"
         elif label == "Likely Benign":
-            st.warning("Correlate with ultrasound morphology. Consider interval imaging or biopsy based on clinical risk.")
+            report += "Correlate clinically. Consider short interval follow-up or biopsy based on risk.\n"
         else:
-            st.error("High suspicion. Recommend biopsy and oncologic referral.")
+            report += "High suspicion. Recommend biopsy and oncologic referral.\n"
 
-        safe_log(case_id, st.session_state.role, organ, prob)
+        st.text_area("Report Preview", report, height=250)
+
+        # Export as text file
+        st.download_button(
+            label="Export Report (TXT)",
+            data=report,
+            file_name=f"{case_id}_report.txt"
+        )
+
+        log_case(case_id, organ, st.session_state.role, prob, label)
 
 # =========================================================
-# MONITORING
+# MONITORING DASHBOARD
 # =========================================================
-with tabs[1]:
+with tabs[2]:
 
-    st.markdown("<div class='section'>System Monitoring</div>", unsafe_allow_html=True)
+    st.subheader("Deployment Monitoring")
 
     if conn:
         try:
-            df = pd.read_sql_query("SELECT * FROM audit", conn)
+            df = pd.read_sql_query("SELECT * FROM cases", conn)
             if not df.empty:
-                st.metric("Total Cases Processed", len(df))
+
+                st.metric("Total Cases", len(df))
+                st.metric("Mean Risk Score", round(df["prob"].mean(),3))
+
                 st.line_chart(df["prob"])
+
+                # Distribution
+                fig, ax = plt.subplots()
+                ax.hist(df["prob"], bins=20)
+                ax.set_title("Risk Distribution")
+                st.pyplot(fig)
+
             else:
-                st.info("No cases logged yet.")
+                st.info("No data yet.")
         except:
             st.info("Monitoring unavailable.")
 
 # =========================================================
-# USER GUIDE
+# SYSTEM INFO
 # =========================================================
-with tabs[2]:
+with tabs[3]:
 
-    st.markdown("<div class='section'>How to Use</div>", unsafe_allow_html=True)
-
-    st.write("""
-    1. Login using your hospital access key.
-    2. Select organ (currently Liver active).
-    3. Upload a high-quality grayscale ultrasound image.
-    4. Adjust operating threshold if required:
-        - Lower threshold → higher sensitivity
-        - Higher threshold → higher specificity
-    5. Review probability and classification band.
-    6. Follow recommended clinical action.
-    """)
-
-    st.markdown("<div class='section'>Threshold Logic</div>", unsafe_allow_html=True)
+    st.subheader("System Information")
 
     st.write("""
-    Probability < 0.1 → Normal  
-    0.1 – Threshold → Likely Benign  
-    ≥ Threshold → Suspicious Malignant  
-    """)
+    Smart Biopsy Navigator – Enterprise Pro Mode
 
-    st.markdown("<div class='section'>Intended Use</div>", unsafe_allow_html=True)
+    Intended Use:
+    Clinical decision-support tool for ultrasound risk stratification.
 
-    st.write("""
-    This system is a clinical decision-support tool.
-    It does not replace physician judgment.
-    Final management decisions must integrate imaging morphology,
-    laboratory data, and clinical context.
-    """)
+    Not intended to replace physician judgment.
+    """
 
-    st.markdown("<div class='section'>Data Privacy</div>", unsafe_allow_html=True)
+    )
 
-    st.write("""
-    No patient identifiers are stored.
-    Audit logs store only probability and timestamp.
-    Suitable for internal hospital deployment.
-    """)
+    st.write("Current Deployment Organ Models:")
+    for organ in MODEL_REGISTRY:
+        st.write(f"- {organ}: {MODEL_REGISTRY[organ]['version']}")
