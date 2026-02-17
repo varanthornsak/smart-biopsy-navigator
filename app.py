@@ -10,26 +10,14 @@ import sqlite3
 import datetime
 import uuid
 import math
-import random
 
 # =========================================================
 # CONFIG
 # =========================================================
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
-MODEL_REGISTRY = {
-    "Liver": {
-        "model_url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
-        "threshold": 0.2835,
-        "version": "v2.1 Binary Calibrated"
-    },
-    "Thyroid": {
-        "model_url": None,
-        "threshold": 0.5,
-        "version": "Training"
-    },
-    "Breast": {"model_url": None, "threshold": 0.5, "version": "Planned"},
-}
+MODEL_URL = "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth"
+DEFAULT_THRESHOLD = 0.2835
 
 # =========================================================
 # STYLE
@@ -38,161 +26,101 @@ st.markdown("""
 <style>
 .big-title {font-size:34px;font-weight:700;}
 .subtitle {color:#6b7280;margin-bottom:15px;}
-.card {padding:22px;border-radius:18px;font-weight:600;text-align:center;}
+.card {padding:20px;border-radius:16px;font-weight:600;text-align:center;}
 .green {background:#27ae60;color:white;}
 .yellow {background:#f1c40f;color:black;}
 .red {background:#e74c3c;color:white;}
 .section {font-size:22px;font-weight:600;margin-top:30px;}
-.metric-box {padding:15px;border-radius:12px;background:#f4f6f9;}
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# SAFE DB
+# MODEL
 # =========================================================
-def init_db():
-    try:
-        conn = sqlite3.connect("audit.db", check_same_thread=False)
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS audit (
-            case_id TEXT,
-            hospital TEXT,
-            organ TEXT,
-            prob REAL,
-            timestamp TEXT
-        )
-        """)
-        conn.commit()
-        return conn
-    except:
-        return None
+@st.cache_resource
+def load_model():
+    model = models.resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 2)
+    state = torch.hub.load_state_dict_from_url(MODEL_URL, map_location="cpu")
+    model.load_state_dict(state)
+    model.eval()
+    return model
 
-conn = init_db()
-
-def safe_log(case_id, hospital, organ, prob):
-    if conn is None:
-        return
-    try:
-        conn.execute(
-            "INSERT INTO audit VALUES (?, ?, ?, ?, ?)",
-            (case_id, hospital, organ, float(prob), str(datetime.datetime.now()))
-        )
-        conn.commit()
-    except:
-        pass
+model = load_model()
 
 # =========================================================
-# LOGIN
+# METRIC FUNCTIONS
 # =========================================================
-if "login" not in st.session_state:
-    st.session_state.login = False
 
-if not st.session_state.login:
-    st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>Enterprise Clinical AI Platform</div>", unsafe_allow_html=True)
+def confusion_metrics(labels, probs, threshold):
+    preds = (probs >= threshold).astype(int)
+    tp = np.sum((preds==1)&(labels==1))
+    fp = np.sum((preds==1)&(labels==0))
+    fn = np.sum((preds==0)&(labels==1))
+    tn = np.sum((preds==0)&(labels==0))
 
-    hospital = st.selectbox("Hospital", ["Sri Nagarind Hospital", "Demo Hospital"])
-    key = st.text_input("Access Key", type="password")
+    sens = tp/(tp+fn+1e-8)
+    spec = tn/(tn+fp+1e-8)
+    ppv = tp/(tp+fp+1e-8)
+    npv = tn/(tn+fn+1e-8)
 
-    if st.button("Login"):
-        if key == "SNH_SECURE":
-            st.session_state.login = True
-            st.session_state.hospital = hospital
-        else:
-            st.error("Invalid Key")
-    st.stop()
+    return tp,fp,fn,tn,sens,spec,ppv,npv
+
+def compute_auc(labels, probs):
+    sorted_idx = np.argsort(probs)
+    labels = labels[sorted_idx]
+    probs = probs[sorted_idx]
+    tprs=[]; fprs=[]
+    thresholds=np.unique(probs)
+    for t in thresholds:
+        tp,fp,fn,tn,_,_,_,_ = confusion_metrics(labels,probs,t)
+        tpr = tp/(tp+fn+1e-8)
+        fpr = fp/(fp+tn+1e-8)
+        tprs.append(tpr)
+        fprs.append(fpr)
+    fprs,tprs = zip(*sorted(zip(fprs,tprs)))
+    return np.trapz(tprs,fprs)
+
+def calibration_slope_intercept(labels, probs):
+    logit = np.log(probs/(1-probs+1e-8)+1e-8)
+    X = np.vstack([np.ones(len(logit)), logit]).T
+    y = labels
+    beta = np.linalg.inv(X.T @ X) @ X.T @ y
+    intercept = beta[0]
+    slope = beta[1]
+    return intercept, slope
+
+def decision_curve(labels, probs):
+    thresholds = np.linspace(0.01,0.99,50)
+    net_benefits=[]
+    N=len(labels)
+    for pt in thresholds:
+        preds=(probs>=pt).astype(int)
+        tp=np.sum((preds==1)&(labels==1))
+        fp=np.sum((preds==1)&(labels==0))
+        nb=(tp/N)-(fp/N)*(pt/(1-pt))
+        net_benefits.append(nb)
+    return thresholds, net_benefits
 
 # =========================================================
 # HEADER
 # =========================================================
 st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='subtitle'>{st.session_state.hospital}</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>Enterprise + Academic Mode</div>", unsafe_allow_html=True)
 
-tabs = st.tabs(["Clinical AI", "Publication Metrics", "Monitoring", "Help"])
-
-# =========================================================
-# LOAD MODEL
-# =========================================================
-@st.cache_resource
-def load_model(url):
-    model = models.resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, 2)
-    state = torch.hub.load_state_dict_from_url(url, map_location="cpu")
-    model.load_state_dict(state)
-    model.eval()
-    return model
-
-# =========================================================
-# MANUAL AUC
-# =========================================================
-def compute_auc(labels, probs):
-    sorted_idx = np.argsort(probs)
-    labels = labels[sorted_idx]
-    probs = probs[sorted_idx]
-
-    tprs = []
-    fprs = []
-
-    thresholds = np.unique(probs)
-    for t in thresholds:
-        preds = (probs >= t).astype(int)
-        tp = np.sum((preds==1)&(labels==1))
-        fp = np.sum((preds==1)&(labels==0))
-        fn = np.sum((preds==0)&(labels==1))
-        tn = np.sum((preds==0)&(labels==0))
-
-        tpr = tp/(tp+fn+1e-8)
-        fpr = fp/(fp+tn+1e-8)
-        tprs.append(tpr)
-        fprs.append(fpr)
-
-    # sort by fpr
-    fprs, tprs = zip(*sorted(zip(fprs, tprs)))
-    auc = np.trapz(tprs, fprs)
-    return auc
-
-# =========================================================
-# BOOTSTRAP CI
-# =========================================================
-def bootstrap_auc_ci(labels, probs, n=500):
-    aucs = []
-    size = len(labels)
-    for _ in range(n):
-        idx = np.random.choice(range(size), size, replace=True)
-        auc = compute_auc(labels[idx], probs[idx])
-        aucs.append(auc)
-    return np.percentile(aucs, 2.5), np.percentile(aucs, 97.5)
-
-# =========================================================
-# BRIER SCORE
-# =========================================================
-def brier_score(labels, probs):
-    return np.mean((probs - labels)**2)
+tabs = st.tabs(["Clinical AI", "Publication Analytics", "Prospective Simulation"])
 
 # =========================================================
 # CLINICAL AI
 # =========================================================
 with tabs[0]:
 
-    st.markdown("<div class='section'>Organ Selection</div>", unsafe_allow_html=True)
+    threshold = st.slider("Operating Threshold",0.05,0.95,DEFAULT_THRESHOLD)
 
-    organ = st.selectbox("Select Organ", list(MODEL_REGISTRY.keys()))
-    info = MODEL_REGISTRY[organ]
-
-    if info["model_url"] is None:
-        st.warning("Model under development.")
-        st.stop()
-
-    model = load_model(info["model_url"])
-
-    mode = st.radio("Mode", ["Screening", "Balanced"])
-    threshold = info["threshold"] if mode=="Screening" else 0.5
-
-    uploaded = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
+    uploaded = st.file_uploader("Upload Liver Ultrasound", type=["jpg","png","jpeg"])
 
     if uploaded:
         image = Image.open(uploaded).convert("RGB")
-
         transform = transforms.Compose([
             transforms.Resize((224,224)),
             transforms.ToTensor()
@@ -203,124 +131,109 @@ with tabs[0]:
             logits = model(tensor)
             prob = torch.softmax(logits,dim=1)[0][1].item()
 
-        if prob < 0.1:
+        if prob<0.1:
             label="Normal";color="green"
-        elif prob < threshold:
+        elif prob<threshold:
             label="Benign";color="yellow"
         else:
             label="Malignant";color="red"
 
-        col1,col2 = st.columns([1.3,1])
-
+        col1,col2=st.columns([1.2,1])
         with col1:
-            st.image(image, use_column_width=True)
-
+            st.image(image,use_column_width=True)
         with col2:
-            st.markdown(f"<div class='card {color}'>{label}<br>{round(prob*100,2)}%</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card {color}'>{label}<br>{round(prob*100,2)}%</div>",unsafe_allow_html=True)
 
-        # Interpretation table
-        st.markdown("### Clinical Interpretation")
-        df_result = pd.DataFrame({
-            "Metric": ["Probability of Malignancy", "Applied Threshold", "Operating Mode"],
-            "Value": [round(prob,4), threshold, mode]
-        })
-        st.table(df_result)
-
-        safe_log(str(uuid.uuid4())[:8], st.session_state.hospital, organ, prob)
+        st.markdown("### Clinical Commentary (CC)")
+        st.write(f"""
+        The predicted probability of malignancy is {round(prob,3)}.
+        Under the current threshold ({round(threshold,2)}), this case is classified as {label}.
+        Clinical decision should integrate imaging morphology, patient risk profile, and histopathological correlation.
+        """)
 
 # =========================================================
-# PUBLICATION METRICS
+# PUBLICATION ANALYTICS
 # =========================================================
 with tabs[1]:
 
-    st.markdown("<div class='section'>External Validation Module</div>", unsafe_allow_html=True)
-
-    file = st.file_uploader("Upload CSV with columns: prob,label", type=["csv"])
+    file = st.file_uploader("Upload Validation CSV (prob,label,center)", type=["csv"])
 
     if file:
         df = pd.read_csv(file)
         probs = df["prob"].values
         labels = df["label"].values
 
-        auc = compute_auc(labels, probs)
-        ci_low, ci_high = bootstrap_auc_ci(labels, probs)
-        brier = brier_score(labels, probs)
+        auc = compute_auc(labels,probs)
+        intercept,slope = calibration_slope_intercept(labels,probs)
+        tp,fp,fn,tn,sens,spec,ppv,npv = confusion_metrics(labels,probs,DEFAULT_THRESHOLD)
 
-        st.markdown("### Performance Metrics")
-        metrics_df = pd.DataFrame({
-            "Metric": ["AUC", "95% CI Lower", "95% CI Upper", "Brier Score"],
-            "Value": [round(auc,4), round(ci_low,4), round(ci_high,4), round(brier,4)]
+        st.markdown("### Performance Table")
+        perf = pd.DataFrame({
+            "Metric":["AUC","Sensitivity","Specificity","PPV","NPV",
+                      "Calibration Intercept","Calibration Slope"],
+            "Value":[round(auc,4),round(sens,3),round(spec,3),
+                     round(ppv,3),round(npv,3),
+                     round(intercept,4),round(slope,4)]
         })
-        st.table(metrics_df)
+        st.table(perf)
 
-        # ROC Curve
-        thresholds = np.linspace(0,1,100)
-        tpr_list=[]
-        fpr_list=[]
-
+        # ROC
+        thresholds=np.linspace(0,1,100)
+        tpr=[];fpr=[]
         for t in thresholds:
-            preds = (probs>=t).astype(int)
-            tp = np.sum((preds==1)&(labels==1))
-            fp = np.sum((preds==1)&(labels==0))
-            fn = np.sum((preds==0)&(labels==1))
-            tn = np.sum((preds==0)&(labels==0))
-            tpr = tp/(tp+fn+1e-8)
-            fpr = fp/(fp+tn+1e-8)
-            tpr_list.append(tpr)
-            fpr_list.append(fpr)
-
-        fig,ax = plt.subplots()
-        ax.plot(fpr_list,tpr_list,label="ROC")
+            tp,fp,fn,tn,_,_,_,_=confusion_metrics(labels,probs,t)
+            tpr.append(tp/(tp+fn+1e-8))
+            fpr.append(fp/(fp+tn+1e-8))
+        fig,ax=plt.subplots()
+        ax.plot(fpr,tpr)
         ax.plot([0,1],[0,1],'--')
         ax.set_title("ROC Curve")
         st.pyplot(fig)
 
-        # Retraining trigger
-        if auc < 0.80:
-            st.error("Performance degraded. Retraining recommended.")
-        else:
-            st.success("Model performance acceptable.")
+        # Decision Curve
+        th,nb=decision_curve(labels,probs)
+        fig2,ax2=plt.subplots()
+        ax2.plot(th,nb,label="Model")
+        ax2.set_title("Decision Curve Analysis")
+        ax2.set_xlabel("Threshold Probability")
+        ax2.set_ylabel("Net Benefit")
+        st.pyplot(fig2)
+
+        # Multi-center
+        if "center" in df.columns:
+            st.markdown("### External Multi-Center Comparison")
+            centers=df["center"].unique()
+            center_auc=[]
+            for c in centers:
+                sub=df[df["center"]==c]
+                center_auc.append(compute_auc(sub["label"].values,sub["prob"].values))
+            center_df=pd.DataFrame({"Center":centers,"AUC":center_auc})
+            st.bar_chart(center_df.set_index("Center"))
 
 # =========================================================
-# MONITORING
+# PROSPECTIVE SIMULATION
 # =========================================================
 with tabs[2]:
 
-    if conn:
-        try:
-            df = pd.read_sql_query("SELECT * FROM audit", conn)
-            if not df.empty:
-                st.metric("Total Cases", len(df))
-                st.line_chart(df["prob"])
-        except:
-            st.info("Monitoring disabled.")
+    st.markdown("### Prevalence Shift Simulation")
+    base_prev = st.slider("Simulated Prevalence",0.01,0.5,0.2)
 
-# =========================================================
-# HELP
-# =========================================================
-with tabs[3]:
+    N=1000
+    simulated_labels=np.random.binomial(1,base_prev,N)
+    simulated_probs=simulated_labels*0.7+(1-simulated_labels)*0.2
+    simulated_probs+=np.random.normal(0,0.1,N)
+    simulated_probs=np.clip(simulated_probs,0,1)
 
-    st.markdown("### How to Use")
+    tp,fp,fn,tn,sens,spec,ppv,npv = confusion_metrics(simulated_labels,simulated_probs,DEFAULT_THRESHOLD)
+
+    sim_df=pd.DataFrame({
+        "Metric":["Sensitivity","Specificity","PPV","NPV"],
+        "Value":[round(sens,3),round(spec,3),round(ppv,3),round(npv,3)]
+    })
+
+    st.table(sim_df)
+
     st.write("""
-1. Login with hospital key.
-2. Select organ.
-3. Upload ultrasound image.
-4. Choose mode:
-   - Screening = high sensitivity
-   - Balanced = standard threshold
-5. Review probability and interpretation table.
-6. For publication metrics, upload validation CSV.
-""")
-
-    st.markdown("### Threshold Logic")
-    st.write("""
-Probability < 0.1 → Likely Normal  
-0.1 – Threshold → Likely Benign  
-≥ Threshold → Suspicious Malignant  
-""")
-
-    st.markdown("### Intended Use")
-    st.write("""
-Decision-support tool only. Not a standalone diagnostic system.
-Final decision must be made by a licensed physician.
-""")
+    This module simulates prospective deployment under varying prevalence.
+    It demonstrates how PPV and NPV change under real-world epidemiological shifts.
+    """)
