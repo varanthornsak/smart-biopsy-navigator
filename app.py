@@ -1099,3 +1099,149 @@ with prod_tabs[4]:
 
     st.caption("Audit log synchronized with enterprise logging module.")
 
+# =====================================================
+# 🚀 ENTERPRISE ADVANCED PRODUCTION LAYER
+# (Add-on Only – No modification to existing logic)
+# =====================================================
+
+st.markdown("---")
+st.markdown("## 🏥 Enterprise Intelligence Extension")
+
+enterprise_plus_tabs = st.tabs([
+    "Auto Critical Alert",
+    "AI Explainability Heatmap",
+    "Role-Based UI View",
+    "Multi-Hospital Overview",
+    "Production Sidebar Layout"
+])
+
+# =====================================================
+# 1️⃣ AUTO-NOTIFICATION (CRITICAL FLAG)
+# =====================================================
+with enterprise_plus_tabs[0]:
+
+    st.subheader("Critical Case Alert System")
+
+    latest_prob = float(st.session_state.get("fhir_probability", 0.0))
+
+    CRITICAL_THRESHOLD = 0.75
+
+    if latest_prob >= CRITICAL_THRESHOLD:
+        st.error("🚨 CRITICAL ALERT: High Malignancy Risk Detected")
+        st.warning("Automated Notification Sent to Oncology Team (Simulation)")
+    elif latest_prob >= 0.5:
+        st.warning("⚠ Moderate Risk Flag – Recommend expedited review")
+    else:
+        st.success("No critical alerts at this time")
+
+    st.caption("Alert system integrates with hospital paging / EMR messaging (simulation).")
+
+
+# =====================================================
+# 2️⃣ HEATMAP EXPLAINABILITY OVERLAY
+# =====================================================
+with enterprise_plus_tabs[1]:
+
+    st.subheader("Grad-CAM Explainability (Simulation)")
+
+    if "uploaded_image" in st.session_state and st.session_state.uploaded_image:
+
+        image = Image.open(st.session_state.uploaded_image).convert("RGB")
+        image_np = np.array(image)
+
+        # Fake heatmap for simulation
+        heatmap = np.random.uniform(0, 1, (image_np.shape[0], image_np.shape[1]))
+        heatmap = (heatmap * 255).astype(np.uint8)
+
+        fig, ax = plt.subplots(figsize=(5,5))
+        ax.imshow(image_np)
+        ax.imshow(heatmap, cmap="jet", alpha=0.35)
+        ax.axis("off")
+
+        st.pyplot(fig)
+        st.info("Heatmap overlay simulated for explainability demo.")
+
+    else:
+        st.info("Upload a case first to view explainability map.")
+
+
+# =====================================================
+# 3️⃣ REAL ROLE-BASED UI HIDING
+# =====================================================
+with enterprise_plus_tabs[2]:
+
+    st.subheader("Role-Based Access Simulation")
+
+    role = st.session_state.get("role", "Radiologist")
+
+    st.write(f"Current Role: **{role}**")
+
+    if role == "Radiologist":
+        st.success("Access: Full clinical inference + sign-off")
+        st.write("Visible: Case Viewer, Analytics, Clinical Dashboard")
+    elif role == "Oncologist":
+        st.info("Access: View high-risk cases + reports only")
+        st.write("Visible: Worklist + Clinical Impact")
+    elif role == "Admin":
+        st.warning("Access: Billing + Governance + Deployment")
+        st.write("Visible: Analytics + SaaS + Infrastructure")
+    else:
+        st.write("Restricted view mode")
+
+    st.caption("In production, UI components would render conditionally.")
+
+
+# =====================================================
+# 4️⃣ MULTI-HOSPITAL AGGREGATION DASHBOARD
+# =====================================================
+with enterprise_plus_tabs[3]:
+
+    st.subheader("Enterprise Multi-Center Aggregation")
+
+    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
+
+    if not df_all.empty:
+
+        summary = (
+            df_all.groupby("hospital")
+            .agg(
+                total_cases=("case_id", "count"),
+                avg_risk=("prob", "mean")
+            )
+            .reset_index()
+        )
+
+        st.dataframe(summary)
+
+        fig, ax = plt.subplots(figsize=(5,3))
+        ax.bar(summary["hospital"], summary["total_cases"])
+        ax.set_title("Case Volume by Hospital")
+        ax.set_ylabel("Cases")
+        plt.xticks(rotation=30)
+        st.pyplot(fig)
+
+    else:
+        st.info("No cross-hospital data available yet.")
+
+
+# =====================================================
+# 5️⃣ PRODUCTION-GRADE SIDEBAR LAYOUT
+# =====================================================
+with enterprise_plus_tabs[4]:
+
+    st.subheader("Production Navigation Layout Preview")
+
+    with st.sidebar:
+
+        st.markdown("### 🏥 Smart Biopsy Navigator")
+        st.markdown("---")
+        st.write("🔎 Worklist")
+        st.write("🧠 Case Viewer")
+        st.write("📊 Analytics")
+        st.write("💰 Billing")
+        st.write("🛡 Governance")
+        st.write("🔐 Infrastructure")
+        st.markdown("---")
+        st.caption("Enterprise Mode Enabled")
+
+    st.info("Sidebar navigation active (visual demo).")
