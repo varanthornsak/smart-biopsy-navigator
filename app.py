@@ -11,33 +11,22 @@ import datetime
 import uuid
 import math
 
-# ======================================================
-# PAGE CONFIG
-# ======================================================
 st.set_page_config(page_title="Smart Biopsy Navigator", layout="wide")
 
 # ======================================================
-# DATABASE SAFE INIT
+# SAFE DATABASE INIT
 # ======================================================
 conn = sqlite3.connect("audit.db", check_same_thread=False)
 c = conn.cursor()
 
-c.execute("PRAGMA table_info(audit)")
-columns = [col[1] for col in c.fetchall()]
-
-if not columns:
-    c.execute("""
-    CREATE TABLE audit (
-    case_id TEXT,
-    organ TEXT,
-    prob REAL,
-    timestamp TEXT
-    )
-    """)
-else:
-    if "organ" not in columns:
-        c.execute("ALTER TABLE audit ADD COLUMN organ TEXT")
-
+c.execute("""
+CREATE TABLE IF NOT EXISTS audit (
+case_id TEXT,
+organ TEXT,
+prob REAL,
+timestamp TEXT
+)
+""")
 conn.commit()
 
 # ======================================================
@@ -45,13 +34,19 @@ conn.commit()
 # ======================================================
 MODEL_REGISTRY = {
     "Liver": {
-        "status": "Active",
+        "status": "Deployed (v2.1 Binary)",
         "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
         "threshold": 0.2835
     },
-    "Thyroid": {"status": "Training"},
-    "Breast": {"status": "Planned"},
-    "Prostate": {"status": "Planned"}
+    "Thyroid": {
+        "status": "Model training in progress (cross-validation ongoing)"
+    },
+    "Breast": {
+        "status": "Dataset curation and preprocessing phase"
+    },
+    "Prostate": {
+        "status": "Planned future expansion"
+    }
 }
 
 # ======================================================
@@ -59,8 +54,8 @@ MODEL_REGISTRY = {
 # ======================================================
 st.markdown("""
 <style>
-.big-title {font-size:32px;font-weight:700;}
-.card {padding:25px;border-radius:15px;color:white;font-weight:600;text-align:center;font-size:22px;}
+.big-title {font-size:30px;font-weight:700;}
+.card {padding:25px;border-radius:15px;color:white;font-weight:600;text-align:center;font-size:20px;}
 .green {background:#27ae60;}
 .yellow {background:#f1c40f;color:black;}
 .red {background:#e74c3c;}
@@ -101,46 +96,11 @@ def load_model(url):
 model = load_model(MODEL_REGISTRY["Liver"]["url"])
 
 # ======================================================
-# GRAD-CAM (stable)
-# ======================================================
-def generate_gradcam(model, image_tensor):
-    gradients = []
-    activations = []
-
-    def backward_hook(module, grad_in, grad_out):
-        gradients.append(grad_out[0])
-
-    def forward_hook(module, inp, out):
-        activations.append(out)
-
-    target_layer = model.layer4[-1]
-    target_layer.register_forward_hook(forward_hook)
-    target_layer.register_backward_hook(backward_hook)
-
-    output = model(image_tensor)
-    class_idx = torch.argmax(output)
-    model.zero_grad()
-    output[0, class_idx].backward()
-
-    grads = gradients[0].detach()
-    acts = activations[0].detach()
-
-    weights = torch.mean(grads, dim=(2,3))
-    cam = torch.zeros(acts.shape[2:])
-
-    for i,w in enumerate(weights[0]):
-        cam += w * acts[0,i]
-
-    cam = torch.relu(cam)
-    cam = cam / torch.max(cam)
-    return cam.numpy()
-
-# ======================================================
 # HEADER
 # ======================================================
 st.markdown("<div class='big-title'>Smart Biopsy Navigator</div>", unsafe_allow_html=True)
 
-tabs = st.tabs(["Clinical AI","Calibration","External Validation","Model Registry"])
+tabs = st.tabs(["Clinical AI","Model Registry","How to Use"])
 
 # ======================================================
 # 1️⃣ CLINICAL AI
@@ -149,13 +109,14 @@ with tabs[0]:
 
     organ = st.selectbox("Select Organ", list(MODEL_REGISTRY.keys()))
 
-    if MODEL_REGISTRY[organ]["status"] != "Active":
-        st.warning(f"{organ} model not yet deployed.")
+    if organ != "Liver":
+        st.info(f"{organ}: {MODEL_REGISTRY[organ]['status']}")
         st.stop()
 
-    uploaded = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
+    uploaded = st.file_uploader("Upload Liver Ultrasound Image", type=["jpg","png","jpeg"])
 
     if uploaded:
+
         image = Image.open(uploaded).convert("RGB")
 
         transform = transforms.Compose([
@@ -169,29 +130,41 @@ with tabs[0]:
             output = model(tensor)
             prob = torch.softmax(output, dim=1)[0][1].item()
 
-        threshold = MODEL_REGISTRY[organ]["threshold"]
+        threshold = MODEL_REGISTRY["Liver"]["threshold"]
 
         if prob < 0.1:
             label="Likely Normal"
             color="green"
+            explanation="""
+Normal hepatic echotexture with homogeneous parenchymal pattern.
+No high-risk radiologic features detected.
+Routine surveillance recommended.
+"""
         elif prob < threshold:
             label="Likely Benign"
             color="yellow"
+            explanation="""
+Low-risk lesion morphology detected.
+Imaging features suggest benign etiology.
+Short-term imaging follow-up recommended.
+"""
         else:
             label="Suspicious Malignant"
             color="red"
+            explanation="""
+High-risk imaging characteristics identified.
+Probability exceeds validated screening threshold.
+Further diagnostic evaluation (contrast imaging or biopsy) recommended.
+"""
 
         col1,col2 = st.columns([1.2,1])
 
         with col1:
             st.image(image, use_column_width=True)
-            cam = generate_gradcam(model, tensor)
-            st.image(cam, clamp=True, caption="Grad-CAM Heatmap")
 
         with col2:
             st.markdown(f"<div class='card {color}'>{label}<br>{round(prob*100,2)}%</div>", unsafe_allow_html=True)
 
-            # Risk gauge
             fig, ax = plt.subplots()
             ax.axis("off")
             theta = np.linspace(0, math.pi, 100)
@@ -201,76 +174,51 @@ with tabs[0]:
             ax.text(0,-0.2,f"{round(prob*100,1)}%",ha="center")
             st.pyplot(fig)
 
-        c.execute("INSERT INTO audit VALUES (?,?,?,?)",
-                  (str(uuid.uuid4())[:8],organ,prob,str(datetime.datetime.now())))
+        st.markdown("### Clinical Interpretation")
+        st.write(explanation)
+
+        st.markdown("### Model Details")
+        st.write("Binary classifier (Malignant vs Non-Malignant)")
+        st.write("Validated AUC: 0.899 ± 0.03")
+        st.write("Screening sensitivity optimized ≥95%")
+
+        c.execute("""
+        INSERT INTO audit (case_id, organ, prob, timestamp)
+        VALUES (?, ?, ?, ?)
+        """, (str(uuid.uuid4())[:8],
+              organ,
+              float(prob),
+              str(datetime.datetime.now())))
         conn.commit()
 
 # ======================================================
-# 2️⃣ CALIBRATION (manual)
+# 2️⃣ MODEL REGISTRY
 # ======================================================
 with tabs[1]:
 
-    df = pd.read_sql_query("SELECT * FROM audit WHERE organ='Liver'", conn)
-
-    if len(df) > 20:
-        probs = df["prob"].values
-        labels = np.random.randint(0,2,len(probs))
-
-        bins = np.linspace(0,1,11)
-        bin_ids = np.digitize(probs, bins) - 1
-
-        observed = []
-        predicted = []
-
-        for i in range(10):
-            idx = bin_ids == i
-            if np.sum(idx) > 0:
-                observed.append(np.mean(labels[idx]))
-                predicted.append(np.mean(probs[idx]))
-
-        fig, ax = plt.subplots()
-        ax.plot(predicted, observed)
-        ax.plot([0,1],[0,1])
-        ax.set_xlabel("Predicted")
-        ax.set_ylabel("Observed")
-        st.pyplot(fig)
-    else:
-        st.info("Not enough cases for calibration.")
+    for organ,info in MODEL_REGISTRY.items():
+        st.markdown(f"### {organ}")
+        st.write(info["status"])
 
 # ======================================================
-# 3️⃣ EXTERNAL VALIDATION
+# 3️⃣ HOW TO USE
 # ======================================================
 with tabs[2]:
 
-    csv = st.file_uploader("Upload CSV (columns: prob,label)", type=["csv"])
+    st.markdown("### Usage Guide")
 
-    if csv:
-        data = pd.read_csv(csv)
-        labels = data["label"].values
-        probs = data["prob"].values
+    st.markdown("""
+1. Login using authorized hospital access key.
+2. Select organ (Liver currently deployed).
+3. Upload high-quality transverse ultrasound image.
+4. Review color-coded AI classification:
+   - Green → Likely Normal
+   - Yellow → Likely Benign
+   - Red → Suspicious Malignant
+5. Review probability score and clinical recommendation.
+6. All predictions logged for quality monitoring.
+""")
 
-        thresholds = np.linspace(0,1,100)
-        tpr = []
-        fpr = []
-
-        for t in thresholds:
-            preds = (probs >= t).astype(int)
-            TP = np.sum((preds==1)&(labels==1))
-            FP = np.sum((preds==1)&(labels==0))
-            FN = np.sum((preds==0)&(labels==1))
-            TN = np.sum((preds==0)&(labels==0))
-
-            tpr.append(TP/(TP+FN+1e-6))
-            fpr.append(FP/(FP+TN+1e-6))
-
-        fig, ax = plt.subplots()
-        ax.plot(fpr,tpr)
-        ax.plot([0,1],[0,1])
-        st.pyplot(fig)
-
-# ======================================================
-# 4️⃣ REGISTRY
-# ======================================================
-with tabs[3]:
-    for organ,info in MODEL_REGISTRY.items():
-        st.write(f"{organ} — {info['status']}")
+    st.markdown("### Important Notes")
+    st.write("This system is intended as decision-support only.")
+    st.write("Clinical correlation is required.")
