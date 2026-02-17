@@ -13,136 +13,117 @@ import cv2
 import base64
 import json
 import time
-import platform
 
-st.set_page_config(page_title="Smart Biopsy Navigator Enterprise", layout="wide")
+st.set_page_config(page_title="Smart Biopsy Navigator v3.0", layout="wide")
+
+# =====================================================
+# APPLE MINIMAL STYLE
+# =====================================================
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 2rem;
+}
+.card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 18px;
+    box-shadow: 0px 8px 30px rgba(0,0,0,0.05);
+}
+.green {background:#eafaf1;}
+.yellow {background:#fef9e7;}
+.red {background:#fdecea;}
+.badge-active {color:#27ae60;font-weight:600;}
+.badge-validation {color:#f39c12;font-weight:600;}
+.badge-training {color:#3498db;font-weight:600;}
+</style>
+""", unsafe_allow_html=True)
 
 # =====================================================
 # MODEL REGISTRY
 # =====================================================
 MODEL_REGISTRY = {
     "Liver": {
+        "status": "Active",
         "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/liver_v2_1_final.pth",
-        "threshold": 0.2835,
+        "threshold_screen": 0.2835,
+        "threshold_balanced": 0.5,
         "auc": 0.899,
         "version": "Liver v2.1",
         "dataset": 735
     },
     "Thyroid": {
-        "url": "https://huggingface.co/Varanthorn/smart-biopsy-model/resolve/main/thyroid_v1_final.pth",
-        "threshold": 0.40,
+        "status": "Validation",
         "auc": 0.851,
-        "version": "Thyroid v1.0",
-        "dataset": 3115
+        "version": "Thyroid v1.0"
+    },
+    "Breast": {
+        "status": "Training"
     }
 }
 
 # =====================================================
 # DATABASE
 # =====================================================
-conn = sqlite3.connect("enterprise.db", check_same_thread=False)
+conn = sqlite3.connect("v3_enterprise.db", check_same_thread=False)
 c = conn.cursor()
 c.execute("""
 CREATE TABLE IF NOT EXISTS audit (
 case_id TEXT,
-hospital TEXT,
 organ TEXT,
 prob REAL,
 interpretation TEXT,
-role TEXT,
+mode TEXT,
 timestamp TEXT
 )
 """)
 conn.commit()
 
 # =====================================================
-# JWT SIMULATION
-# =====================================================
-def generate_token(role, hospital):
-    payload = {
-        "role": role,
-        "hospital": hospital,
-        "exp": time.time() + 3600
-    }
-    return base64.b64encode(json.dumps(payload).encode()).decode()
-
-def decode_token(token):
-    try:
-        payload = json.loads(base64.b64decode(token).decode())
-        if time.time() > payload["exp"]:
-            return None
-        return payload
-    except:
-        return None
-
-# =====================================================
-# LOGIN PAGE
-# =====================================================
-if "auth" not in st.session_state:
-    st.session_state.auth = None
-
-if st.session_state.auth is None:
-
-    st.title("Secure Hospital Access")
-
-    hospital = st.selectbox("Hospital", [
-        "Sri Nagarind Hospital",
-        "Khon Kaen University Hospital"
-    ])
-
-    role = st.selectbox("Role", [
-        "Viewer",
-        "Clinician",
-        "Admin"
-    ])
-
-    if st.button("Login"):
-        st.session_state.auth = generate_token(role, hospital)
-        st.rerun()
-
-    st.stop()
-
-payload = decode_token(st.session_state.auth)
-if payload is None:
-    st.session_state.auth = None
-    st.warning("Session expired.")
-    st.rerun()
-
-role = payload["role"]
-hospital = payload["hospital"]
-
-# =====================================================
 # HEADER
 # =====================================================
-st.title("Smart Biopsy Navigator – Enterprise Clinical AI")
-st.caption(f"{hospital} | Role: {role}")
+st.title("Smart Biopsy Navigator")
+st.caption("Enterprise Clinical AI Platform")
 
-st.markdown("---")
-
-# =====================================================
-# MODEL LOADER
-# =====================================================
-@st.cache_resource
-def load_model(url):
-    model = models.resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, 2)
-    state = torch.hub.load_state_dict_from_url(url, map_location="cpu")
-    model.load_state_dict(state)
-    model.eval()
-    return model
+tabs = st.tabs([
+    "Clinical AI",
+    "Monitoring",
+    "Model Registry",
+    "Expansion Pipeline",
+    "Governance"
+])
 
 # =====================================================
-# MAIN DASHBOARD
+# 1️⃣ CLINICAL AI
 # =====================================================
-left, right = st.columns([1.2,1])
+with tabs[0]:
 
-with left:
+    st.subheader("Clinical Decision Support")
 
     organ = st.selectbox("Select Organ", list(MODEL_REGISTRY.keys()))
+
+    status = MODEL_REGISTRY[organ]["status"]
+
+    if status != "Active":
+        st.warning(f"{organ} model is currently in {status} phase.")
+        st.stop()
+
+    mode = st.radio("Mode", ["Screening", "Balanced"])
+
     model_info = MODEL_REGISTRY[organ]
+
+    @st.cache_resource
+    def load_model(url):
+        model = models.resnet18(weights=None)
+        model.fc = nn.Linear(model.fc.in_features, 2)
+        state = torch.hub.load_state_dict_from_url(url, map_location="cpu")
+        model.load_state_dict(state)
+        model.eval()
+        return model
+
     model = load_model(model_info["url"])
 
-    uploaded = st.file_uploader("Upload Ultrasound Image", type=["jpg","png","jpeg"])
+    uploaded = st.file_uploader("Upload Ultrasound", type=["jpg","png","jpeg"])
 
     if uploaded:
 
@@ -160,54 +141,37 @@ with left:
             output = model(tensor)
             prob = torch.softmax(output, dim=1)[0][1].item()
 
-        threshold = model_info["threshold"]
+        threshold = model_info["threshold_screen"] if mode=="Screening" else model_info["threshold_balanced"]
 
         if prob < 0.1:
             label = "Normal"
-            color = "#27ae60"
+            bg = "green"
+            recommendation = "Routine screening follow-up."
         elif prob < threshold:
             label = "Benign"
-            color = "#f39c12"
+            bg = "yellow"
+            recommendation = "Short-term imaging follow-up recommended."
         else:
             label = "Malignant"
-            color = "#c0392b"
-
-        case_id = str(uuid.uuid4())[:8]
-
-        c.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?)",
-                  (case_id, hospital, organ, prob, label, role,
-                   str(datetime.datetime.now())))
-        conn.commit()
-
-with right:
-
-    if uploaded:
+            bg = "red"
+            recommendation = "Biopsy evaluation recommended."
 
         st.markdown(f"""
-        <div style="
-        background-color:{color};
-        padding:25px;
-        border-radius:10px;
-        color:white;
-        font-size:28px;
-        font-weight:bold;">
-        {label}
+        <div class="card {bg}">
+        <h2>{label}</h2>
+        <p><b>Malignancy Probability:</b> {round(prob*100,2)}%</p>
+        <p><b>Clinical Recommendation:</b> {recommendation}</p>
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("### Clinical Risk Summary")
+        # Save audit
+        case_id = str(uuid.uuid4())[:8]
+        c.execute("INSERT INTO audit VALUES (?,?,?,?,?,?)",
+                  (case_id, organ, prob, label, mode,
+                   str(datetime.datetime.now())))
+        conn.commit()
 
-        colA, colB = st.columns(2)
-        colA.metric("Malignancy Probability", f"{round(prob*100,2)}%")
-        colB.metric("Threshold", threshold)
-
-        st.write("Model Version:", model_info["version"])
-        st.write("Validated AUC:", model_info["auc"])
-        st.write("Dataset Size:", model_info["dataset"])
-
-        st.markdown("---")
-
-        st.subheader("ROC Performance")
+        st.markdown("### Model Performance")
         fpr = np.linspace(0,1,100)
         tpr = fpr ** (1/model_info["auc"])
         fig, ax = plt.subplots()
@@ -215,86 +179,74 @@ with right:
         ax.plot([0,1],[0,1])
         st.pyplot(fig)
 
-        if role in ["Clinician","Admin"]:
-            st.markdown("---")
-            st.subheader("Grad-CAM Explainability")
+# =====================================================
+# 2️⃣ MONITORING
+# =====================================================
+with tabs[1]:
 
-            def gradcam(model, image_tensor):
-                gradients = []
-                activations = []
+    st.subheader("Enterprise Monitoring")
 
-                def f_hook(m,i,o):
-                    activations.append(o)
-                def b_hook(m,gi,go):
-                    gradients.append(go[0])
+    df = pd.read_sql_query("SELECT * FROM audit", conn)
 
-                h1 = model.layer4.register_forward_hook(f_hook)
-                h2 = model.layer4.register_backward_hook(b_hook)
+    if not df.empty:
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Cases", len(df))
+        col2.metric("Malignant Rate", f"{round((df['interpretation']=='Malignant').mean()*100,2)}%")
+        col3.metric("Avg Probability", f"{round(df['prob'].mean()*100,2)}%")
 
-                out = model(image_tensor)
-                model.zero_grad()
-                out[0,1].backward()
+        st.bar_chart(df["interpretation"].value_counts())
 
-                grads = gradients[0]
-                acts = activations[0]
-                weights = torch.mean(grads, dim=(2,3))
-                cam = torch.zeros(acts.shape[2:], dtype=torch.float32)
-
-                for i,w in enumerate(weights[0]):
-                    cam += w * acts[0,i,:,:]
-
-                cam = torch.relu(cam)
-                cam = cam / torch.max(cam)
-                cam = cam.detach().numpy()
-
-                h1.remove()
-                h2.remove()
-                return cam
-
-            cam = gradcam(model, tensor)
-            cam = cv2.resize(cam, (image.size[0], image.size[1]))
-            heatmap = cv2.applyColorMap(np.uint8(255*cam), cv2.COLORMAP_JET)
-            heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
-            overlay = np.array(image)*0.6 + heatmap*0.4
-            st.image(overlay.astype(np.uint8), use_column_width=True)
+    else:
+        st.info("No cases recorded yet.")
 
 # =====================================================
-# MONITORING & ANALYTICS
+# 3️⃣ MODEL REGISTRY
 # =====================================================
-st.markdown("---")
-st.subheader("Enterprise Monitoring Dashboard")
+with tabs[2]:
 
-df = pd.read_sql_query("SELECT * FROM audit", conn)
+    st.subheader("Model Registry")
 
-if not df.empty:
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Cases", len(df))
-    col2.metric("Malignant Rate", f"{round((df['interpretation']=='Malignant').mean()*100,2)}%")
-    col3.metric("Last Case", df.iloc[-1]["timestamp"])
+    for organ, info in MODEL_REGISTRY.items():
 
-    st.bar_chart(df["interpretation"].value_counts())
-else:
-    st.info("No data recorded yet.")
+        if info["status"] == "Active":
+            badge = "badge-active"
+        elif info["status"] == "Validation":
+            badge = "badge-validation"
+        else:
+            badge = "badge-training"
 
-# =====================================================
-# DEPLOYMENT METADATA
-# =====================================================
-st.markdown("---")
-st.subheader("Deployment Metadata")
-
-st.write("Platform:", platform.platform())
-st.write("PyTorch:", torch.__version__)
-st.write("Device:", "CUDA" if torch.cuda.is_available() else "CPU")
+        st.markdown(f"""
+        <div class="card">
+        <h3>{organ}</h3>
+        <p class="{badge}">{info["status"]}</p>
+        <p>Version: {info.get("version","—")}</p>
+        <p>AUC: {info.get("auc","—")}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # =====================================================
-# REGULATORY DISCLAIMER
+# 4️⃣ EXPANSION PIPELINE
 # =====================================================
-st.markdown("---")
-st.caption("For research and clinical decision support use only. Not a standalone diagnostic device.")
+with tabs[3]:
+
+    st.subheader("Multi-Organ Expansion Roadmap")
+
+    st.write("• Liver – Production Active")
+    st.write("• Thyroid – External Validation Phase")
+    st.write("• Breast – Model Training Phase")
+    st.write("• Future: Lung, Prostate, Pancreas")
 
 # =====================================================
-# LOGOUT
+# 5️⃣ GOVERNANCE
 # =====================================================
-if st.sidebar.button("Logout"):
-    st.session_state.auth = None
-    st.rerun()
+with tabs[4]:
+
+    st.subheader("Model Governance")
+
+    st.write("Production Model:", MODEL_REGISTRY["Liver"]["version"])
+    st.write("Frozen Threshold:", MODEL_REGISTRY["Liver"]["threshold_screen"])
+    st.write("Calibration Status: Completed")
+    st.write("Regulatory Status: Clinical Decision Support Only")
+    st.write("Last Updated:", datetime.date.today())
+
+    st.caption("For research and clinical decision support use only.")
