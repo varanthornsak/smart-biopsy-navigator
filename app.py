@@ -1284,3 +1284,156 @@ with enterprise_tabs[4]:
     st.table(governance_status)
 
     st.success("System Status: Enterprise Deployment Ready (Simulation Mode)")
+    # =====================================================
+# 🔐 AUTH + API + INFRA SIMULATION LAYER
+# (Add-on Only – Does NOT modify existing logic)
+# =====================================================
+
+st.markdown("---")
+st.markdown("## 🛡 Production Infrastructure & API Layer")
+
+infra_tabs = st.tabs([
+    "JWT Authentication",
+    "API Endpoint Simulation",
+    "Docker Deployment",
+    "AWS Architecture",
+    "Audit Trail Log"
+])
+
+# =====================================================
+# 1️⃣ JWT AUTH SIMULATION
+# =====================================================
+with infra_tabs[0]:
+
+    st.subheader("JWT Authentication Simulation")
+
+    import base64
+    import json
+
+    def simulate_jwt(user, role):
+        header = base64.urlsafe_b64encode(
+            json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
+        ).decode().rstrip("=")
+
+        payload = base64.urlsafe_b64encode(
+            json.dumps({
+                "user": user,
+                "role": role,
+                "hospital": st.session_state.hospital,
+                "exp": "2026-12-31T23:59:59Z"
+            }).encode()
+        ).decode().rstrip("=")
+
+        signature = "simulated-signature"
+        return f"{header}.{payload}.{signature}"
+
+    if st.button("Generate JWT Token"):
+        token = simulate_jwt(
+            st.session_state.role,
+            st.session_state.role
+        )
+        st.code(token)
+
+        st.success("JWT Token Generated (Simulation Only)")
+
+# =====================================================
+# 2️⃣ API ENDPOINT STRUCTURE
+# =====================================================
+with infra_tabs[1]:
+
+    st.subheader("REST API Endpoint Structure")
+
+    api_structure = """
+POST   /api/v1/auth/login
+GET    /api/v1/cases
+POST   /api/v1/inference
+GET    /api/v1/analytics
+POST   /api/v1/fhir/export
+GET    /api/v1/governance/status
+"""
+
+    st.code(api_structure)
+
+    st.info("All endpoints protected by JWT middleware (simulation).")
+
+# =====================================================
+# 3️⃣ DOCKER DEPLOYMENT FILE
+# =====================================================
+with infra_tabs[2]:
+
+    st.subheader("Docker Production Deployment (Example)")
+
+    dockerfile = """
+# Dockerfile
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install -r requirements.txt
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+"""
+
+    st.code(dockerfile, language="dockerfile")
+
+    st.success("Containerized deployment ready (Simulation)")
+
+# =====================================================
+# 4️⃣ AWS ARCHITECTURE DIAGRAM (TEXTUAL)
+# =====================================================
+with infra_tabs[3]:
+
+    st.subheader("AWS Deployment Architecture")
+
+    architecture = """
+                ┌───────────────────────┐
+                │  Route53 / ALB        │
+                └────────────┬──────────┘
+                             │
+                     ┌───────▼────────┐
+                     │  EC2 / ECS     │
+                     │  Streamlit App │
+                     └───────┬────────┘
+                             │
+              ┌──────────────▼─────────────┐
+              │  RDS (PostgreSQL)          │
+              │  Clinical Case Database    │
+              └──────────────┬─────────────┘
+                             │
+                     ┌───────▼────────┐
+                     │  S3 Storage    │
+                     │  Image Archive │
+                     └────────────────┘
+"""
+
+    st.code(architecture)
+
+    st.info("""
+Security Layers:
+• IAM Role-based access  
+• HTTPS TLS encryption  
+• VPC private subnet for DB  
+• CloudWatch monitoring  
+""")
+
+# =====================================================
+# 5️⃣ AUDIT TRAIL PANEL
+# =====================================================
+with infra_tabs[4]:
+
+    st.subheader("Audit Trail Log")
+
+    df_all = pd.read_sql_query("SELECT * FROM cases", conn)
+
+    if not df_all.empty:
+        df_all["audit_action"] = "AI Inference Completed"
+        st.dataframe(
+            df_all[["case_id", "hospital", "role", "classification", "timestamp", "audit_action"]]
+        )
+    else:
+        st.info("No audit logs available yet.")
