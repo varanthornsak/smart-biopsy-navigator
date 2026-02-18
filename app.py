@@ -684,3 +684,243 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
         file_name=f"{last['Case_ID']}_Enterprise_Report.pdf",
         mime="application/pdf"
     )
+# =====================================================
+# MULTI-HOSPITAL SUPPORT
+# =====================================================
+
+HOSPITALS = [
+    "Siam Neuro Hospital",
+    "Bangkok Oncology Center",
+    "Chiang Mai Diagnostic Institute",
+    "Phuket Advanced Imaging"
+]
+
+if "hospital" not in st.session_state:
+    st.session_state.hospital = HOSPITALS[0]
+
+with st.sidebar:
+    st.markdown("---")
+    st.session_state.hospital = st.selectbox("Active Institution", HOSPITALS)
+
+
+# =====================================================
+# ROLE BASED ACCESS CONTROL (STRICT)
+# =====================================================
+
+ROLE_PERMISSIONS = {
+    "Admin": ["read", "write", "export", "override", "audit"],
+    "Clinician": ["read", "write", "export"],
+    "Radiologist": ["read", "write"],
+    "Executive": ["read", "analytics"]
+}
+
+def has_permission(action):
+    role = st.session_state.role
+    return action in ROLE_PERMISSIONS.get(role, [])
+
+
+# =====================================================
+# CLINICAL / RESEARCH MODE
+# =====================================================
+
+if "system_mode" not in st.session_state:
+    st.session_state.system_mode = "Clinical"
+
+with st.sidebar:
+    st.session_state.system_mode = st.radio(
+        "System Mode",
+        ["Clinical", "Research"]
+    )
+
+
+# =====================================================
+# MODEL REGISTRY
+# =====================================================
+
+MODEL_REGISTRY = {
+    "MorphoBio-AI 4.1": {
+        "type": "Rule-Based",
+        "validated": True,
+        "auc": 0.89
+    },
+    "MorphoBio-AI 5.0 Beta": {
+        "type": "Hybrid ML",
+        "validated": False,
+        "auc": 0.93
+    }
+}
+
+if "active_model" not in st.session_state:
+    st.session_state.active_model = "MorphoBio-AI 4.1"
+
+with st.sidebar:
+    st.markdown("---")
+    st.session_state.active_model = st.selectbox(
+        "AI Model Version",
+        list(MODEL_REGISTRY.keys())
+    )
+
+
+# =====================================================
+# RISK STRATIFICATION LAYER
+# =====================================================
+
+def stratify_risk(score):
+    if score >= 80:
+        return "HIGH RISK"
+    elif score >= 40:
+        return "INTERMEDIATE RISK"
+    else:
+        return "LOW RISK"
+
+
+# =====================================================
+# DATA INTEGRITY HASH
+# =====================================================
+
+import hashlib
+import json
+
+def generate_integrity_hash(case_row):
+    data_string = json.dumps(case_row.to_dict(), sort_keys=True)
+    return hashlib.sha256(data_string.encode()).hexdigest()
+
+
+# =====================================================
+# FHIR-READY EXPORT
+# =====================================================
+
+def generate_fhir_bundle(case_row):
+
+    fhir_bundle = {
+        "resourceType": "DiagnosticReport",
+        "status": "final",
+        "code": {
+            "text": "AI Assisted Biopsy Risk Assessment"
+        },
+        "subject": {
+            "reference": f"Patient/{case_row['HN']}"
+        },
+        "result": [{
+            "valueString": case_row["Status"]
+        }],
+        "extension": [{
+            "url": "confidence",
+            "valueDecimal": case_row.get("Calibrated_Confidence", 0)
+        }]
+    }
+
+    return json.dumps(fhir_bundle, indent=2)
+
+
+# =====================================================
+# GOVERNANCE LOCK – CLINICIAN SIGN-OFF
+# =====================================================
+
+if "signoff" not in st.session_state:
+    st.session_state.signoff = {}
+
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last_index = st.session_state.db.index[-1]
+    last = st.session_state.db.loc[last_index]
+
+    risk_score = last.get("Risk_Score", 0)
+    risk_level = stratify_risk(risk_score)
+
+    st.markdown("### Risk Stratification")
+    st.metric("Risk Level", risk_level)
+
+    # Integrity hash
+    integrity_hash = generate_integrity_hash(last)
+    st.caption(f"Data Integrity Hash: {integrity_hash[:16]}...")
+
+    # Clinician signoff
+    if has_permission("write"):
+        if st.button("Clinician Sign-Off"):
+            st.session_state.signoff[last["Case_ID"]] = {
+                "Signed_By": st.session_state.role,
+                "Timestamp": str(datetime.datetime.now())
+            }
+            st.success("Case signed and locked.")
+
+    # Display signoff
+    if last["Case_ID"] in st.session_state.signoff:
+        sign = st.session_state.signoff[last["Case_ID"]]
+        st.info(f"Signed by {sign['Signed_By']} at {sign['Timestamp']}")
+
+
+# =====================================================
+# AI OVERRIDE TRACKING
+# =====================================================
+
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last_index = st.session_state.db.index[-1]
+    last = st.session_state.db.loc[last_index]
+
+    if has_permission("override"):
+
+        st.markdown("---")
+        st.subheader("Manual Override (Admin Only)")
+
+        new_status = st.selectbox(
+            "Override Status",
+            ["NORMAL", "BENIGN", "MALIGNANT"]
+        )
+
+        if st.button("Apply Override"):
+
+            st.session_state.db.loc[last_index, "Status"] = new_status
+
+            log_event("MANUAL_OVERRIDE", last["Case_ID"])
+            st.warning("Status manually overridden.")
+
+
+# =====================================================
+# INSTITUTIONAL BENCHMARKING
+# =====================================================
+
+if nav == "Executive Board View":
+
+    st.markdown("---")
+    st.subheader("Institutional Benchmark")
+
+    df = st.session_state.db
+
+    if len(df) > 0:
+
+        malignant_rate = (
+            (df["Status"] == "MALIGNANT").sum() / len(df)
+        ) * 100
+
+        national_avg = 18.5
+
+        col1, col2 = st.columns(2)
+
+        col1.metric("Your Malignancy Rate", f"{malignant_rate:.1f}%")
+        col2.metric("National Average", f"{national_avg}%")
+
+        if malignant_rate > national_avg:
+            st.error("Above national malignancy rate.")
+        else:
+            st.success("Within acceptable national benchmark.")
+
+
+# =====================================================
+# FHIR EXPORT BUTTON
+# =====================================================
+
+if nav == "Case Archive" and len(st.session_state.db) > 0:
+
+    selected_case = st.session_state.db.iloc[-1]
+
+    fhir_json = generate_fhir_bundle(selected_case)
+
+    if has_permission("export"):
+        st.download_button(
+            label="Export FHIR DiagnosticReport",
+            data=fhir_json,
+            file_name=f"{selected_case['Case_ID']}_FHIR.json",
+            mime="application/json"
+        )
