@@ -234,90 +234,89 @@ elif nav == "Professional Analytics":
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Cases", len(df))
-    c2.metric("Malignancy %",
-              f"{(df['Status']=='MALIGNANT').mean()*100 if len(df)>0 else 0:.1f}%")
-    c3.metric("Avg Confidence",
-              f"{df['Confidence'].mean()*100 if len(df)>0 else 0:.1f}%")
-
-    if len(df) > 0:
-
-    status_order = ["NORMAL", "BENIGN", "MALIGNANT"]
-
-    df["Status"] = pd.Categorical(
-        df["Status"],
-        categories=status_order,
-        ordered=True
+    c2.metric(
+        "Malignancy %",
+        f"{(df['Status']=='MALIGNANT').mean()*100 if len(df)>0 else 0:.1f}%"
+    )
+    c3.metric(
+        "Avg Confidence",
+        f"{df['Confidence'].mean()*100 if len(df)>0 else 0:.1f}%"
     )
 
-    summary = (
-        df["Status"]
-        .value_counts()
-        .reindex(status_order, fill_value=0)
-        .reset_index()
-    )
-    summary.columns = ["Status", "Count"]
+    if len(df) == 0:
+        st.info("No data available yet.")
+    else:
 
-    fig_pie = px.pie(
-        summary,
-        names="Status",
-        values="Count",
-        category_orders={"Status": status_order},
-        color="Status",
-        color_discrete_map={
-            "NORMAL": "#10B981",
-            "BENIGN": "#F59E0B",
-            "MALIGNANT": "#EF4444"
-        },
-        hole=0.6
-    )
+        status_order = ["NORMAL", "BENIGN", "MALIGNANT"]
 
-    fig_pie.update_traces(
-        textinfo="percent+label",
-        marker=dict(line=dict(color="white", width=2))
-    )
+        # ---- Prepare summary ----
+        summary = (
+            df["Status"]
+            .value_counts()
+            .reindex(status_order, fill_value=0)
+            .reset_index()
+        )
+        summary.columns = ["Status", "Count"]
 
-    fig_pie.update_layout(
-        title="Risk Distribution",
-        template="plotly_white",
-        legend=dict(orientation="h", y=-0.15),
-        margin=dict(t=60)
-    )
+        # ---- Donut Chart ----
+        fig_pie = px.pie(
+            summary,
+            names="Status",
+            values="Count",
+            category_orders={"Status": status_order},
+            color="Status",
+            color_discrete_map={
+                "NORMAL": "#10B981",
+                "BENIGN": "#F59E0B",
+                "MALIGNANT": "#EF4444"
+            },
+            hole=0.6
+        )
 
-    st.plotly_chart(fig_pie, use_container_width=True)
+        fig_pie.update_traces(
+            textinfo="percent+label",
+            marker=dict(line=dict(color="white", width=2))
+        )
 
-    organ_summary = (
-        df.groupby(["Organ", "Status"])
-        .size()
-        .reset_index(name="Count")
-    )
+        fig_pie.update_layout(
+            title="Risk Distribution",
+            template="plotly_white",
+            legend=dict(orientation="h", y=-0.15),
+            margin=dict(t=60)
+        )
 
-    fig_bar = px.bar(
-        organ_summary,
-        x="Organ",
-        y="Count",
-        color="Status",
-        category_orders={"Status": status_order},
-        color_discrete_map={
-            "NORMAL": "#10B981",
-            "BENIGN": "#F59E0B",
-            "MALIGNANT": "#EF4444"
-        },
-        barmode="group"
-    )
+        st.plotly_chart(fig_pie, use_container_width=True)
 
-    fig_bar.update_layout(
-        title="Organ Case Distribution",
-        xaxis_title="Organ",
-        yaxis_title="Cases",
-        template="plotly_white",
-        margin=dict(t=60)
-    )
+        # ---- Organ Distribution ----
+        organ_summary = (
+            df.groupby(["Organ", "Status"])
+            .size()
+            .reset_index(name="Count")
+        )
 
-    st.plotly_chart(fig_bar, use_container_width=True)
+        fig_bar = px.bar(
+            organ_summary,
+            x="Organ",
+            y="Count",
+            color="Status",
+            category_orders={"Status": status_order},
+            color_discrete_map={
+                "NORMAL": "#10B981",
+                "BENIGN": "#F59E0B",
+                "MALIGNANT": "#EF4444"
+            },
+            barmode="group"
+        )
 
-else:
-    st.info("No data available yet.")
+        fig_bar.update_layout(
+            title="Organ Case Distribution",
+            xaxis_title="Organ",
+            yaxis_title="Cases",
+            template="plotly_white",
+            margin=dict(t=60)
+        )
 
+        st.plotly_chart(fig_bar, use_container_width=True)
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
