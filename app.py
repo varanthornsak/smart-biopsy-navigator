@@ -176,41 +176,55 @@ if nav == "Diagnostic Hub":
     with col1:
         patient = st.text_input("Patient Name")
         hn = st.text_input("HN")
-        organ = st.selectbox("Organ",
-                             ["Liver", "Thyroid", "Breast", "Lymph Nodes"])
+        organ = st.selectbox(
+            "Organ",
+            ["Liver", "Thyroid", "Breast", "Lymph Nodes"]
+        )
         file = st.file_uploader("Upload Image (Optional)")
 
-           if organ == "Liver":
-    
-        afp_input = st.text_input("AFP (optional)", value="")
-    
-        if afp_input.strip() == "":
-            afp_value = 0
-            afp_available = 0
-        else:
-            try:
-                afp_value = float(afp_input)
-                afp_available = 1
-            except ValueError:
-                st.error("AFP must be a number")
-                st.stop()
-    
-        marker = afp_value   # ใช้ AFP เป็น marker
-    
-    elif organ == "Thyroid":
-        marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
-    
-    elif organ == "Breast":
-        marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
-    
-    else:
-        marker = 0
+        # -------------------------------
+        # ORGAN-SPECIFIC INPUT
+        # -------------------------------
 
+        if organ == "Liver":
+
+            afp_input = st.text_input("AFP (optional)", value="")
+
+            if afp_input.strip() == "":
+                afp_value = 0
+                afp_available = 0
+            else:
+                try:
+                    afp_value = float(afp_input)
+                    afp_available = 1
+                except ValueError:
+                    st.error("AFP must be a number")
+                    st.stop()
+
+            marker = afp_value  # ใช้ AFP เป็น marker
+
+        elif organ == "Thyroid":
+            marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
+
+        elif organ == "Breast":
+            marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
+
+        else:
+            marker = 0
+
+        # -------------------------------
+        # COMMON INPUT
+        # -------------------------------
 
         size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
+        # -------------------------------
+        # RUN AI
+        # -------------------------------
+
         if st.button("Run AI Analysis"):
             if patient and hn:
+
                 status, confidence = run_ai(organ, marker, size)
 
                 new = pd.DataFrame([{
@@ -226,12 +240,21 @@ if nav == "Diagnostic Hub":
 
                 st.session_state.db = pd.concat(
                     [st.session_state.db, new],
-                    ignore_index=True)
+                    ignore_index=True
+                )
 
                 st.success("Analysis Complete")
 
+            else:
+                st.warning("Please enter Patient Name and HN")
+
+    # =====================================================
+    # RESULT PANEL
+    # =====================================================
+
     with col2:
         if len(st.session_state.db) > 0:
+
             last = st.session_state.db.iloc[-1]
             color = STATUS_COLOR[last["Status"]]
 
@@ -244,6 +267,7 @@ if nav == "Diagnostic Hub":
                     'bar': {'color': color}
                 }
             ))
+
             st.plotly_chart(fig, use_container_width=True)
 
             st.markdown(f"## {last['Status']}")
