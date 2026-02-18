@@ -818,41 +818,6 @@ with tab4:
         st.info("No audit records")
 
 # =====================================================
-# 🧭 MAIN NAVIGATION SYSTEM (COMPLETE FIXED VERSION)
-# =====================================================
-
-nav = st.sidebar.radio(
-    "Navigation",
-    ["Professional Analytics", "Case Archive", "User Manual"]
-)
-
-# =====================================================
-# 🏥 PROFESSIONAL ANALYTICS
-# =====================================================
-if nav == "Professional Analytics":
-
-    st.title("Executive Clinical AI Dashboard")
-
-    if len(st.session_state.db) > 0:
-        df = st.session_state.db.copy()
-        st.success("Dashboard Loaded Successfully")
-        st.dataframe(df.head(), use_container_width=True)
-    else:
-        st.info("No case data available yet.")
-
-# =====================================================
-# 📂 CASE ARCHIVE
-# =====================================================
-elif nav == "Case Archive":
-
-    st.title("Case Archive")
-
-    if len(st.session_state.db) > 0:
-        st.dataframe(st.session_state.db, use_container_width=True)
-    else:
-        st.info("No archived cases available.")
-
-# =====================================================
 # 📘 USER MANUAL (WORKING VERSION)
 # =====================================================
 elif nav == "User Manual":
