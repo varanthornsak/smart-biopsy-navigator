@@ -240,19 +240,60 @@ elif nav == "Professional Analytics":
               f"{df['Confidence'].mean()*100 if len(df)>0 else 0:.1f}%")
 
     if len(df) > 0:
-        st.plotly_chart(
-            px.pie(df,
-                   names="Status",
-                   color="Status",
-                   color_discrete_map=STATUS_COLOR),
-            use_container_width=True)
+      # ---------------------------
+# Premium Donut Chart
+# ---------------------------
+fig_pie = px.pie(
+    df,
+    names="Status",
+    color="Status",
+    color_discrete_map=STATUS_COLOR,
+    hole=0.55
+)
 
-        st.plotly_chart(
-            px.bar(df,
-                   x="Organ",
-                   color="Status",
-                   color_discrete_map=STATUS_COLOR),
-            use_container_width=True)
+fig_pie.update_traces(
+    textposition='inside',
+    textinfo='percent+label',
+    marker=dict(line=dict(color='#ffffff', width=2))
+)
+
+fig_pie.update_layout(
+    title="Risk Distribution",
+    title_font_size=22,
+    legend=dict(orientation="h", y=-0.15),
+    margin=dict(t=60, b=40),
+    template="plotly_white"
+)
+
+st.plotly_chart(fig_pie, use_container_width=True)
+
+# ---------------------------
+# Premium Organ Bar Chart
+# ---------------------------
+fig_bar = px.bar(
+    df,
+    x="Organ",
+    color="Status",
+    color_discrete_map=STATUS_COLOR,
+    barmode="group"
+)
+
+fig_bar.update_layout(
+    title="Organ Case Distribution",
+    title_font_size=22,
+    xaxis_title="Organ",
+    yaxis_title="Cases",
+    template="plotly_white",
+    margin=dict(t=60)
+)
+
+fig_bar.update_traces(
+    marker_line_width=1.5,
+    marker_line_color="white"
+)
+
+st.plotly_chart(fig_bar, use_container_width=True)
+
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
