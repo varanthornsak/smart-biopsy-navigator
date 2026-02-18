@@ -287,36 +287,49 @@ elif nav == "Professional Analytics":
 
         st.plotly_chart(fig_pie, use_container_width=True)
 
-        # ---- Organ Distribution ----
-        organ_summary = (
-            df.groupby(["Organ", "Status"])
-            .size()
-            .reset_index(name="Count")
-        )
+        # ---- Organ Distribution (Strict 3 Clinical Classes) ----
 
-        fig_bar = px.bar(
-            organ_summary,
-            x="Organ",
-            y="Count",
-            color="Status",
-            category_orders={"Status": status_order},
-            color_discrete_map={
-                "NORMAL": "#10B981",
-                "BENIGN": "#F59E0B",
-                "MALIGNANT": "#EF4444"
-            },
-            barmode="group"
-        )
+status_order = ["NORMAL", "BENIGN", "MALIGNANT"]
 
-        fig_bar.update_layout(
-            title="Organ Case Distribution",
-            xaxis_title="Organ",
-            yaxis_title="Cases",
-            template="plotly_white",
-            margin=dict(t=60)
-        )
+# Create complete multi-index so missing categories become 0
+organ_summary = (
+    df.groupby(["Organ", "Status"])
+    .size()
+    .unstack(fill_value=0)
+    .reindex(columns=status_order, fill_value=0)
+    .stack()
+    .reset_index(name="Count")
+)
 
-        st.plotly_chart(fig_bar, use_container_width=True)
+fig_bar = px.bar(
+    organ_summary,
+    x="Organ",
+    y="Count",
+    color="Status",
+    category_orders={"Status": status_order},
+    color_discrete_map={
+        "NORMAL": "#10B981",
+        "BENIGN": "#F59E0B",
+        "MALIGNANT": "#EF4444"
+    },
+    barmode="group"
+)
+
+fig_bar.update_layout(
+    title="Organ Case Distribution",
+    xaxis_title="Organ",
+    yaxis_title="Cases",
+    template="plotly_white",
+    margin=dict(t=60)
+)
+
+fig_bar.update_traces(
+    marker_line_width=1,
+    marker_line_color="white"
+)
+
+st.plotly_chart(fig_bar, use_container_width=True)
+
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
