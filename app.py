@@ -77,6 +77,7 @@ with st.sidebar:
         "Professional Analytics",
         "Executive Board View",
         "Case Archive",
+        "User Manual",
     ])
 
     if st.button("Logout"):
