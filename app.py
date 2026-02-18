@@ -24,6 +24,20 @@ from sklearn.calibration import calibration_curve
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+import datetime
+
+# 🔥 ADD THIS
+STATUS_COLOR = {
+    "Low Risk": "#00cc96",
+    "Intermediate Risk": "#FFA500",
+    "High Risk": "#EF553B",
+    "Benign": "#00cc96",
+    "Indeterminate": "#FFA500",
+    "Malignant": "#EF553B"
+}
 
 # =====================================================
 # SIDEBAR NAVIGATION
