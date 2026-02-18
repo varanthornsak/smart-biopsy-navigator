@@ -285,6 +285,56 @@ if nav == "Diagnostic Hub":
                 pdf,
                 file_name="Smart_Biopsy_Report.pdf"
             )
+            # =====================================================
+            # PROFESSIONAL DISPLAY UPGRADE
+            # =====================================================
+            
+            confidence = last["Confidence"]
+            
+            # 1️⃣ Risk Tier Classification
+            if confidence < 0.30:
+                risk = "Low Risk"
+            elif confidence < 0.70:
+                risk = "Intermediate Risk"
+            else:
+                risk = "High Risk"
+            
+            st.markdown(f"### Risk Category: {risk}")
+            
+            # 2️⃣ Clinical-style wording
+            if confidence >= 0.70:
+                st.error("High Suspicion of Malignancy")
+            elif confidence >= 0.30:
+                st.warning("Indeterminate – Clinical Correlation Recommended")
+            else:
+                st.success("Low Suspicion of Malignancy")
+            
+            # 3️⃣ Explainability (simple clinical factors)
+            st.info(
+                f"""
+                Decision Factors:
+                • Organ: {last['Organ']}
+                • Marker Value: {last['Marker_Val']}
+                • Lesion Size: {last['Tumor_Size']} mm
+                """
+            )
+            
+            # 4️⃣ System Metadata
+            st.caption(
+                f"Model Version: v1.0 | Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            
+            # 5️⃣ Case Counter
+            st.metric("Total Cases Processed", len(st.session_state.db))
+            
+            # 6️⃣ Clinical Disclaimer
+            st.markdown("---")
+            st.caption(
+                "This system is a Clinical Decision Support Tool. "
+                "Final diagnosis must be made by a licensed physician. "
+                "Results should be interpreted in conjunction with imaging and laboratory findings."
+            )
+
 
 # =====================================================
 # PROFESSIONAL ANALYTICS
@@ -1422,52 +1472,3 @@ if nav == "AI Training Lab":
             st.dataframe(feat_df)
 
             st.success("Tier-2 Medical Training Complete.")
-# =====================================================
-# PROFESSIONAL DISPLAY UPGRADE
-# =====================================================
-
-confidence = last["Confidence"]
-
-# 1️⃣ Risk Tier Classification
-if confidence < 0.30:
-    risk = "Low Risk"
-elif confidence < 0.70:
-    risk = "Intermediate Risk"
-else:
-    risk = "High Risk"
-
-st.markdown(f"### Risk Category: {risk}")
-
-# 2️⃣ Clinical-style wording
-if confidence >= 0.70:
-    st.error("High Suspicion of Malignancy")
-elif confidence >= 0.30:
-    st.warning("Indeterminate – Clinical Correlation Recommended")
-else:
-    st.success("Low Suspicion of Malignancy")
-
-# 3️⃣ Explainability (simple clinical factors)
-st.info(
-    f"""
-    Decision Factors:
-    • Organ: {last['Organ']}
-    • Marker Value: {last['Marker_Val']}
-    • Lesion Size: {last['Tumor_Size']} mm
-    """
-)
-
-# 4️⃣ System Metadata
-st.caption(
-    f"Model Version: v1.0 | Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-)
-
-# 5️⃣ Case Counter
-st.metric("Total Cases Processed", len(st.session_state.db))
-
-# 6️⃣ Clinical Disclaimer
-st.markdown("---")
-st.caption(
-    "This system is a Clinical Decision Support Tool. "
-    "Final diagnosis must be made by a licensed physician. "
-    "Results should be interpreted in conjunction with imaging and laboratory findings."
-)
