@@ -141,7 +141,7 @@ def generate_pdf(patient, hn, organ, status, confidence):
 # =====================================================
 if nav == "Diagnostic Hub":
 
-    st.title("AI Diagnostic Engine")
+    st.title("SMART BIOPSY NAVIGATOR")
 
     col1, col2 = st.columns([1,1])
 
