@@ -285,9 +285,9 @@ with right:
 # PROFESSIONAL ANALYTICS – ENTERPRISE COLORED VERSION
 # =====================================================
 
-elif nav == "Professional Analytics":
+    if nav == "Professional Analytics":
 
-    st.title("Enterprise Clinical Intelligence Dashboard")
+        st.title("Enterprise Clinical Intelligence Dashboard")
 
     if len(st.session_state.db) == 0:
         st.info("No case data available.")
