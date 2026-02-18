@@ -4,5 +4,5 @@ torchvision
 pillow
 numpy
 pandas
+plotly
 matplotlib
-scikit-learn
