@@ -25,23 +25,233 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
-# ==============================
-# Sidebar Navigation
-# ==============================
+# =====================================================
+# SIDEBAR NAVIGATION
+# =====================================================
 
-st.sidebar.title("Navigation")
+st.sidebar.title("🧬 Smart Biopsy Navigator™")
 
 page = st.sidebar.radio(
-    "Go to",
+    "Select Page",
     ["🧠 Clinical Dashboard", "💼 Business Overview"]
 )
+
 # =====================================================
-# PAGE CONFIG
+# 🧠 CLINICAL DASHBOARD
 # =====================================================
-st.set_page_config(
-    page_title="Smart Biopsy Pro | Enterprise Multi-Organ",
-    layout="wide"
-)
+
+if page == "🧠 Clinical Dashboard":
+
+    st.title("Diagnostic Decision Engine – Multi Organ")
+
+    col1, col2 = st.columns([1, 1.3])
+
+    # =============================
+    # LEFT PANEL — INPUT
+    # =============================
+    with col1:
+
+        patient = st.text_input("Patient Name")
+        hn = st.text_input("HN")
+
+        organ = st.selectbox(
+            "Organ",
+            ["Liver", "Thyroid", "Breast", "Lymph Nodes"]
+        )
+
+        # -------- Organ Specific --------
+        if organ == "Liver":
+
+            afp_input = st.text_input("AFP (optional)", value="")
+
+            if afp_input.strip() == "":
+                marker = 0
+            else:
+                try:
+                    marker = float(afp_input)
+                except ValueError:
+                    st.error("AFP must be a number")
+                    st.stop()
+
+        elif organ == "Thyroid":
+            marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
+
+        elif organ == "Breast":
+            marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
+
+        else:
+            marker = 0
+
+        size = st.slider("Lesion Size (mm)", 1, 100, 10)
+
+        # -------- Run AI --------
+        if st.button("Run AI Analysis"):
+
+            if patient and hn:
+
+                status, confidence = run_ai(organ, marker, size)
+
+                new = pd.DataFrame([{
+                    "Date": str(datetime.date.today()),
+                    "HN": hn,
+                    "Patient": patient,
+                    "Organ": organ,
+                    "Status": status,
+                    "Confidence": confidence,
+                    "Marker_Val": marker,
+                    "Tumor_Size": size
+                }])
+
+                st.session_state.db = pd.concat(
+                    [st.session_state.db, new],
+                    ignore_index=True
+                )
+
+                st.success("Analysis Complete")
+
+            else:
+                st.warning("Please enter Patient Name and HN")
+
+    # =============================
+    # RIGHT PANEL — RESULT
+    # =============================
+    with col2:
+
+        if len(st.session_state.db) > 0:
+
+            last = st.session_state.db.iloc[-1]
+            confidence = last["Confidence"]
+            conf_percent = confidence * 100
+
+            tab1, tab2, tab3, tab4 = st.tabs(
+                ["🧠 Result", "📊 AI Insights", "📁 Audit", "⚙ System"]
+            )
+
+            # ---- RESULT ----
+            with tab1:
+
+                color = STATUS_COLOR[last["Status"]]
+
+                fig = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=conf_percent,
+                    number={'suffix': "%"},
+                    gauge={
+                        'axis': {'range': [0, 100]},
+                        'bar': {'color': color}
+                    }
+                ))
+
+                st.plotly_chart(fig, use_container_width=True)
+
+                st.markdown(f"## {last['Status']}")
+
+                if confidence < 0.30:
+                    st.success("Low Suspicion of Malignancy")
+                elif confidence < 0.70:
+                    st.warning("Indeterminate – Clinical Correlation Recommended")
+                else:
+                    st.error("High Suspicion of Malignancy")
+
+            # ---- AI INSIGHTS ----
+            with tab2:
+
+                st.progress(int(conf_percent))
+                st.write(f"Confidence: {conf_percent:.2f}%")
+
+                st.info(
+                    f"""
+                    • Organ: {last['Organ']}
+                    • Marker: {last['Marker_Val']}
+                    • Size: {last['Tumor_Size']} mm
+                    """
+                )
+
+                c1, c2, c3 = st.columns(3)
+                c1.metric("AUC", "0.89")
+                c2.metric("Sensitivity", "87%")
+                c3.metric("Specificity", "84%")
+
+            # ---- AUDIT ----
+            with tab3:
+
+                st.dataframe(st.session_state.db, use_container_width=True)
+
+            # ---- SYSTEM ----
+            with tab4:
+
+                st.caption(
+                    f"Model Version: v1.0 | Generated: "
+                    f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+
+                st.info("""
+                Smart Biopsy Navigator™  
+                Clinical Decision Support System  
+                Research / Demo Deployment  
+                """)
+
+                st.caption(
+                    "Final diagnosis must be made by a licensed physician."
+                )
+
+# =====================================================
+# 💼 BUSINESS OVERVIEW
+# =====================================================
+
+elif page == "💼 Business Overview":
+
+    st.title("💼 Business & Growth Strategy")
+    st.markdown("---")
+
+    st.subheader("💰 Business Model")
+    st.info("""
+    • Hospital SaaS Subscription  
+    • Per-case AI scoring  
+    • Enterprise API Integration  
+    • Diagnostic Lab Licensing  
+    """)
+
+    st.subheader("🎯 Target Customers")
+
+    b1, b2, b3 = st.columns(3)
+    b1.success("Mid-sized Hospitals")
+    b2.success("Diagnostic Labs")
+    b3.success("National Health Systems")
+
+    with st.expander("📊 Market Opportunity"):
+        st.markdown("""
+        • Growing oncology diagnostics demand  
+        • Rising AI adoption in healthcare  
+        • Global cancer incidence increasing  
+        """)
+
+    st.subheader("☁ Scalability")
+    st.info("""
+    • Cloud-native deployment  
+    • Multi-organ model expansion  
+    • EMR / HIS API-ready  
+    • Modular retraining pipeline  
+    """)
+
+    with st.expander("📈 Milestones & Roadmap"):
+        st.markdown("""
+        • MVP Completed  
+        • Retrospective Evaluation  
+        • Pilot Site Discussions  
+        • Regulatory Planning (FDA / CE)  
+        """)
+
+    st.subheader("📊 Growth Projection")
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Projected ARR (Year 3)", "$2M+")
+    k2.metric("Target Pilot Sites", "10 Hospitals")
+    k3.metric("SaaS Gross Margin", "70%+")
+
+    st.markdown("---")
+    st.success("AI Triage Layer for Oncology Diagnostics")
+
 
 # =====================================================
 # SAFE SESSION INITIALIZATION (CRITICAL FOR CLOUD)
@@ -173,304 +383,6 @@ def generate_pdf(patient, hn, organ, status, confidence):
     doc.build(elements)
     buffer.seek(0)
     return buffer
-
-# =====================================================
-# DIAGNOSTIC HUB
-# =====================================================
-if nav == "Diagnostic Hub":
-
-    st.title("Diagnostic Decision Engine – Multi Organ")
-
-    col1, col2 = st.columns([1, 1.3])
-
-    with col1:
-        patient = st.text_input("Patient Name")
-        hn = st.text_input("HN")
-        organ = st.selectbox(
-            "Organ",
-            ["Liver", "Thyroid", "Breast", "Lymph Nodes"]
-        )
-        file = st.file_uploader("Upload Image (Optional)")
-
-        # -------------------------------
-        # ORGAN-SPECIFIC INPUT
-        # -------------------------------
-
-        if organ == "Liver":
-
-            afp_input = st.text_input("AFP (optional)", value="")
-
-            if afp_input.strip() == "":
-                afp_value = 0
-                afp_available = 0
-            else:
-                try:
-                    afp_value = float(afp_input)
-                    afp_available = 1
-                except ValueError:
-                    st.error("AFP must be a number")
-                    st.stop()
-
-            marker = afp_value  # ใช้ AFP เป็น marker
-
-        elif organ == "Thyroid":
-            marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
-
-        elif organ == "Breast":
-            marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
-
-        else:
-            marker = 0
-
-        # -------------------------------
-        # COMMON INPUT
-        # -------------------------------
-
-        size = st.slider("Lesion Size (mm)", 1, 100, 10)
-
-        # -------------------------------
-        # RUN AI
-        # -------------------------------
-
-        if st.button("Run AI Analysis"):
-            if patient and hn:
-
-                status, confidence = run_ai(organ, marker, size)
-
-                new = pd.DataFrame([{
-                    "Date": str(datetime.date.today()),
-                    "HN": hn,
-                    "Patient": patient,
-                    "Organ": organ,
-                    "Status": status,
-                    "Confidence": confidence,
-                    "Marker_Val": marker,
-                    "Tumor_Size": size
-                }])
-
-                st.session_state.db = pd.concat(
-                    [st.session_state.db, new],
-                    ignore_index=True
-                )
-
-                st.success("Analysis Complete")
-
-            else:
-                st.warning("Please enter Patient Name and HN")
-
-        # =====================================================
-    # RESULT PANEL
-    # =====================================================
-
-    with col2:
-        if len(st.session_state.db) > 0:
-
-            last = st.session_state.db.iloc[-1]
-            confidence = last["Confidence"]
-            conf_percent = confidence * 100
-
-            tab1, tab2, tab3, tab4 = st.tabs(
-                ["🧠 Result", "📊 AI Insights", "📁 Audit", "⚙ System"]
-            )
-
-            # =====================================================
-            # TAB 1 — RESULT
-            # =====================================================
-            with tab1:
-
-                color = STATUS_COLOR[last["Status"]]
-
-                fig = go.Figure(go.Indicator(
-                    mode="gauge+number",
-                    value=conf_percent,
-                    number={'suffix': "%"},
-                    gauge={
-                        'axis': {'range': [0, 100]},
-                        'bar': {'color': color}
-                    }
-                ))
-
-                st.plotly_chart(fig, use_container_width=True)
-
-                st.markdown(f"## {last['Status']}")
-
-                if confidence < 0.30:
-                    st.success("Low Suspicion of Malignancy")
-                elif confidence < 0.70:
-                    st.warning("Indeterminate – Clinical Correlation Recommended")
-                else:
-                    st.error("High Suspicion of Malignancy")
-
-            # =====================================================
-            # TAB 2 — AI INSIGHTS
-            # =====================================================
-            with tab2:
-
-                st.progress(int(conf_percent))
-                st.write(f"Confidence: {conf_percent:.2f}%")
-
-                st.info(
-                    f"""
-                    Decision Factors:
-                    • Organ: {last['Organ']}
-                    • Marker: {last['Marker_Val']}
-                    • Size: {last['Tumor_Size']} mm
-                    """
-                )
-
-                colA, colB, colC = st.columns(3)
-                colA.metric("AUC", "0.89")
-                colB.metric("Sensitivity", "87%")
-                colC.metric("Specificity", "84%")
-
-            # =====================================================
-            # TAB 3 — AUDIT
-            # =====================================================
-            with tab3:
-
-                if "audit_log" in st.session_state:
-                    audit_df = pd.DataFrame(st.session_state.audit_log)
-                    st.dataframe(audit_df, use_container_width=True)
-
-                    csv = audit_df.to_csv(index=False).encode("utf-8")
-
-                    st.download_button(
-                        "Download Audit Log",
-                        csv,
-                        file_name="audit_log.csv"
-                    )
-                else:
-                    st.info("No audit data available.")
-
-            # =====================================================
-            # TAB 4 — SYSTEM
-            # =====================================================
-            with tab4:
-
-                st.caption(
-                    f"Model Version: v1.0 | Generated: "
-                    f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-
-                st.info(
-                    """
-                    Smart Biopsy Navigator™  
-                    Clinical Decision Support System  
-                    Research / Demo Deployment  
-                    """
-                )
-
-                st.caption(
-                    "Final diagnosis must be made by a licensed physician."
-                )
-                st.markdown("---")
-                st.markdown("# 🧬 Smart Biopsy Navigator™")
-                st.caption("AI-Powered Oncology Decision Intelligence Platform")
-                st.markdown("---")
-                
-                if len(st.session_state.db) > 0:
-                
-                    last = st.session_state.db.iloc[-1]
-                    confidence = last["Confidence"]
-                    conf_percent = confidence * 100
-                
-                    left, right = st.columns([2,1])
-                
-                    # =============================
-                    # LEFT SIDE — CORE RESULT
-                    # =============================
-                    with left:
-                
-                        st.markdown("## Malignancy Risk Score")
-                        st.progress(int(conf_percent))
-                        st.markdown(f"### {conf_percent:.2f}% Confidence")
-                
-                        if confidence < 0.30:
-                            st.success("Low Risk")
-                        elif confidence < 0.70:
-                            st.warning("Intermediate Risk")
-                        else:
-                            st.error("High Risk")
-                
-                    # =============================
-                    # RIGHT SIDE — INVESTOR SNAPSHOT
-                    # =============================
-                    with right:
-                
-                        st.markdown("### Model Snapshot")
-                        st.metric("Model AUC", "0.89")
-                        st.metric("Validated Cases", len(st.session_state.db))
-                        st.metric("Deployment", "Cloud-ready")
-                
-                st.markdown("---")
-                
-                with st.expander("📊 AI Details"):
-                
-                    st.write(f"Organ: {last['Organ']}")
-                    st.write(f"Marker Value: {last['Marker_Val']}")
-                    st.write(f"Tumor Size: {last['Tumor_Size']} mm")
-                
-                with st.expander("🚀 Market & Vision"):
-                    st.markdown("""
-                    • Standardized malignancy scoring  
-                    • AI-assisted triage  
-                    • Built-in audit trail  
-                    • Designed for hospital integration  
-                    """)
-                    # =====================================================
-                    # 🧪 Clinical Validation Section
-                    # =====================================================
-                    
-                    st.markdown("---")
-                    st.markdown("## 🧪 Clinical Validation Status")
-                    
-                    st.info("""
-                    • Current Phase: Prototype  
-                    • Validation: Retrospective Dataset Testing  
-                    • Study Type: Single-center evaluation  
-                    • Next Step: Institutional Review Preparation  
-                    """)
-                    
-                    # =====================================================
-                    # 🛡 Regulatory Roadmap
-                    # =====================================================
-                    
-                    with st.expander("🛡 Regulatory Pathway"):
-                    
-                        st.markdown("""
-                        **Phase 1 – Clinical Validation Study**  
-                        Performance benchmarking and dataset expansion  
-                    
-                        **Phase 2 – Multi-center Pilot**  
-                        Deployment in regional hospitals  
-                    
-                        **Phase 3 – Regulatory Submission**  
-                        FDA / CE pathway evaluation  
-                        """)
-                    
-                    # =====================================================
-                    # 🏥 Use Case Scenario
-                    # =====================================================
-                    
-                    with st.expander("🏥 Real-world Use Case Example"):
-                    
-                        st.markdown("""
-                        **Scenario:**  
-                        A regional hospital without an oncology specialist.
-                    
-                        **Workflow:**  
-                        1. Physician inputs tumor marker and imaging size  
-                        2. AI generates malignancy risk score  
-                        3. System supports referral or biopsy decision  
-                    
-                        **Impact:**  
-                        • Faster triage  
-                        • Reduced variability  
-                        • Earlier cancer detection  
-                        """)
-
-
-
 
 # =====================================================
 # PROFESSIONAL ANALYTICS
