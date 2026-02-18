@@ -543,7 +543,7 @@ else:
 # =====================================================
     if nav == "Executive Board View":
 
-    st.title("Executive Business Intelligence")
+        st.title("Executive Business Intelligence")
 
     df = st.session_state.db
     total = len(df)
