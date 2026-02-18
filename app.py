@@ -407,6 +407,58 @@ if nav == "Diagnostic Hub":
                     • Built-in audit trail  
                     • Designed for hospital integration  
                     """)
+                    # =====================================================
+                    # 🧪 Clinical Validation Section
+                    # =====================================================
+                    
+                    st.markdown("---")
+                    st.markdown("## 🧪 Clinical Validation Status")
+                    
+                    st.info("""
+                    • Current Phase: Prototype  
+                    • Validation: Retrospective Dataset Testing  
+                    • Study Type: Single-center evaluation  
+                    • Next Step: Institutional Review Preparation  
+                    """)
+                    
+                    # =====================================================
+                    # 🛡 Regulatory Roadmap
+                    # =====================================================
+                    
+                    with st.expander("🛡 Regulatory Pathway"):
+                    
+                        st.markdown("""
+                        **Phase 1 – Clinical Validation Study**  
+                        Performance benchmarking and dataset expansion  
+                    
+                        **Phase 2 – Multi-center Pilot**  
+                        Deployment in regional hospitals  
+                    
+                        **Phase 3 – Regulatory Submission**  
+                        FDA / CE pathway evaluation  
+                        """)
+                    
+                    # =====================================================
+                    # 🏥 Use Case Scenario
+                    # =====================================================
+                    
+                    with st.expander("🏥 Real-world Use Case Example"):
+                    
+                        st.markdown("""
+                        **Scenario:**  
+                        A regional hospital without an oncology specialist.
+                    
+                        **Workflow:**  
+                        1. Physician inputs tumor marker and imaging size  
+                        2. AI generates malignancy risk score  
+                        3. System supports referral or biopsy decision  
+                    
+                        **Impact:**  
+                        • Faster triage  
+                        • Reduced variability  
+                        • Earlier cancer detection  
+                        """)
+
 
 
 
