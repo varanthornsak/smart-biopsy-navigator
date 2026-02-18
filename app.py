@@ -325,7 +325,7 @@ elif nav == "Professional Analytics":
 
     st.plotly_chart(risk_fig, use_container_width=True)
 
-  # =====================================================
+# =====================================================
 # DIAGNOSTIC HUB – HOSPITAL GRADE VERSION
 # =====================================================
 
@@ -334,197 +334,203 @@ import datetime as dt
 
 st.title("Diagnostic Hub")
 
+df = st.session_state.db
+df.columns = df.columns.str.strip()
+
+# =====================================================
+# DATA CHECK
+# =====================================================
+
+if len(df) == 0:
+    st.info("No data available.")
+    st.stop()
+
+if "Patient_ID" not in df.columns:
+    st.error("Column 'Patient_ID' not found in database.")
+    st.write("Available columns:", df.columns)
+    st.stop()
+
 # =====================================================
 # 1️⃣ PATIENT CONTEXT PANEL
 # =====================================================
 
-df = st.session_state.db
+selected_case = st.selectbox(
+    "Select Case",
+    df["Patient_ID"].astype(str)
+)
 
-df.columns = df.columns.str.strip()
+case = df[df["Patient_ID"].astype(str) == selected_case].iloc[0]
 
-if len(df) == 0:
-    st.info("No data available.")
+st.markdown("### Patient Overview")
 
+st.info(
+    f"""
+    **Patient ID:** {case.get('Patient_ID', 'N/A')}  
+    **Age:** {case.get('Age', 'N/A')} | **Sex:** {case.get('Sex', 'N/A')}  
+    **Organ:** {case.get('Organ', 'N/A')}  
+    **Indication:** {case.get('Indication', 'N/A')}
+    """
+)
+
+# =====================================================
+# 2️⃣ RISK BADGE
+# =====================================================
+
+risk = case.get("Risk_Score", 0)
+
+if risk >= 85:
+    st.error(f"🔴 HIGH RISK – Immediate Review Recommended (Score: {risk})")
+elif risk >= 60:
+    st.warning(f"🟡 INTERMEDIATE RISK – Correlate Clinically (Score: {risk})")
 else:
+    st.success(f"🟢 LOW RISK – Routine Monitoring (Score: {risk})")
 
-    if "Patient_ID" not in df.columns:
-        st.error("Column 'Patient_ID' not found.")
-        st.write("Available columns:", df.columns)
+# =====================================================
+# 3️⃣ AI RECOMMENDATION
+# =====================================================
 
-    else:
-        selected_case = st.selectbox(
-            "Select Case",
-            df["Patient_ID"].astype(str)
-        )
+st.markdown("### AI Clinical Recommendation")
 
-        case = df[df["Patient_ID"].astype(str) == selected_case].iloc[0]
-
-        st.markdown("### Patient Overview")
-
-        st.info(
-            f"""
-            **Patient ID:** {case.get('Patient_ID', 'N/A')}  
-            **Age:** {case.get('Age', 'N/A')} | **Sex:** {case.get('Sex', 'N/A')}  
-            **Organ:** {case.get('Organ', 'N/A')}  
-            **Indication:** {case.get('Indication', 'N/A')}
-            """
-        )
+if risk >= 85:
+    recommendation = """
+    • Consider urgent core needle biopsy  
+    • Multidisciplinary tumor board discussion  
+    • Correlate with advanced imaging  
+    """
+elif risk >= 60:
+    recommendation = """
+    • Recommend short-interval follow-up  
+    • Correlate with ultrasound findings  
+    • Consider additional imaging  
+    """
 else:
-    st.info("No data available.")
+    recommendation = """
+    • Routine monitoring  
+    • Standard follow-up protocol  
+    """
 
+st.markdown(recommendation)
 
-    # =====================================================
-    # 2️⃣ RISK BADGE
-    # =====================================================
+# =====================================================
+# 4️⃣ EXPLAINABILITY PANEL
+# =====================================================
 
-    risk = case["Risk_Score"]
+st.markdown("### Model Explainability")
 
-    if risk >= 85:
-        st.error(f"🔴 HIGH RISK – Immediate Review Recommended (Score: {risk})")
-    elif risk >= 60:
-        st.warning(f"🟡 INTERMEDIATE RISK – Correlate Clinically (Score: {risk})")
-    else:
-        st.success(f"🟢 LOW RISK – Routine Monitoring (Score: {risk})")
+feature_importance = {
+    "Lesion Size": np.random.uniform(0.2, 0.4),
+    "Margin Irregularity": np.random.uniform(0.2, 0.4),
+    "Echotexture": np.random.uniform(0.1, 0.3),
+    "Vascularity": np.random.uniform(0.05, 0.2),
+}
 
-    # =====================================================
-    # 3️⃣ AI RECOMMENDATION BOX
-    # =====================================================
+explain_df = (
+    pd.DataFrame(feature_importance.items(), columns=["Feature", "Importance"])
+    .sort_values(by="Importance", ascending=False)
+)
 
-    st.markdown("### AI Clinical Recommendation")
+explain_fig = px.bar(
+    explain_df,
+    x="Importance",
+    y="Feature",
+    orientation="h",
+    title="Top Contributing Factors"
+)
 
-    if risk >= 85:
-        recommendation = """
-        • Consider urgent core needle biopsy  
-        • Multidisciplinary tumor board discussion  
-        • Correlate with advanced imaging  
-        """
-    elif risk >= 60:
-        recommendation = """
-        • Recommend short-interval follow-up  
-        • Correlate with ultrasound findings  
-        • Consider additional imaging  
-        """
-    else:
-        recommendation = """
-        • Routine monitoring  
-        • Standard follow-up protocol  
-        """
+st.plotly_chart(explain_fig, use_container_width=True)
 
-    st.markdown(recommendation)
+# =====================================================
+# 5️⃣ CONFIDENCE
+# =====================================================
 
-    # =====================================================
-    # 4️⃣ EXPLAINABILITY PANEL
-    # =====================================================
+confidence = case.get("Calibrated_Confidence", 0)
 
-    st.markdown("### Model Explainability")
+st.markdown("### Model Confidence")
 
-    feature_importance = {
-        "Lesion Size": np.random.uniform(0.2, 0.4),
-        "Margin Irregularity": np.random.uniform(0.2, 0.4),
-        "Echotexture": np.random.uniform(0.1, 0.3),
-        "Vascularity": np.random.uniform(0.05, 0.2),
-    }
+if confidence >= 0.8:
+    st.success(f"High Confidence ({round(confidence,2)})")
+elif confidence >= 0.6:
+    st.warning(f"Moderate Confidence ({round(confidence,2)})")
+else:
+    st.error(f"Low Confidence – Manual Review Suggested ({round(confidence,2)})")
 
-    explain_df = (
-        pd.DataFrame(feature_importance.items(), columns=["Feature", "Importance"])
-        .sort_values(by="Importance", ascending=False)
-    )
+# =====================================================
+# 6️⃣ AUDIT TRAIL
+# =====================================================
 
-    explain_fig = px.bar(
-        explain_df,
-        x="Importance",
-        y="Feature",
-        orientation="h",
-        title="Top Contributing Factors"
-    )
+st.markdown("### Audit Information")
 
-    st.plotly_chart(explain_fig, use_container_width=True)
+st.caption(
+    f"""
+    Model Version: v2.1  
+    Prediction Timestamp: {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
+    Data Source: Hospital Registry  
+    """
+)
 
-    # =====================================================
-    # 5️⃣ CONFIDENCE INDICATOR
-    # =====================================================
+# =====================================================
+# 7️⃣ WORKFLOW STATUS
+# =====================================================
 
-    confidence = case["Calibrated_Confidence"]
+st.markdown("### Clinical Workflow Status")
 
-    st.markdown("### Model Confidence")
+workflow_status = st.selectbox(
+    "Update Case Status",
+    [
+        "Pending Review",
+        "Radiologist Reviewed",
+        "Biopsy Scheduled",
+        "Final Pathology Confirmed"
+    ]
+)
 
-    if confidence >= 0.8:
-        st.success(f"High Confidence ({round(confidence,2)})")
-    elif confidence >= 0.6:
-        st.warning(f"Moderate Confidence ({round(confidence,2)})")
-    else:
-        st.error(f"Low Confidence – Manual Review Suggested ({round(confidence,2)})")
+st.write(f"Current Status: **{workflow_status}**")
 
-    # =====================================================
-    # 6️⃣ AUDIT TRAIL
-    # =====================================================
+# =====================================================
+# 8️⃣ KPI SUMMARY
+# =====================================================
 
-    st.markdown("### Audit Information")
+st.markdown("---")
+st.markdown("### Daily Performance Summary")
 
-    st.caption(
-        f"""
-        Model Version: v2.1  
-        Prediction Timestamp: {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
-        Data Source: Hospital Registry  
-        """
-    )
+col1, col2, col3, col4 = st.columns(4)
 
-    # =====================================================
-    # 7️⃣ WORKFLOW STATUS
-    # =====================================================
+today_cases = 0
+high_risk_today = 0
 
-    st.markdown("### Clinical Workflow Status")
-
-    workflow_status = st.selectbox(
-        "Update Case Status",
-        [
-            "Pending Review",
-            "Radiologist Reviewed",
-            "Biopsy Scheduled",
-            "Final Pathology Confirmed"
-        ]
-    )
-
-    st.write(f"Current Status: **{workflow_status}**")
-
-    # =====================================================
-    # 8️⃣ ALERT SYSTEM
-    # =====================================================
-
-    if risk >= 85:
-        st.error("⚠️ CRITICAL ALERT: Escalation Recommended")
-
-        if st.button("Escalate Case to Tumor Board"):
-            st.success("Case Escalated Successfully")
-
-    # =====================================================
-    # 9️⃣ KPI SUMMARY ROW
-    # =====================================================
-
-    st.markdown("---")
-    st.markdown("### Daily Performance Summary")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    today_cases = len(df[df["Timestamp"].dt.date == dt.date.today()]) \
-        if "Timestamp" in df.columns else 0
-
+if "Timestamp" in df.columns:
+    today_cases = len(df[df["Timestamp"].dt.date == dt.date.today()])
     high_risk_today = len(
         df[(df["Risk_Score"] >= 85) &
            (df["Timestamp"].dt.date == dt.date.today())]
-    ) if "Timestamp" in df.columns else 0
+    )
 
-    avg_conf = round(df["Calibrated_Confidence"].mean(), 2)
+avg_conf = round(df["Calibrated_Confidence"].mean(), 2) \
+    if "Calibrated_Confidence" in df.columns else 0
 
-    turnaround = np.random.randint(24, 72)
+turnaround = np.random.randint(24, 72)
 
-    col1.metric("Today's Cases", today_cases)
-    col2.metric("High Risk Today", high_risk_today)
-    col3.metric("Avg Confidence", avg_conf)
-    col4.metric("Avg Turnaround (hrs)", turnaround)
+col1.metric("Today's Cases", today_cases)
+col2.metric("High Risk Today", high_risk_today)
+col3.metric("Avg Confidence", avg_conf)
+col4.metric("Avg Turnaround (hrs)", turnaround)
 
-else:
-    st.info("No data available.")
+# =====================================================
+# HIGH-RISK TABLE
+# =====================================================
+
+st.markdown("### High-Risk Case Review")
+
+if "Risk_Score" in df.columns:
+    high_risk_df = df[df["Risk_Score"] >= 80].sort_values(
+        by="Risk_Score",
+        ascending=False
+    )
+
+    if len(high_risk_df) > 0:
+        st.dataframe(high_risk_df, use_container_width=True)
+    else:
+        st.success("No high-risk cases detected.")
 
     # =====================================================
     # HIGH-RISK TABLE (COLORED)
