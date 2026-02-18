@@ -138,66 +138,6 @@ def generate_pdf(patient, hn, organ, status, confidence):
     return buffer
 
 # =====================================================
-# DIAGNOSTIC HUB – CLEAN PROFESSIONAL UI
-# =====================================================
-
-import numpy as np
-import datetime as dt
-
-st.title("AI Result Dashboard")
-st.markdown("---")
-
-df = st.session_state.db
-
-# =====================================================
-# LAYOUT: TWO MAIN COLUMNS
-# =====================================================
-
-left, right = st.columns([1, 1.2])
-
-# =====================================================
-# LEFT PANEL – DATA ENTRY
-# =====================================================
-
-with left:
-
-    st.subheader("Clinical Data Entry")
-
-    with st.container(border=True):
-
-        patient = st.text_input("Patient Name")
-        hn = st.text_input("Hospital Number (HN)")
-        organ = st.selectbox(
-            "Organ",
-            ["Liver", "Thyroid", "Breast", "Lung"]
-        )
-
-        marker = None
-
-        if organ == "Liver":
-            use_afp = st.checkbox("Include AFP")
-            if use_afp:
-                marker = st.number_input(
-                    "AFP (ng/mL)",
-                    min_value=0.0,
-                    value=10.0
-                )
-
-        size = st.slider("Lesion Size (mm)", 1, 100, 10)
-
-        st.markdown("#### Ultrasound Image")
-
-        uploaded_image = st.file_uploader(
-            "Upload Image",
-            type=["jpg", "jpeg", "png"]
-        )
-
-        if uploaded_image:
-            st.image(uploaded_image, use_container_width=True)
-
-        run = st.button("Run AI Analysis", use_container_width=True)
-
-# =====================================================
 # RIGHT PANEL – RESULT DISPLAY
 # =====================================================
 
