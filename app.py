@@ -461,29 +461,42 @@ if nav == "Professional Analytics":
         trend_fig.update_layout(height=450)
         st.plotly_chart(trend_fig, use_container_width=True)
 
-        # ================= ORGAN RISK BURDEN =================
+      # ================= ORGAN RISK BURDEN =================
         st.subheader("Organ Risk Burden (Stacked)")
-
-        organ_status = df.groupby(["Organ", "Status"]).size().reset_index(name="Count")
-
+        
+        organ_status = (
+            df.groupby(["Organ", "Status"])
+              .size()
+              .reset_index(name="Count")
+        )
+        
         organ_fig = go.Figure()
-
+        
         for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
             subset = organ_status[organ_status["Status"] == status]
-
-            organ_fig.add_trace(go.Bar(
-                x=subset["Organ"],
-                y=subset["Count"],
-                name=status,
-                marker_color=STATUS_COLOR.get(status)
-            ))
-
+        
+            if not subset.empty:
+                organ_fig.add_trace(go.Bar(
+                    x=subset["Organ"],
+                    y=subset["Count"],
+                    name=status,
+                    marker_color=STATUS_COLOR.get(status, "#9ca3af")
+                ))
+        
         organ_fig.update_layout(
             barmode="stack",
-            height=450
+            height=450,
+            xaxis_title="Organ",
+            yaxis_title="Number of Cases",
+            legend_title="Status"
+        )
+        
+        st.plotly_chart(
+            organ_fig,
+            use_container_width=True,
+            key="organ_risk_burden_chart"  
         )
 
-        st.plotly_chart(organ_fig, use_container_width=True)
 
         # ================= CONFIDENCE BY RISK =================
         st.subheader("AI Confidence by Risk Level")
