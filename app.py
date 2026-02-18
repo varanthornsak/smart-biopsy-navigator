@@ -252,15 +252,27 @@ if nav == "Diagnostic Hub":
     # RESULT PANEL
     # =====================================================
 
-    with col2:
-        if len(st.session_state.db) > 0:
+   with col2:
+    if len(st.session_state.db) > 0:
 
-            last = st.session_state.db.iloc[-1]
+        last = st.session_state.db.iloc[-1]
+        confidence = last["Confidence"]
+        conf_percent = confidence * 100
+
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ["🧠 Result", "📊 AI Insights", "📁 Audit", "⚙ System"]
+        )
+
+        # =====================================================
+        # TAB 1 — RESULT
+        # =====================================================
+        with tab1:
+
             color = STATUS_COLOR[last["Status"]]
 
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
-                value=last["Confidence"] * 100,
+                value=conf_percent,
                 number={'suffix': "%"},
                 gauge={
                     'axis': {'range': [0, 100]},
@@ -272,218 +284,72 @@ if nav == "Diagnostic Hub":
 
             st.markdown(f"## {last['Status']}")
 
-            pdf = generate_pdf(
-                last["Patient"],
-                last["HN"],
-                last["Organ"],
-                last["Status"],
-                last["Confidence"]
-            )
-
-            st.download_button(
-                "Download PDF Report",
-                pdf,
-                file_name="Smart_Biopsy_Report.pdf"
-            )
-            # =====================================================
-            # PROFESSIONAL DISPLAY UPGRADE
-            # =====================================================
-            
-            confidence = last["Confidence"]
-            
-            # 1️⃣ Risk Tier Classification
             if confidence < 0.30:
-                risk = "Low Risk"
+                st.success("Low Suspicion of Malignancy")
             elif confidence < 0.70:
-                risk = "Intermediate Risk"
-            else:
-                risk = "High Risk"
-            
-            st.markdown(f"### Risk Category: {risk}")
-            
-            # 2️⃣ Clinical-style wording
-            if confidence >= 0.70:
-                st.error("High Suspicion of Malignancy")
-            elif confidence >= 0.30:
                 st.warning("Indeterminate – Clinical Correlation Recommended")
             else:
-                st.success("Low Suspicion of Malignancy")
-            
-            # 3️⃣ Explainability (simple clinical factors)
+                st.error("High Suspicion of Malignancy")
+
+        # =====================================================
+        # TAB 2 — AI INSIGHTS
+        # =====================================================
+        with tab2:
+
+            st.progress(int(conf_percent))
+            st.write(f"Confidence: {conf_percent:.2f}%")
+
             st.info(
                 f"""
                 Decision Factors:
                 • Organ: {last['Organ']}
-                • Marker Value: {last['Marker_Val']}
-                • Lesion Size: {last['Tumor_Size']} mm
+                • Marker: {last['Marker_Val']}
+                • Size: {last['Tumor_Size']} mm
                 """
             )
-            
-            # 4️⃣ System Metadata
-            st.caption(
-                f"Model Version: v1.0 | Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            
-            # 5️⃣ Case Counter
-            st.metric("Total Cases Processed", len(st.session_state.db))
-            
-            # 6️⃣ Clinical Disclaimer
-            st.markdown("---")
-            st.caption(
-                "This system is a Clinical Decision Support Tool. "
-                "Final diagnosis must be made by a licensed physician. "
-                "Results should be interpreted in conjunction with imaging and laboratory findings."
-            )
-            # =====================================================
-            # ADVANCED PROFESSIONAL EXTENSIONS
-            # =====================================================
-            
-            # -----------------------------------------------------
-            # 1️⃣ Confidence Bar Visualization
-            # -----------------------------------------------------
-            
-            st.markdown("### AI Confidence Level")
-            
-            conf_percent = confidence * 100
-            st.progress(int(conf_percent))
-            
-            st.write(f"Confidence Score: {conf_percent:.2f}%")
-            
-            # -----------------------------------------------------
-            # 2️⃣ Multi-Model Ensemble Badge (UI-level badge)
-            # -----------------------------------------------------
-            
-            st.markdown("### Model Architecture")
-            st.info(
-                """
-                🧠 Ensemble AI Model  
-                • Imaging-based predictor  
-                • Clinical marker weighting  
-                • Size-adjusted risk calibration  
-                """
-            )
-            
-            # -----------------------------------------------------
-            # 3️⃣ AI Confidence Calibration Panel (visual guidance)
-            # -----------------------------------------------------
-            
-            st.markdown("### AI Confidence Interpretation Guide")
-            
-            calibration_df = pd.DataFrame({
-                "Confidence Range": ["0–30%", "30–70%", "70–100%"],
-                "Clinical Meaning": [
-                    "Low probability of malignancy",
-                    "Indeterminate – further evaluation advised",
-                    "High probability – urgent clinical correlation recommended"
-                ]
-            })
-            
-            st.table(calibration_df)
-            
-            # -----------------------------------------------------
-            # 4️⃣ Audit Log (Session-Level)
-            # -----------------------------------------------------
-            
-            if "audit_log" not in st.session_state:
-                st.session_state.audit_log = []
-            
-            st.session_state.audit_log.append({
-                "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Patient": last["Patient"],
-                "HN": last["HN"],
-                "Organ": last["Organ"],
-                "Status": last["Status"],
-                "Confidence": round(conf_percent, 2)
-            })
-            
-            st.markdown("### Audit Log (Session Activity)")
-            
-            audit_df = pd.DataFrame(st.session_state.audit_log)
-            st.dataframe(audit_df, use_container_width=True)
-            
-            # -----------------------------------------------------
-            # Footer separator
-            # -----------------------------------------------------
-            st.markdown("---")
-            # =====================================================
-            # HOSPITAL-GRADE EXTENSIONS v2
-            # =====================================================
-            
-            # -----------------------------------------------------
-            # 1️⃣ Role-Based Display Badge (UI Level)
-            # -----------------------------------------------------
-            
-            if "user_role" not in st.session_state:
-                st.session_state.user_role = "Doctor"
-            
-            st.markdown(f"👤 Active Role: **{st.session_state.user_role}**")
-            
-            # -----------------------------------------------------
-            # 2️⃣ Decision Stability Indicator
-            # -----------------------------------------------------
-            
-            st.markdown("### Decision Stability")
-            
-            if confidence > 0.85 or confidence < 0.15:
-                stability = "High Stability Prediction"
-                st.success(stability)
-            elif 0.4 < confidence < 0.6:
-                stability = "Borderline – Low Stability"
-                st.warning(stability)
-            else:
-                stability = "Moderate Stability"
-                st.info(stability)
-            
-            # -----------------------------------------------------
-            # 3️⃣ Model Performance Snapshot (Static Clinical Metrics)
-            # -----------------------------------------------------
-            
-            st.markdown("### Model Performance Snapshot")
-            
-            colA, colB, colC = st.columns(3)
-            colA.metric("AUC", "0.89")
-            colB.metric("Sensitivity", "87%")
-            colC.metric("Specificity", "84%")
-            
-            st.caption("Metrics derived from internal validation cohort.")
-            
-            # -----------------------------------------------------
-            # 4️⃣ Export Audit Log to CSV
-            # -----------------------------------------------------
-            
-            st.markdown("### Export Audit Log")
-            
-            if len(st.session_state.audit_log) > 0:
-                audit_export_df = pd.DataFrame(st.session_state.audit_log)
-            
-                csv = audit_export_df.to_csv(index=False).encode("utf-8")
-            
+
+            st.metric("Model AUC", "0.89")
+            st.metric("Sensitivity", "87%")
+            st.metric("Specificity", "84%")
+
+        # =====================================================
+        # TAB 3 — AUDIT
+        # =====================================================
+        with tab3:
+
+            if "audit_log" in st.session_state:
+                audit_df = pd.DataFrame(st.session_state.audit_log)
+                st.dataframe(audit_df, use_container_width=True)
+
+                csv = audit_df.to_csv(index=False).encode("utf-8")
+
                 st.download_button(
-                    "Download Audit Log (CSV)",
+                    "Download Audit Log",
                     csv,
-                    file_name="audit_log.csv",
-                    mime="text/csv"
+                    file_name="audit_log.csv"
                 )
-            
-            # -----------------------------------------------------
-            # 5️⃣ System Integrity & Watermark Label
-            # -----------------------------------------------------
-            
-            st.markdown("### System Integrity")
-            
+
+        # =====================================================
+        # TAB 4 — SYSTEM
+        # =====================================================
+        with tab4:
+
+            st.caption(
+                f"Model Version: v1.0 | Generated: "
+                f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+
             st.info(
                 """
-                🔒 Smart Biopsy Navigator™  
+                Smart Biopsy Navigator™  
                 Clinical Decision Support System  
-                Version: 1.0  
-                Deployment Mode: Demo / Research Use  
+                Research / Demo Deployment  
                 """
             )
-            
-            # -----------------------------------------------------
-            # Divider
-            # -----------------------------------------------------
-            st.markdown("---")
+
+            st.caption(
+                "Final diagnosis must be made by a licensed physician."
+            )
 
 
 # =====================================================
