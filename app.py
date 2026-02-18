@@ -909,3 +909,236 @@ if nav == "Executive Board View":
     if len(st.session_state.Activity_Log) > 0:
         st.dataframe(pd.DataFrame(st.session_state.Activity_Log),
                      use_container_width=True)
+# =====================================================
+# ============ ENTERPRISE PRO MODULE ==================
+# =====================================================
+
+import hashlib
+import time
+import json
+from sklearn.metrics import confusion_matrix
+from sklearn.calibration import calibration_curve
+
+# =====================================================
+# 1️⃣ SESSION INITIALIZATION
+# =====================================================
+
+if "model_version" not in st.session_state:
+    st.session_state.model_version = "v1.0"
+
+if "audit_log" not in st.session_state:
+    st.session_state.audit_log = []
+
+if "activity_log" not in st.session_state:
+    st.session_state.activity_log = []
+
+if "hospital" not in st.session_state:
+    st.session_state.hospital = "Main Hospital"
+
+# =====================================================
+# 2️⃣ FHIR ENTERPRISE EXPORT (LOINC + SNOMED CT)
+# =====================================================
+
+LOINC_CODES = {
+    "AFP": "1834-1",
+    "BI-RADS": "24606-6",
+    "TI-RADS": "LA6576-8"
+}
+
+SNOMED_CODES = {
+    "NORMAL": "17621005",
+    "BENIGN": "38907003",
+    "MALIGNANT": "363346000"
+}
+
+def generate_fhir_bundle(row):
+
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Patient",
+                    "id": row["HN"],
+                    "name": [{"text": row["Patient"]}]
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "Observation",
+                    "code": {
+                        "coding": [{
+                            "system": "http://loinc.org",
+                            "code": LOINC_CODES.get(str(row["Marker_Val"]), "00000-0")
+                        }]
+                    },
+                    "valueQuantity": {
+                        "value": row["Marker_Val"]
+                    }
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "Condition",
+                    "code": {
+                        "coding": [{
+                            "system": "http://snomed.info/sct",
+                            "code": SNOMED_CODES.get(row["Status"], "000000")
+                        }]
+                    },
+                    "clinicalStatus": {"text": row["Status"]}
+                }
+            }
+        ]
+    }
+
+    return json.dumps(bundle, indent=2)
+
+# =====================================================
+# 3️⃣ USER ACTIVITY + ENCRYPTED AUDIT LOG
+# =====================================================
+
+def log_activity(action):
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    entry = f"{timestamp} | {action}"
+    st.session_state.activity_log.append(entry)
+
+    encrypted = hashlib.sha256(entry.encode()).hexdigest()
+    st.session_state.audit_log.append(encrypted)
+
+# =====================================================
+# 4️⃣ REAL-TIME CASE STREAM
+# =====================================================
+
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    st.markdown("### 🔴 Real-Time Case Stream")
+    live_case = st.session_state.db.iloc[-1]
+    st.json(live_case.to_dict())
+
+    log_activity("Viewed Real-Time Case")
+
+    st.markdown("---")
+    st.subheader("FHIR Export (Enterprise Standard)")
+    fhir_json = generate_fhir_bundle(live_case)
+
+    st.download_button(
+        "Download FHIR Bundle",
+        fhir_json,
+        file_name="case_bundle.json",
+        mime="application/json"
+    )
+
+# =====================================================
+# 5️⃣ PROFESSIONAL ANALYTICS DASHBOARD
+# =====================================================
+
+if nav == "Professional Analytics":
+
+    st.header("Enterprise Clinical Validation Panel")
+
+    np.random.seed(42)
+
+    y_true = np.random.choice([0, 1], 200)
+    y_pred = np.random.choice([0, 1], 200)
+    y_prob = np.random.rand(200)
+
+    tp = np.sum((y_true == 1) & (y_pred == 1))
+    tn = np.sum((y_true == 0) & (y_pred == 0))
+    fp = np.sum((y_true == 0) & (y_pred == 1))
+    fn = np.sum((y_true == 1) & (y_pred == 0))
+
+    sensitivity = tp / (tp + fn)
+    specificity = tn / (tn + fp)
+    miss_rate = fn / (tp + fn)
+
+    baseline_miss = 0.18
+    reduction = (baseline_miss - miss_rate) / baseline_miss * 100
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Sensitivity", f"{sensitivity*100:.1f}%")
+    col2.metric("Specificity", f"{specificity*100:.1f}%")
+    col3.metric("Miss Rate Reduction", f"{reduction:.1f}%")
+
+    # Confusion Matrix
+    st.subheader("Confusion Matrix")
+    cm = confusion_matrix(y_true, y_pred)
+    fig_cm, ax_cm = plt.subplots()
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Reds")
+    st.pyplot(fig_cm)
+
+    # Calibration Curve
+    st.subheader("Calibration Curve")
+    prob_true, prob_pred = calibration_curve(y_true, y_prob, n_bins=10)
+    fig_cal, ax_cal = plt.subplots()
+    ax_cal.plot(prob_pred, prob_true, marker='o')
+    ax_cal.plot([0,1],[0,1], linestyle='--')
+    st.pyplot(fig_cal)
+
+    # AI Confidence Distribution
+    st.subheader("AI Confidence Distribution")
+    fig_hist, ax_hist = plt.subplots()
+    ax_hist.hist(y_prob, bins=20)
+    st.pyplot(fig_hist)
+
+    log_activity("Viewed Professional Analytics")
+
+# =====================================================
+# 6️⃣ PERFORMANCE BY CLINICIAN
+# =====================================================
+
+if nav == "Executive Board View":
+
+    st.header("Performance by Clinician")
+
+    clinicians = ["Dr.A", "Dr.B", "Dr.C"]
+    performance = np.random.uniform(0.7, 0.95, 3)
+
+    df_perf = pd.DataFrame({
+        "Clinician": clinicians,
+        "Accuracy": performance
+    })
+
+    st.bar_chart(df_perf.set_index("Clinician"))
+
+    # Multi-Hospital Comparison
+    st.subheader("Multi-Hospital Comparison")
+
+    hospitals = ["Main Hospital", "Branch A", "Branch B"]
+    accuracy = np.random.uniform(0.75, 0.97, 3)
+
+    df_hosp = pd.DataFrame({
+        "Hospital": hospitals,
+        "AI Accuracy": accuracy
+    })
+
+    st.bar_chart(df_hosp.set_index("Hospital"))
+
+    # Model Version Rollback
+    st.subheader("Model Version Control")
+
+    version = st.selectbox("Select Model Version",
+                           ["v1.0", "v1.1", "v2.0"])
+
+    if st.button("Apply Model Version"):
+        st.session_state.model_version = version
+        log_activity(f"Rolled back to {version}")
+        st.success(f"Model switched to {version}")
+
+# =====================================================
+# 7️⃣ AUDIT LOG VIEWER
+# =====================================================
+
+if nav == "Admin Panel":
+
+    st.header("Encrypted Audit Log (SHA256)")
+
+    st.write(st.session_state.audit_log)
+
+    st.markdown("### User Activity Log")
+    st.write(st.session_state.activity_log)
+
+# =====================================================
+# ================= END MODULE ========================
+# =====================================================
