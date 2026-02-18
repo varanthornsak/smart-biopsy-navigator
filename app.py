@@ -282,7 +282,7 @@ elif nav == "Professional Analytics":
         values="Count",
         color="Status",
         color_discrete_map=STATUS_COLOR,
-        hole=0.4,
+        hole=0.0,
         title="Clinical Status Distribution"
     )
 
