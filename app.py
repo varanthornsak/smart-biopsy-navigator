@@ -1,17 +1,17 @@
-# ================================
-# IMPORT SECTION (MUST BE FIRST)
-# ================================
-
 import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+import plotly.graph_objects as go
+import plotly.express as px
 
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.calibration import calibration_curve
+
 # =====================================================
 # PAGE CONFIG
 # =====================================================
