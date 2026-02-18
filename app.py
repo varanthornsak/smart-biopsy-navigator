@@ -83,7 +83,7 @@ if not st.session_state.authenticated:
 
     password = st.text_input("Enter Secure Password", type="password")
 
-    if st.button("Login Securely"):
+    if st.button("Login Securely", key="login_button")
 
         if password == "SNH_SECURE":
 
@@ -109,7 +109,7 @@ st.sidebar.markdown("### 👤 User Info")
 st.sidebar.write(f"Hospital: {st.session_state.hospital}")
 st.sidebar.write(f"Role: {st.session_state.role}")
 
-if st.sidebar.button("Logout"):
+if st.sidebar.button("Logout", key="logout_button"):
     st.session_state.authenticated = False
     st.session_state.hospital = None
     st.session_state.role = None
