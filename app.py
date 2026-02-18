@@ -168,13 +168,14 @@ if run and patient and hn:
         # =============================
         # RISK BADGE
         # =============================
-
+        
         if risk >= 85:
             st.error(f"🔴 HIGH RISK (Score: {risk})")
         elif risk >= 60:
             st.warning(f"🟡 INTERMEDIATE RISK (Score: {risk})")
         else:
             st.success(f"🟢 LOW RISK (Score: {risk})")
+
 
         # =============================
         # CONFIDENCE
