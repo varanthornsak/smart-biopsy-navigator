@@ -241,9 +241,6 @@ elif nav == "Professional Analytics":
 
     if len(df) > 0:
 
-    # -----------------------------------
-    # Force Clinical Status Order
-    # -----------------------------------
     status_order = ["NORMAL", "BENIGN", "MALIGNANT"]
 
     df["Status"] = pd.Categorical(
@@ -252,15 +249,14 @@ elif nav == "Professional Analytics":
         ordered=True
     )
 
-    # -----------------------------------
-    # Count Summary (Fixed 3 Categories)
-    # -----------------------------------
-    summary = df["Status"].value_counts().reindex(status_order, fill_value=0).reset_index()
+    summary = (
+        df["Status"]
+        .value_counts()
+        .reindex(status_order, fill_value=0)
+        .reset_index()
+    )
     summary.columns = ["Status", "Count"]
 
-    # -----------------------------------
-    # Donut Chart (Strict Clinical Colors)
-    # -----------------------------------
     fig_pie = px.pie(
         summary,
         names="Status",
@@ -268,9 +264,9 @@ elif nav == "Professional Analytics":
         category_orders={"Status": status_order},
         color="Status",
         color_discrete_map={
-            "NORMAL": "#10B981",      # Green
-            "BENIGN": "#F59E0B",      # Yellow
-            "MALIGNANT": "#EF4444"    # Red
+            "NORMAL": "#10B981",
+            "BENIGN": "#F59E0B",
+            "MALIGNANT": "#EF4444"
         },
         hole=0.6
     )
@@ -289,9 +285,6 @@ elif nav == "Professional Analytics":
 
     st.plotly_chart(fig_pie, use_container_width=True)
 
-    # -----------------------------------
-    # Bar Chart (Strict Clinical View)
-    # -----------------------------------
     organ_summary = (
         df.groupby(["Organ", "Status"])
         .size()
@@ -324,7 +317,6 @@ elif nav == "Professional Analytics":
 
 else:
     st.info("No data available yet.")
-
 
 
 # =====================================================
