@@ -1078,7 +1078,28 @@ if nav == "Professional Analytics":
     st.subheader("Confusion Matrix")
     cm = confusion_matrix(y_true, y_pred)
     fig_cm, ax_cm = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Reds")
+    # Confusion Matrix
+    st.subheader("Confusion Matrix")
+
+    cm = confusion_matrix(y_true, y_pred)
+
+    fig_cm, ax_cm = plt.subplots()
+    im = ax_cm.imshow(cm)
+    
+    ax_cm.set_xticks([0, 1])
+    ax_cm.set_yticks([0, 1])
+    ax_cm.set_xticklabels(["Benign", "Malignant"])
+    ax_cm.set_yticklabels(["Benign", "Malignant"])
+    ax_cm.set_xlabel("Predicted")
+    ax_cm.set_ylabel("Actual")
+    
+    for i in range(2):
+        for j in range(2):
+            ax_cm.text(j, i, cm[i, j],
+                       ha="center", va="center")
+    
+    st.pyplot(fig_cm)
+
     st.pyplot(fig_cm)
 
     # Calibration Curve
