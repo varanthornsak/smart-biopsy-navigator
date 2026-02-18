@@ -35,7 +35,7 @@ if "authenticated" not in st.session_state:
 
 
 # ==========================================
-# 🔐 AUTH SYSTEM
+#  AUTH SYSTEM
 # ==========================================
 
 if "authenticated" not in st.session_state:
@@ -56,7 +56,7 @@ if not st.session_state.authenticated:
 
     st.set_page_config(page_title="Smart Biopsy Navigator", layout="centered")
 
-    st.title("🔐 Smart Biopsy Navigator")
+    st.title("Smart Biopsy Navigator")
 
     st.markdown("### Secure Clinical Access Portal")
 
