@@ -1,25 +1,41 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import datetime
 import time
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
-from reportlab.platypus import Table
 import io
 
 # =====================================================
-# CONFIG
+# PAGE CONFIG
 # =====================================================
-st.set_page_config(page_title="Smart Biopsy Pro Enterprise",
-                   layout="wide")
+st.set_page_config(
+    page_title="Smart Biopsy Pro | Enterprise Multi-Organ",
+    layout="wide"
+)
 
+# =====================================================
+# SAFE SESSION INITIALIZATION (CRITICAL FOR CLOUD)
+# =====================================================
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+if "db" not in st.session_state:
+    st.session_state.db = pd.DataFrame(columns=[
+        "Date", "HN", "Patient", "Organ",
+        "Status", "Confidence",
+        "Marker_Val", "Tumor_Size"
+    ])
+
+# =====================================================
+# CONSTANTS
+# =====================================================
 STATUS_COLOR = {
     "NORMAL": "#10B981",
     "BENIGN": "#F59E0B",
@@ -29,43 +45,33 @@ STATUS_COLOR = {
 ROLES = ["Admin", "Clinician", "Radiologist", "Executive"]
 
 # =====================================================
-# DATABASE INIT
+# LOGIN
 # =====================================================
-def init_db():
-    if "db" not in st.session_state:
-        st.session_state.db = pd.DataFrame(columns=[
-            "Date", "HN", "Patient", "Organ",
-            "Status", "Confidence",
-            "Marker_Val", "Tumor_Size"
-        ])
-    return st.session_state.db
-
-db = init_db()
-
-# =====================================================
-# AUTH
-# =====================================================
-if "auth" not in st.session_state:
-    st.session_state.auth = False
-
 if not st.session_state.auth:
     st.title("SMART BIOPSY PRO – ENTERPRISE AI")
+
     role = st.selectbox("Select Role", ROLES)
     pwd = st.text_input("Security Key", type="password")
+
     if st.button("LOGIN"):
         if pwd == "SNH_SECURE":
             st.session_state.auth = True
             st.session_state.role = role
             st.rerun()
         else:
-            st.error("Invalid Key")
+            st.error("Invalid Security Key")
+
     st.stop()
 
 # =====================================================
 # SIDEBAR
 # =====================================================
 with st.sidebar:
-    st.markdown(f"### Role: {st.session_state.role}")
+    if st.session_state.role:
+        st.markdown(f"### Role: {st.session_state.role}")
+    else:
+        st.markdown("### Role: Not Assigned")
+
     nav = st.radio("Navigation", [
         "Diagnostic Hub",
         "Professional Analytics",
@@ -73,14 +79,17 @@ with st.sidebar:
         "Case Archive",
         "User Manual"
     ])
+
     if st.button("Logout"):
         st.session_state.auth = False
+        st.session_state.role = None
         st.rerun()
 
 # =====================================================
-# AI LOGIC FUNCTION
+# AI LOGIC
 # =====================================================
 def run_ai(organ, marker, size):
+
     if organ == "Liver":
         if marker > 400 or (marker > 200 and size > 50):
             return "MALIGNANT", 0.92
@@ -114,17 +123,16 @@ def run_ai(organ, marker, size):
             return "NORMAL", 0.12
 
 # =====================================================
-# PDF REPORT FUNCTION
+# PDF GENERATOR
 # =====================================================
 def generate_pdf(patient, hn, organ, status, confidence):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer)
     elements = []
-
     styles = getSampleStyleSheet()
+
     elements.append(Paragraph("<b>SMART BIOPSY PRO REPORT</b>", styles["Title"]))
     elements.append(Spacer(1, 0.3 * inch))
-
     elements.append(Paragraph(f"Patient: {patient}", styles["Normal"]))
     elements.append(Paragraph(f"HN: {hn}", styles["Normal"]))
     elements.append(Paragraph(f"Organ: {organ}", styles["Normal"]))
@@ -149,10 +157,10 @@ if nav == "Diagnostic Hub":
         hn = st.text_input("HN")
         organ = st.selectbox("Organ",
                              ["Liver", "Thyroid", "Breast", "Lymph Nodes"])
-        file = st.file_uploader("Upload Image")
+        file = st.file_uploader("Upload Image (Optional)")
 
         if organ == "Liver":
-            marker = st.number_input("AFP")
+            marker = st.number_input("AFP", min_value=0.0, value=10.0)
         elif organ == "Thyroid":
             marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
         elif organ == "Breast":
@@ -162,28 +170,29 @@ if nav == "Diagnostic Hub":
 
         size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
-        if st.button("Run AI"):
-            status, confidence = run_ai(organ, marker, size)
+        if st.button("Run AI Analysis"):
+            if patient and hn:
+                status, confidence = run_ai(organ, marker, size)
 
-            new = pd.DataFrame([{
-                "Date": str(datetime.date.today()),
-                "HN": hn,
-                "Patient": patient,
-                "Organ": organ,
-                "Status": status,
-                "Confidence": confidence,
-                "Marker_Val": marker,
-                "Tumor_Size": size
-            }])
+                new = pd.DataFrame([{
+                    "Date": str(datetime.date.today()),
+                    "HN": hn,
+                    "Patient": patient,
+                    "Organ": organ,
+                    "Status": status,
+                    "Confidence": confidence,
+                    "Marker_Val": marker,
+                    "Tumor_Size": size
+                }])
 
-            st.session_state.db = pd.concat(
-                [st.session_state.db, new],
-                ignore_index=True)
+                st.session_state.db = pd.concat(
+                    [st.session_state.db, new],
+                    ignore_index=True)
 
-            st.success("Analysis Complete")
+                st.success("Analysis Complete")
 
     with col2:
-        if not st.session_state.db.empty:
+        if len(st.session_state.db) > 0:
             last = st.session_state.db.iloc[-1]
             color = STATUS_COLOR[last["Status"]]
 
@@ -191,11 +200,15 @@ if nav == "Diagnostic Hub":
                 mode="gauge+number",
                 value=last["Confidence"] * 100,
                 number={'suffix': "%"},
-                gauge={'bar': {'color': color}}
+                gauge={
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': color}
+                }
             ))
             st.plotly_chart(fig, use_container_width=True)
 
             st.markdown(f"## {last['Status']}")
+
             pdf = generate_pdf(
                 last["Patient"],
                 last["HN"],
@@ -203,9 +216,12 @@ if nav == "Diagnostic Hub":
                 last["Status"],
                 last["Confidence"]
             )
-            st.download_button("Download PDF Report",
-                               pdf,
-                               file_name="report.pdf")
+
+            st.download_button(
+                "Download PDF Report",
+                pdf,
+                file_name="Smart_Biopsy_Report.pdf"
+            )
 
 # =====================================================
 # PROFESSIONAL ANALYTICS
@@ -225,82 +241,84 @@ elif nav == "Professional Analytics":
 
     if len(df) > 0:
         st.plotly_chart(
-            px.pie(df, names="Status",
+            px.pie(df,
+                   names="Status",
                    color="Status",
                    color_discrete_map=STATUS_COLOR),
             use_container_width=True)
 
         st.plotly_chart(
-            px.bar(df, x="Organ",
+            px.bar(df,
+                   x="Organ",
                    color="Status",
                    color_discrete_map=STATUS_COLOR),
             use_container_width=True)
 
 # =====================================================
-# EXECUTIVE VIEW
+# EXECUTIVE BOARD VIEW
 # =====================================================
 elif nav == "Executive Board View":
 
     st.title("Executive Business Intelligence")
 
     df = st.session_state.db
-
     total = len(df)
     malignant = (df["Status"] == "MALIGNANT").sum()
 
     st.metric("Total Diagnoses", total)
     st.metric("High Risk Cases", malignant)
-    st.metric("Estimated Quarterly Savings", "฿1,500,000")
+    st.metric("Projected Quarterly Savings", "฿1,500,000")
 
     if total > 0:
         trend = df.groupby("Date").size().reset_index(name="Cases")
-        st.plotly_chart(px.area(trend, x="Date", y="Cases"),
-                        use_container_width=True)
+        st.plotly_chart(
+            px.area(trend, x="Date", y="Cases"),
+            use_container_width=True)
 
 # =====================================================
-# ARCHIVE
+# CASE ARCHIVE
 # =====================================================
 elif nav == "Case Archive":
-    st.dataframe(st.session_state.db,
-                 use_container_width=True)
+    st.dataframe(st.session_state.db, use_container_width=True)
 
 # =====================================================
-# USER MANUAL
+# USER MANUAL (DETAILED)
 # =====================================================
 elif nav == "User Manual":
 
-    st.title("Smart Biopsy Pro – Complete Operational Guide")
+    st.title("Smart Biopsy Pro – Detailed Operational Manual")
 
     st.markdown("""
 # 1. System Overview
 Smart Biopsy Pro is a Multi-Organ Clinical Decision Support System
-integrating morphology and biomarker logic.
+integrating biomarker logic and morphology-based inference.
 
 # 2. Organ Modules
-- Liver → AFP logic
-- Thyroid → TI-RADS
-- Breast → BI-RADS prototype
+- Liver → AFP-based risk logic
+- Thyroid → TI-RADS stratification
+- Breast → BI-RADS prototype logic
 - Lymph Nodes → Size-based malignancy logic
 
 # 3. Risk Classification
-- NORMAL (Green) → Routine follow-up
-- BENIGN (Yellow) → Imaging surveillance
-- MALIGNANT (Red) → Biopsy priority
+🟢 NORMAL → Routine follow-up  
+🟡 BENIGN → Imaging surveillance  
+🔴 MALIGNANT → Biopsy priority  
 
-# 4. Professional Dashboard
-Tracks institutional risk load,
-organ distribution,
-AI confidence,
-operational performance.
+# 4. Professional Analytics
+Provides:
+- Case volume monitoring
+- Risk distribution
+- Confidence tracking
+- Organ workload analysis
 
 # 5. Executive Board View
-Financial simulation,
-cost saving estimate,
-risk forecasting,
-AI adoption growth.
+Displays:
+- Institutional risk burden
+- Financial impact simulation
+- AI adoption growth
 
-# 6. Governance
-System is decision support only.
-Final diagnosis must be confirmed
-by licensed physician.
+# 6. Governance Notice
+This system is decision-support only.
+Final clinical decisions must be made
+by licensed physicians.
 """)
