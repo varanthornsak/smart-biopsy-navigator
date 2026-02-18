@@ -88,29 +88,32 @@ with st.sidebar:
 # =====================================================
 # AI LOGIC
 # =====================================================
-    # =====================================================
-    # LIVER – MORPHOLOGY PRIORITY (AFP OPTIONAL)
-    # =====================================================
+def run_ai(organ, marker, size):
+
+    # LIVER – Morphology priority (AFP optional)
     if organ == "Liver":
 
-        # 1️⃣ Morphology priority (Ultrasound size dominant)
         if size > 60:
             return "MALIGNANT", 0.90
 
-        # 2️⃣ Very high AFP overrides
         if marker is not None and marker > 400:
             return "MALIGNANT", 0.92
 
-        # 3️⃣ Moderate morphology risk
         if size > 30:
             return "BENIGN", 0.60
 
-        # 4️⃣ Moderate AFP risk
         if marker is not None and marker > 200:
             return "BENIGN", 0.55
 
-        # 5️⃣ Low risk
         return "NORMAL", 0.15
+
+    # Default organs (minimal logic)
+    if size > 40:
+        return "MALIGNANT", 0.80
+    elif size > 20:
+        return "BENIGN", 0.55
+    else:
+        return "NORMAL", 0.10
 
 # =====================================================
 # PDF GENERATOR
@@ -149,43 +152,54 @@ if nav == "Diagnostic Hub":
                              ["Liver", "Thyroid", "Breast", "Lymph Nodes"])
         file = st.file_uploader("Upload Image (Optional)")
 
-      # =====================================================
-      # LIVER – AFP OPTIONAL (REPLACE OLD AFP INPUT)
-      # =====================================================
+             # =====================================================
+        # LIVER – AFP OPTIONAL
+        # =====================================================
         if organ == "Liver":
-    
-        use_afp = st.checkbox("Include AFP (Optional Biomarker)")
-    
-        if use_afp:
-            marker = st.number_input(
-                "AFP (ng/mL)",
-                min_value=0.0,
-                value=10.0
-            )
+
+            use_afp = st.checkbox("Include AFP (Optional Biomarker)")
+
+            if use_afp:
+                marker = st.number_input(
+                    "AFP (ng/mL)",
+                    min_value=0.0,
+                    value=10.0
+                )
+            else:
+                marker = None
+
+        elif organ == "Thyroid":
+            marker = st.selectbox("TI-RADS", [1,2,3,4,5])
+
+        elif organ == "Breast":
+            marker = st.selectbox("BI-RADS", [1,2,3,4,5])
+
         else:
             marker = None
+        size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
+        if st.button("Run AI Analysis"):
+            if patient and hn:
 
-      with col2:
-         if len(st.session_state.db) > 0:
-            last = st.session_state.db.iloc[-1]
-    
-            status_value = str(last["Status"]).upper().strip()
-            color = STATUS_COLOR.get(status_value, "#6B7280")
-    
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=last["Confidence"] * 100,
-                number={'suffix': "%"},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': color}
-                }
-            ))
-    
-            st.plotly_chart(fig, use_container_width=True)
-    
-            st.markdown(f"## {status_value}")
+                status, confidence = run_ai(organ, marker, size)
+
+                new = pd.DataFrame([{
+                    "Date": str(datetime.date.today()),
+                    "HN": hn,
+                    "Patient": patient,
+                    "Organ": organ,
+                    "Status": status,
+                    "Confidence": confidence,
+                    "Marker_Val": marker,
+                    "Tumor_Size": size
+                }])
+
+                st.session_state.db = pd.concat(
+                    [st.session_state.db, new],
+                    ignore_index=True
+                )
+
+                st.success("Analysis Complete")
 
 
 # =====================================================
