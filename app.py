@@ -141,31 +141,29 @@ def generate_pdf(patient, hn, organ, status, confidence):
 # RIGHT PANEL – RESULT DISPLAY
 # =====================================================
 
-with right:
+st.subheader("AI Clinical Output")
 
-    st.subheader("AI Clinical Output")
+if run and patient and hn:
 
-    if run and patient and hn:
+    with st.spinner("Running AI model..."):
+        risk = np.random.randint(40, 95)
+        confidence = round(np.random.uniform(0.55, 0.95), 2)
 
-        with st.spinner("Running AI model..."):
-            risk = np.random.randint(40, 95)
-            confidence = round(np.random.uniform(0.55, 0.95), 2)
+    new = pd.DataFrame([{
+        "Patient_Name": patient,
+        "HN": hn,
+        "Organ": organ,
+        "Lesion_Size": size,
+        "Risk_Score": risk,
+        "Calibrated_Confidence": confidence,
+        "Timestamp": pd.Timestamp.now()
+    }])
 
-        # Save to DB
-        new = pd.DataFrame([{
-            "Patient_Name": patient,
-            "HN": hn,
-            "Organ": organ,
-            "Lesion_Size": size,
-            "Risk_Score": risk,
-            "Calibrated_Confidence": confidence,
-            "Timestamp": pd.Timestamp.now()
-        }])
+    st.session_state.db = pd.concat(
+        [st.session_state.db, new],
+        ignore_index=True
+    )
 
-        st.session_state.db = pd.concat(
-            [st.session_state.db, new],
-            ignore_index=True
-        )
 
         # =============================
         # RISK BADGE
