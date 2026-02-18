@@ -35,25 +35,90 @@ if "authenticated" not in st.session_state:
 
 
 # ==========================================
+# 🔐 AUTH SYSTEM
+# ==========================================
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "hospital" not in st.session_state:
+    st.session_state.hospital = None
+
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+
+# ==========================================
 # LOGIN PAGE
 # ==========================================
 
 if not st.session_state.authenticated:
 
-    st.title("🔐 Smart Biopsy Navigator Login")
+    st.set_page_config(page_title="Smart Biopsy Navigator", layout="centered")
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    st.title("🔐 Smart Biopsy Navigator")
 
-    if st.button("Login"):
-        if username == "admin" and password == "1234":
+    st.markdown("### Secure Clinical Access Portal")
+
+    hospital = st.selectbox(
+        "Select Hospital",
+        [
+            "Sri Nagarind Hospital",
+            "Bangkok Hospital",
+            "Chiang Mai University Hospital",
+            "Siriraj Hospital"
+        ]
+    )
+
+    role = st.selectbox(
+        "Select Role",
+        [
+            "Oncologist",
+            "Radiologist",
+            "Surgeon",
+            "Pathologist",
+            "Administrator"
+        ]
+    )
+
+    password = st.text_input("Enter Secure Password", type="password")
+
+    if st.button("Login Securely"):
+
+        if password == "SNH_SECURE":
+
             st.session_state.authenticated = True
+            st.session_state.hospital = hospital
+            st.session_state.role = role
+
+            st.success("Access Granted")
             st.rerun()
+
         else:
-            st.error("Invalid credentials")
+            st.error("Access Denied")
 
     st.stop()
 
+# ==========================================
+# SIDEBAR NAVIGATION (AFTER LOGIN)
+# ==========================================
+
+st.sidebar.title("Smart Biopsy Navigator")
+
+st.sidebar.markdown("### 👤 User Info")
+st.sidebar.write(f"Hospital: {st.session_state.hospital}")
+st.sidebar.write(f"Role: {st.session_state.role}")
+
+if st.sidebar.button("Logout"):
+    st.session_state.authenticated = False
+    st.session_state.hospital = None
+    st.session_state.role = None
+    st.rerun()
+
+page = st.sidebar.radio(
+    "Select Page",
+    ["📂 Clinical Dashboard", "💼 Business Overview"]
+)
 
 # ==========================================
 # SIDEBAR NAVIGATION
