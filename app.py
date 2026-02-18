@@ -833,21 +833,6 @@ def has_permission(action):
     role = st.session_state.role
     return action in ROLE_PERMISSIONS.get(role, [])
 
-
-# =====================================================
-# CLINICAL / RESEARCH MODE
-# =====================================================
-
-if "system_mode" not in st.session_state:
-    st.session_state.system_mode = "Clinical"
-
-with st.sidebar:
-    st.session_state.system_mode = st.radio(
-        "System Mode",
-        ["Clinical", "Research"]
-    )
-
-
 # =====================================================
 # MODEL REGISTRY
 # =====================================================
