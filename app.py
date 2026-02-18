@@ -186,44 +186,54 @@ if nav == "Diagnostic Hub":
                 st.warning("Please fill patient info")
 
     # ================= RIGHT PANEL =================
-    with col2:
+   with col2:
 
-        st.subheader("AI Result Dashboard")
+    if len(st.session_state.db) > 0:
 
-        if "last_result" in st.session_state:
+        last = st.session_state.db.iloc[-1]
+        confidence_percent = last["Confidence"] * 100
+        status = last["Status"]
 
-            status = st.session_state.last_result["status"]
-            confidence = st.session_state.last_result["confidence"]
+        color = STATUS_COLOR[status]
 
-            # ===== COLOR SYSTEM =====
-            if status == "NORMAL":
-                bg = "#28a745"      # Green
-            elif status == "BENIGN":
-                bg = "#ffc107"      # Yellow
-            else:
-                bg = "#dc3545"      # Red
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=confidence_percent,
+            number={
+                'suffix': "%",
+                'font': {'size': 40}
+            },
+            title={
+                'text': f"<b>{status}</b>",
+                'font': {'size': 28}
+            },
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': color},
+                'steps': [
+                    {'range': [0, 33], 'color': "#D1FAE5"},
+                    {'range': [33, 66], 'color': "#FEF3C7"},
+                    {'range': [66, 100], 'color': "#FEE2E2"}
+                ],
+                'threshold': {
+                    'line': {'color': "black", 'width': 4},
+                    'thickness': 0.75,
+                    'value': confidence_percent
+                }
+            }
+        ))
 
-            st.markdown(
-                f"""
-                <div style="
-                    padding:40px;
-                    border-radius:20px;
-                    text-align:center;
-                    background-color:{bg};
-                    color:white;
-                    font-size:32px;
-                    font-weight:bold;
-                ">
-                    {status}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        fig.update_layout(
+            paper_bgcolor="white",
+            height=420,
+            margin=dict(t=80, b=20)
+        )
 
-            st.metric("Confidence", f"{confidence*100:.1f}%")
+        st.plotly_chart(fig, use_container_width=True)
 
-        else:
-            st.info("Run analysis to see result")
+    else:
+        st.info("Run analysis to generate AI result.")
+
 
 
 # =====================================================
