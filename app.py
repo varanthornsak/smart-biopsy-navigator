@@ -400,7 +400,7 @@ if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
     )
 
         def highlight_status(row):
-        if row["Status"] == "MALIGNANT":
+    if row["Status"] == "MALIGNANT":
             return ["background-color: #FEE2E2"] * len(row)
         elif row["Status"] == "BENIGN":
             return ["background-color: #FEF9C3"] * len(row)
