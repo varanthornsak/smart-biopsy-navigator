@@ -564,15 +564,15 @@ else:
 # =====================================================
 # CASE ARCHIVE
 # =====================================================
-elif nav == "Case Archive":
-    st.dataframe(st.session_state.db, use_container_width=True)
+    if nav == "Case Archive":
+        st.dataframe(st.session_state.db, use_container_width=True)
 
 # =====================================================
 # USER MANUAL (DETAILED)
 # =====================================================
-elif nav == "User Manual":
+    if nav == "User Manual":
 
-    st.title("Smart Biopsy Pro – Detailed Operational Manual")
+        st.title("Smart Biopsy Pro – Detailed Operational Manual")
 
     st.markdown("""
 # 1. System Overview
