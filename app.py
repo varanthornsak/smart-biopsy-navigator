@@ -1598,3 +1598,93 @@ if nav == "AI Training Lab":
             st.dataframe(feat_df)
 
             st.success("Tier-2 Medical Training Complete.")
+# =====================================================
+# 💼 BUSINESS & SCALABILITY OVERVIEW
+# =====================================================
+
+st.markdown("---")
+st.markdown("# 💼 Business & Growth Strategy")
+st.caption("Investor-Focused Overview")
+
+# =====================================================
+# Revenue Model
+# =====================================================
+
+st.markdown("## 💰 Business Model")
+
+st.info("""
+Revenue Streams:
+• Hospital SaaS Subscription (per site / per month)
+• Per-case AI scoring fee
+• Enterprise API Integration
+• Licensing to diagnostic laboratories
+""")
+
+# =====================================================
+# Target Customers
+# =====================================================
+
+st.markdown("## 🎯 Target Customers")
+
+col1, col2, col3 = st.columns(3)
+
+col1.success("Primary:\nMid-sized Hospitals")
+col2.success("Secondary:\nDiagnostic Labs")
+col3.success("Future:\nNational Health Systems")
+
+# =====================================================
+# Market Opportunity
+# =====================================================
+
+with st.expander("📊 Market Opportunity"):
+
+    st.markdown("""
+    • Growing global oncology diagnostics market  
+    • Increasing cancer incidence worldwide  
+    • Demand for AI-assisted clinical decision support  
+
+    Initial Market Entry:
+    • Regional hospitals
+    • Private diagnostic centers
+    """)
+
+# =====================================================
+# Scalability
+# =====================================================
+
+st.markdown("## ☁ Scalability")
+
+st.info("""
+• Cloud-native deployment  
+• Multi-organ model expansion  
+• API-ready for EMR/HIS integration  
+• Modular AI retraining pipeline  
+""")
+
+# =====================================================
+# Milestones & Traction
+# =====================================================
+
+with st.expander("📈 Milestones & Roadmap"):
+
+    st.markdown("""
+    • MVP Completed  
+    • Retrospective Dataset Evaluation  
+    • Pilot Site Discussions  
+    • Preparing Grant / Funding Applications  
+    """)
+
+# =====================================================
+# Future KPI Projection
+# =====================================================
+
+st.markdown("## 📊 Growth Projection")
+
+k1, k2, k3 = st.columns(3)
+
+k1.metric("Projected ARR (Year 3)", "$2M+")
+k2.metric("Target Pilot Sites", "10 Hospitals")
+k3.metric("SaaS Gross Margin", "70%+")
+
+st.markdown("---")
+st.success("Positioned as an AI Triage Layer for Oncology Diagnostics")
