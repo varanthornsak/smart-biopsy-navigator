@@ -159,39 +159,24 @@ if nav == "Diagnostic Hub":
                              ["Liver", "Thyroid", "Breast", "Lymph Nodes"])
         file = st.file_uploader("Upload Image (Optional)")
 
+      # =====================================================
+      # LIVER – AFP OPTIONAL (REPLACE OLD AFP INPUT)
+      # =====================================================
         if organ == "Liver":
-            marker = st.number_input("AFP", min_value=0.0, value=10.0)
-        elif organ == "Thyroid":
-            marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
-        elif organ == "Breast":
-            marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
+    
+        use_afp = st.checkbox("Include AFP (Optional Biomarker)")
+    
+        if use_afp:
+            marker = st.number_input(
+                "AFP (ng/mL)",
+                min_value=0.0,
+                value=10.0
+            )
         else:
-            marker = 0
+            marker = None
 
-        size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
-        if st.button("Run AI Analysis"):
-            if patient and hn:
-                status, confidence = run_ai(organ, marker, size)
-
-                new = pd.DataFrame([{
-                    "Date": str(datetime.date.today()),
-                    "HN": hn,
-                    "Patient": patient,
-                    "Organ": organ,
-                    "Status": status,
-                    "Confidence": confidence,
-                    "Marker_Val": marker,
-                    "Tumor_Size": size
-                }])
-
-                st.session_state.db = pd.concat(
-                    [st.session_state.db, new],
-                    ignore_index=True)
-
-                st.success("Analysis Complete")
-
-    with col2:
+      with col2:
          if len(st.session_state.db) > 0:
             last = st.session_state.db.iloc[-1]
     
