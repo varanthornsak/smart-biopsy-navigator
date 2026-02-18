@@ -1237,7 +1237,17 @@ if nav == "AI Training Lab":
             y = le.fit_transform(y)  # 0=Benign, 1=Malignant
 
             # ---------------------------------------------
-            # FEATURE SELECTION (Structured Only)
+            # AFP OPTIONAL FIX
+            # ---------------------------------------------
+            if "AFP" in df.columns:
+                df["AFP_available"] = df["AFP"].notnull().astype(int)
+                df["AFP"] = df["AFP"].fillna(df["AFP"].median())
+            else:
+                df["AFP"] = 0
+                df["AFP_available"] = 0
+
+            # ---------------------------------------------
+            # FEATURE SELECTION
             # ---------------------------------------------
             feature_cols = [
                 col for col in df.columns
@@ -1245,10 +1255,13 @@ if nav == "AI Training Lab":
                 and df[col].dtype != "object"
             ]
 
+            if "AFP_available" not in feature_cols:
+                feature_cols.append("AFP_available")
+
             X = df[feature_cols]
 
             # ---------------------------------------------
-            # TRAIN / TEST SPLIT (Stratified)
+            # TRAIN / TEST SPLIT
             # ---------------------------------------------
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
@@ -1258,10 +1271,11 @@ if nav == "AI Training Lab":
             )
 
             # ---------------------------------------------
-            # MODEL (Class Weight Balanced)
+            # MODEL
             # ---------------------------------------------
             model = RandomForestClassifier(
-                n_estimators=200,
+                n_estimators=300,
+                max_depth=6,
                 class_weight="balanced",
                 random_state=42
             )
@@ -1294,12 +1308,23 @@ if nav == "AI Training Lab":
             st.metric("Miss Rate", f"{miss_rate*100:.1f}%")
 
             # ---------------------------------------------
-            # CONFUSION MATRIX
+            # CONFUSION MATRIX (NO SEABORN)
             # ---------------------------------------------
             st.subheader("Confusion Matrix")
 
             fig_cm, ax_cm = plt.subplots()
-            sns.heatmap(cm, annot=True, fmt="d", cmap="Reds")
+            ax_cm.imshow(cm)
+
+            for i in range(2):
+                for j in range(2):
+                    ax_cm.text(j, i, cm[i, j],
+                               ha="center", va="center")
+
+            ax_cm.set_xticks([0,1])
+            ax_cm.set_yticks([0,1])
+            ax_cm.set_xticklabels(["Benign","Malignant"])
+            ax_cm.set_yticklabels(["Benign","Malignant"])
+
             st.pyplot(fig_cm)
 
             # ---------------------------------------------
@@ -1314,6 +1339,7 @@ if nav == "AI Training Lab":
             ax_roc.plot([0,1],[0,1], linestyle="--")
             ax_roc.set_xlabel("False Positive Rate")
             ax_roc.set_ylabel("True Positive Rate")
+
             st.pyplot(fig_roc)
 
             # ---------------------------------------------
@@ -1328,10 +1354,11 @@ if nav == "AI Training Lab":
             fig_cal, ax_cal = plt.subplots()
             ax_cal.plot(prob_pred, prob_true, marker="o")
             ax_cal.plot([0,1],[0,1], linestyle="--")
+
             st.pyplot(fig_cal)
 
             # ---------------------------------------------
-            # CROSS VALIDATION (Overfitting Check)
+            # CROSS VALIDATION
             # ---------------------------------------------
             st.subheader("Cross-Validation Check")
 
