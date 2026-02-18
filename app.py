@@ -25,6 +25,16 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
+# ==============================
+# Sidebar Navigation
+# ==============================
+
+st.sidebar.title("Navigation")
+
+page = st.sidebar.radio(
+    "Go to",
+    ["🧠 Clinical Dashboard", "💼 Business Overview"]
+)
 # =====================================================
 # PAGE CONFIG
 # =====================================================
