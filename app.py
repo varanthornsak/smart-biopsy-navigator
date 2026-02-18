@@ -722,3 +722,227 @@ if nav == "Executive Board View":
         savings = saved_cases * cost_per_biopsy
 
         st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
+# ============================================================
+# ADVANCED HOSPITAL FEATURES MODULE
+# Audit Log | Case Assignment | SLA | AI Drift | FHIR Export
+# ============================================================
+
+import streamlit as st
+import pandas as pd
+import json
+import uuid
+from datetime import datetime, timedelta
+import plotly.graph_objects as go
+
+# ============================================================
+# SESSION STATE INIT
+# ============================================================
+
+if "cases" not in st.session_state:
+    st.session_state.cases = []
+
+if "audit_log" not in st.session_state:
+    st.session_state.audit_log = []
+
+if "assignments" not in st.session_state:
+    st.session_state.assignments = {}
+
+if "ai_history" not in st.session_state:
+    st.session_state.ai_history = []
+
+
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
+def log_action(case_id, action, user="system"):
+    st.session_state.audit_log.append({
+        "timestamp": datetime.now(),
+        "case_id": case_id,
+        "action": action,
+        "user": user
+    })
+
+
+def calculate_sla_status(request_time):
+    if not request_time:
+        return "Unknown"
+    diff = datetime.now() - request_time
+    if diff <= timedelta(hours=24):
+        return "On Track"
+    elif diff <= timedelta(hours=48):
+        return "Warning"
+    else:
+        return "Breached"
+
+
+def build_fhir_bundle(case):
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "id": str(uuid.uuid4()),
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Patient",
+                    "id": case["case_id"],
+                    "name": [{"text": case["patient_name"]}]
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "Observation",
+                    "status": "final",
+                    "code": {
+                        "text": case["organ"]
+                    },
+                    "valueString": case["diagnosis"],
+                    "interpretation": [{
+                        "text": case["ai_prediction"]
+                    }]
+                }
+            }
+        ]
+    }
+    return bundle
+
+
+# ============================================================
+# SECTION: AUDIT LOG
+# ============================================================
+
+st.markdown("## 🧾 Audit Log")
+
+if st.session_state.audit_log:
+    audit_df = pd.DataFrame(st.session_state.audit_log)
+    st.dataframe(audit_df.sort_values("timestamp", ascending=False),
+                 use_container_width=True)
+else:
+    st.info("No audit records yet.")
+
+
+# ============================================================
+# SECTION: CASE ASSIGNMENT
+# ============================================================
+
+st.markdown("## 👩‍⚕️ Case Assignment")
+
+if st.session_state.cases:
+    case_ids = [c["case_id"] for c in st.session_state.cases]
+
+    selected_case = st.selectbox("Select Case", case_ids)
+
+    assignee = st.text_input("Assign to Pathologist / Staff")
+
+    if st.button("Assign Case"):
+        st.session_state.assignments[selected_case] = assignee
+        log_action(selected_case, f"Assigned to {assignee}", user="admin")
+        st.success("Case Assigned")
+
+    if st.session_state.assignments:
+        st.write("### Current Assignments")
+        assign_df = pd.DataFrame(
+            list(st.session_state.assignments.items()),
+            columns=["Case ID", "Assigned To"]
+        )
+        st.dataframe(assign_df, use_container_width=True)
+else:
+    st.info("No cases available.")
+
+
+# ============================================================
+# SECTION: SLA MONITORING
+# ============================================================
+
+st.markdown("## ⏱ SLA Monitoring")
+
+sla_data = []
+
+for case in st.session_state.cases:
+    sla_status = calculate_sla_status(case.get("request_time"))
+    sla_data.append({
+        "Case ID": case["case_id"],
+        "Status": case.get("status", "Unknown"),
+        "SLA": sla_status
+    })
+
+if sla_data:
+    sla_df = pd.DataFrame(sla_data)
+    st.dataframe(sla_df, use_container_width=True)
+
+    sla_counts = sla_df["SLA"].value_counts()
+
+    fig = go.Figure()
+    fig.add_trace(go.Pie(
+        labels=sla_counts.index,
+        values=sla_counts.values
+    ))
+    fig.update_layout(height=400)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No SLA data.")
+
+
+# ============================================================
+# SECTION: AI PERFORMANCE DRIFT
+# ============================================================
+
+st.markdown("## 🤖 AI Performance Drift Detection")
+
+if st.session_state.cases:
+    for case in st.session_state.cases:
+        st.session_state.ai_history.append({
+            "timestamp": datetime.now(),
+            "confidence": case.get("ai_confidence", 0)
+        })
+
+if st.session_state.ai_history:
+    drift_df = pd.DataFrame(st.session_state.ai_history)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=drift_df["timestamp"],
+        y=drift_df["confidence"],
+        mode="lines+markers"
+    ))
+    fig.update_layout(
+        title="AI Confidence Trend",
+        xaxis_title="Time",
+        yaxis_title="Confidence",
+        height=400
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No AI data available.")
+
+
+# ============================================================
+# SECTION: FHIR BUNDLE EXPORT
+# ============================================================
+
+st.markdown("## 📦 FHIR Bundle Export")
+
+if st.session_state.cases:
+    export_case = st.selectbox(
+        "Select Case to Export",
+        [c["case_id"] for c in st.session_state.cases],
+        key="export_case"
+    )
+
+    selected_data = next(
+        c for c in st.session_state.cases
+        if c["case_id"] == export_case
+    )
+
+    bundle = build_fhir_bundle(selected_data)
+
+    st.download_button(
+        label="Download FHIR Bundle JSON",
+        data=json.dumps(bundle, indent=2),
+        file_name=f"FHIR_Bundle_{export_case}.json",
+        mime="application/json"
+    )
+
+    st.json(bundle)
+else:
+    st.info("No case available for export.")
