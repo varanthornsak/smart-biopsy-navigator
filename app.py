@@ -924,3 +924,147 @@ if nav == "Case Archive" and len(st.session_state.db) > 0:
             file_name=f"{selected_case['Case_ID']}_FHIR.json",
             mime="application/json"
         )
+# =====================================================
+# RESEARCH DATABASE (SEPARATE FROM CLINICAL)
+# =====================================================
+
+if "research_db" not in st.session_state:
+    st.session_state.research_db = pd.DataFrame()
+
+if st.session_state.system_mode == "Research":
+
+    st.sidebar.markdown("### 🔬 Research Lab Active")
+
+
+# =====================================================
+# AUTO ANONYMIZATION
+# =====================================================
+
+def anonymize_df(df):
+
+    anon = df.copy()
+
+    if "Patient" in anon.columns:
+        anon["Patient"] = "ANON"
+
+    if "HN" in anon.columns:
+        anon["HN"] = "ANON_ID"
+
+    return anon
+
+
+# =====================================================
+# IRB TRACKING
+# =====================================================
+
+if "irb_info" not in st.session_state:
+    st.session_state.irb_info = {
+        "Study_ID": "",
+        "Principal_Investigator": "",
+        "Approval_Status": "Not Submitted"
+    }
+
+if st.session_state.system_mode == "Research":
+
+    st.markdown("---")
+    st.subheader("IRB Study Registration")
+
+    st.session_state.irb_info["Study_ID"] = st.text_input(
+        "Study ID",
+        st.session_state.irb_info["Study_ID"]
+    )
+
+    st.session_state.irb_info["Principal_Investigator"] = st.text_input(
+        "Principal Investigator",
+        st.session_state.irb_info["Principal_Investigator"]
+    )
+
+    st.session_state.irb_info["Approval_Status"] = st.selectbox(
+        "IRB Approval Status",
+        ["Not Submitted", "Pending", "Approved"]
+    )
+
+    st.info(f"IRB Status: {st.session_state.irb_info['Approval_Status']}")
+
+
+# =====================================================
+# MOVE CASE TO RESEARCH DB
+# =====================================================
+
+if nav == "Diagnostic Hub" and st.session_state.system_mode == "Research":
+
+    if len(st.session_state.db) > 0:
+
+        if st.button("Add Latest Case to Research Dataset"):
+
+            last = st.session_state.db.iloc[-1]
+            st.session_state.research_db = pd.concat(
+                [st.session_state.research_db, pd.DataFrame([last])],
+                ignore_index=True
+            )
+
+            st.success("Case added to research dataset.")
+
+
+# =====================================================
+# MODEL COMPARISON SIMULATION
+# =====================================================
+
+import numpy as np
+from sklearn.metrics import confusion_matrix, roc_auc_score
+
+if nav == "Professional Analytics" and st.session_state.system_mode == "Research":
+
+    st.markdown("---")
+    st.subheader("Model Validation Dashboard")
+
+    if len(st.session_state.research_db) > 5:
+
+        df = st.session_state.research_db.copy()
+
+        # Simulated ground truth
+        df["Ground_Truth"] = np.random.choice(
+            ["NORMAL", "BENIGN", "MALIGNANT"],
+            size=len(df)
+        )
+
+        y_true = (df["Ground_Truth"] == "MALIGNANT").astype(int)
+        y_pred = (df["Status"] == "MALIGNANT").astype(int)
+
+        cm = confusion_matrix(y_true, y_pred)
+
+        sensitivity = cm[1,1] / (cm[1,1] + cm[1,0]) if (cm[1,1] + cm[1,0]) > 0 else 0
+        specificity = cm[0,0] / (cm[0,0] + cm[0,1]) if (cm[0,0] + cm[0,1]) > 0 else 0
+
+        auc = roc_auc_score(y_true, y_pred)
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Sensitivity", f"{sensitivity:.2f}")
+        col2.metric("Specificity", f"{specificity:.2f}")
+        col3.metric("AUC", f"{auc:.2f}")
+
+        st.markdown("### Confusion Matrix")
+        st.write(cm)
+
+    else:
+        st.info("Add at least 6 cases to Research dataset.")
+
+
+# =====================================================
+# EXPORT ANONYMIZED DATASET
+# =====================================================
+
+if nav == "Case Archive" and st.session_state.system_mode == "Research":
+
+    if len(st.session_state.research_db) > 0:
+
+        anon = anonymize_df(st.session_state.research_db)
+
+        csv = anon.to_csv(index=False)
+
+        st.download_button(
+            label="Export Anonymized Research Dataset (CSV)",
+            data=csv,
+            file_name="Research_Dataset_Anonymized.csv",
+            mime="text/csv"
+        )
