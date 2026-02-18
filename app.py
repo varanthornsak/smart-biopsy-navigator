@@ -230,79 +230,44 @@ def run_ai(organ, marker, size):
                 st.caption(
                     "Final diagnosis must be made by a licensed physician."
                 )
+import streamlit as st
 
-# =====================================================
-# 💼 BUSINESS OVERVIEW
-# =====================================================
+if "auth" not in st.session_state:
+    st.session_state.auth = False
 
+# LOGIN
+if not st.session_state.auth:
+    st.title("Secure Login")
+
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if password == "SNH_SECURE":
+            st.session_state.auth = True
+            st.rerun()
+
+    st.stop()
+
+
+# SIDEBAR
+with st.sidebar:
+    nav = st.radio(
+        "Navigation",
+        [
+            "Diagnostic Hub",
+            "Professional Analytics",
+            "Executive Board View"
+        ]
+    )
+
+    if st.button("Logout", key="logout_main"):
+        st.session_state.auth = False
+        st.rerun()
+
+
+# MAIN CONTENT
 if nav == "Executive Board View":
-
     st.title("💼 Business & Growth Strategy")
-
-    st.subheader("Market Opportunity")
-    st.write("AI-assisted diagnostic decision tools for multi-organ biopsy triage.")
-
-    st.subheader("Revenue Model")
-    st.write("""
-    - Hospital Subscription Model  
-    - Enterprise License  
-    - API Integration for Radiology Systems  
-    """)
-
-    st.subheader("Growth Strategy")
-    st.write("""
-    - Expand to multi-center validation  
-    - Add deep learning imaging model  
-    - Regulatory pathway preparation  
-    """)
-
-    st.subheader("💰 Business Model")
-    st.info("""
-    • Hospital SaaS Subscription  
-    • Per-case AI scoring  
-    • Enterprise API Integration  
-    • Diagnostic Lab Licensing  
-    """)
-
-    st.subheader("🎯 Target Customers")
-
-    b1, b2, b3 = st.columns(3)
-    b1.success("Mid-sized Hospitals")
-    b2.success("Diagnostic Labs")
-    b3.success("National Health Systems")
-
-    with st.expander("📊 Market Opportunity"):
-        st.markdown("""
-        • Growing oncology diagnostics demand  
-        • Rising AI adoption in healthcare  
-        • Global cancer incidence increasing  
-        """)
-
-    st.subheader("☁ Scalability")
-    st.info("""
-    • Cloud-native deployment  
-    • Multi-organ model expansion  
-    • EMR / HIS API-ready  
-    • Modular retraining pipeline  
-    """)
-
-    with st.expander("📈 Milestones & Roadmap"):
-        st.markdown("""
-        • MVP Completed  
-        • Retrospective Evaluation  
-        • Pilot Site Discussions  
-        • Regulatory Planning (FDA / CE)  
-        """)
-
-    st.subheader("📊 Growth Projection")
-
-    k1, k2, k3 = st.columns(3)
-    k1.metric("Projected ARR (Year 3)", "$2M+")
-    k2.metric("Target Pilot Sites", "10 Hospitals")
-    k3.metric("SaaS Gross Margin", "70%+")
-
-    st.markdown("---")
-    st.success("AI Triage Layer for Oncology Diagnostics")
 
 
 # =====================================================
