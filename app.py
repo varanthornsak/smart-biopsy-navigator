@@ -319,7 +319,7 @@ elif nav == "Professional Analytics":
         x="Risk_Score",
         color="Status",
         color_discrete_map=STATUS_COLOR,
-        nbins=20,
+        nbins=80,
         title="Risk Score Distribution by Clinical Status"
     )
 
