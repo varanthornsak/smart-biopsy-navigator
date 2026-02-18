@@ -191,10 +191,27 @@ organ = st.sidebar.selectbox(
     ["Liver (Active)", "Thyroid (Training)", "Breast (Planned)", "Lymph Node (Planned)"]
 )
 
-threshold = st.sidebar.slider(
-    "Operating Threshold",
-    0.1, 0.9, DEFAULT_THRESHOLD
+# ================= Clinical Mode Selector =================
+
+clinical_mode = st.selectbox(
+    "Clinical Mode",
+    [
+        "Screening Mode (High Sensitivity)",
+        "Balanced Mode (Youden Optimized)",
+        "Rule-in Mode (High Specificity)"
+    ]
 )
+
+# Preset thresholds (ปรับตาม model จริงของคุณได้)
+if clinical_mode == "Screening Mode (High Sensitivity)":
+    threshold = 0.10
+elif clinical_mode == "Balanced Mode (Youden Optimized)":
+    threshold = DEFAULT_THRESHOLD
+else:
+    threshold = 0.60
+
+st.caption(f"Active Threshold: {round(threshold,3)}")
+
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Version: Liver v2.1 | Production Simulation")
