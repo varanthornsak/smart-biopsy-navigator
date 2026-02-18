@@ -389,7 +389,7 @@ def generate_pdf(patient, hn, organ, status, confidence):
 # =====================================================
     if nav == "Professional Analytics":
 
-    st.title("Professional Clinical Dashboard")
+        st.title("Professional Clinical Dashboard")
 
     df = st.session_state.db.copy()
 
