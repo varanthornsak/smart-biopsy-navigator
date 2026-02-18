@@ -323,32 +323,50 @@ if nav == "Professional Analytics":
 
         st.plotly_chart(trend_fig, use_container_width=True)
 
-        # ================= ORGAN DISTRIBUTION =================
-        st.subheader("Organ Distribution")
-
-        organ_counts = df["Organ"].value_counts()
-
+       # ================= ORGAN DISTRIBUTION =================
+        st.subheader("Organ Distribution by Risk")
+        
+        organ_status = df.groupby(["Organ", "Status"]).size().reset_index(name="Count")
+        
         organ_fig = go.Figure()
-        organ_fig.add_trace(go.Bar(
-            x=organ_counts.index,
-            y=organ_counts.values
-        ))
-
-        organ_fig.update_layout(height=450)
-
+        
+        for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
+            subset = organ_status[organ_status["Status"] == status]
+        
+            organ_fig.add_trace(go.Bar(
+                x=subset["Organ"],
+                y=subset["Count"],
+                name=status,
+                marker_color=STATUS_COLOR.get(status)
+            ))
+        
+        organ_fig.update_layout(
+            barmode="stack",
+            height=450
+        )
+        
         st.plotly_chart(organ_fig, use_container_width=True)
 
-        # ================= CONFIDENCE DISTRIBUTION =================
-        st.subheader("AI Confidence Distribution")
-
+      # ================= CONFIDENCE DISTRIBUTION =================
+        st.subheader("AI Confidence Distribution by Risk")
+        
         conf_fig = go.Figure()
-        conf_fig.add_trace(go.Histogram(
-            x=df["Confidence"] * 100,
-            nbinsx=10
-        ))
-
-        conf_fig.update_layout(height=450)
-
+        
+        for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
+            subset = df[df["Status"] == status]
+        
+            conf_fig.add_trace(go.Histogram(
+                x=subset["Confidence"] * 100,
+                name=status,
+                marker_color=STATUS_COLOR.get(status),
+                opacity=0.6
+            ))
+        
+        conf_fig.update_layout(
+            barmode="overlay",
+            height=450
+        )
+        
         st.plotly_chart(conf_fig, use_container_width=True)
 
         # ================= DATA TABLE =================
