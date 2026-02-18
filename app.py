@@ -541,7 +541,6 @@ else:
 # =====================================================
 # EXECUTIVE BOARD VIEW
 # =====================================================
-
 elif nav == "Executive Board View":
 
     st.title("Executive Business Intelligence")
@@ -556,11 +555,11 @@ elif nav == "Executive Board View":
 
     if total > 0:
         trend = df.groupby("Date").size().reset_index(name="Cases")
+
         st.plotly_chart(
             px.area(trend, x="Date", y="Cases"),
             use_container_width=True
         )
-
 
 # =====================================================
 # CASE ARCHIVE
