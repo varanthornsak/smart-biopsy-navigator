@@ -387,7 +387,7 @@ def generate_pdf(patient, hn, organ, status, confidence):
 # =====================================================
 # PROFESSIONAL ANALYTICS
 # =====================================================
-elif nav == "Professional Analytics":
+    if nav == "Professional Analytics":
 
     st.title("Professional Clinical Dashboard")
 
