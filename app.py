@@ -409,7 +409,7 @@ Recommended Action:
             file_name=f"{case_id}_report.txt"
         )
 
-        st.session_state.fhir_probability = prob
+        st.session_state.fhir_probability = prob_display
         st.session_state.fhir_patient_id = case_id
 
         log_case(
