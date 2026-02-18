@@ -29,6 +29,35 @@ import pandas as pd
 import plotly.graph_objects as go
 import datetime
 
+def run_ai(organ, marker, size):
+
+    # ตัวอย่าง logic demo
+    score = 0
+
+    if organ == "Liver":
+        score = (float(marker) * 0.4) + (size * 0.6)
+
+    elif organ == "Thyroid":
+        score = (int(marker) * 15) + (size * 0.5)
+
+    elif organ == "Breast":
+        score = (int(marker) * 20) + (size * 0.5)
+
+    else:
+        score = size * 0.5
+
+    # normalize ให้เป็น 0–1
+    confidence = min(score / 100, 1)
+
+    if confidence < 0.30:
+        status = "Low Risk"
+    elif confidence < 0.70:
+        status = "Intermediate Risk"
+    else:
+        status = "High Risk"
+
+    return status, confidence
+    
 # 🔥 ADD THIS
 STATUS_COLOR = {
     "Low Risk": "#00cc96",
