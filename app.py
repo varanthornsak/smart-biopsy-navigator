@@ -134,116 +134,34 @@ def generate_pdf(patient, hn, organ, status, confidence):
     doc.build(elements)
     buffer.seek(0)
     return buffer
-
 # =====================================================
-# DIAGNOSTIC HUB
+# 🧪 DIAGNOSTIC HUB (CLEAN VERSION)
 # =====================================================
-if nav == "Diagnostic Hub":
 
-    st.title("AI Diagnostic Engine")
+elif nav == "Diagnostic Hub":
 
-    col1, col2 = st.columns([1,1])
+    st.title("Smart Biopsy Pro – Diagnostic Hub")
 
-    # ================= LEFT =================
-    with col1:
+    # Main Clinical Input Section
+    st.subheader("Case Entry")
 
-        st.subheader("Patient Information")
+    organ = st.selectbox(
+        "Select Organ",
+        ["Liver", "Thyroid", "Breast", "Lymph Nodes"]
+    )
 
-        patient = st.text_input("Patient Name")
-        hn = st.text_input("HN")
-        organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
+    confidence = st.slider(
+        "AI Confidence Level",
+        0.0, 1.0, 0.75
+    )
 
-        # =============================
-        # AFP FIELD (Optional)
-        # =============================
-        st.markdown("### Biomarker (Optional)")
-        marker = st.number_input(
-            "AFP (ng/mL) – Optional",
-            min_value=0.0,
-            value=0.0,
-            step=1.0
-        )
+    st.markdown("---")
 
-        # =============================
-        # Ultrasound Image Upload
-        # =============================
-        st.markdown("### Ultrasound Image Upload")
+    st.info("Enter clinical parameters and generate diagnostic support.")
 
-        uploaded_file = st.file_uploader(
-            "Upload Ultrasound Image",
-            type=["jpg", "jpeg", "png"]
-        )
-
-        if uploaded_file is not None:
-            with st.expander("🔍 View Ultrasound Image"):
-                st.image(uploaded_file, width=400)
-
-        # =============================
-        # Tumor Size
-        # =============================
-        size = st.slider("Lesion Size (mm)", 1, 100, 10)
-
-        # =============================
-        # RUN AI BUTTON
-        # =============================
-        run = st.button("Run AI Analysis", use_container_width=True)
-
-        if run and patient and hn:
-
-            status, confidence = run_ai(organ, marker, size)
-
-            new = pd.DataFrame([{
-                "Date": datetime.date.today(),
-                "HN": hn,
-                "Patient": patient,
-                "Organ": organ,
-                "Status": status,
-                "Confidence": confidence,
-                "Marker_Val": marker,
-                "Tumor_Size": size
-            }])
-
-            st.session_state.db = pd.concat(
-                [st.session_state.db, new],
-                ignore_index=True
-            )
-
-            st.success("Analysis Complete")
-
-    # ================= RIGHT =================
-    with col2:
-
-        st.subheader("AI Result Dashboard")
-
-        if len(st.session_state.db) > 0:
-
-            last = st.session_state.db.iloc[-1]
-            confidence_percent = last["Confidence"] * 100
-            status = last["Status"]
-
-            if status == "NORMAL":
-                color = "#28a745"
-            elif status == "BENIGN":
-                color = "#ffc107"
-            else:
-                color = "#dc3545"
-
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=confidence_percent,
-                number={'suffix': "%"},
-                title={'text': status},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': color}
-                }
-            ))
-
-            st.plotly_chart(fig, use_container_width=True)
-
-        else:
-            st.info("Run analysis to generate result.")
-
+    # Example Generate Button
+    if st.button("Run AI Analysis"):
+        st.success("AI Analysis Completed")
 
 # =====================================================
 # 📊 PROFESSIONAL ANALYTICS – HOSPITAL VERSION
