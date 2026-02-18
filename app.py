@@ -70,18 +70,18 @@ def run_ai(organ, marker, size):
 # SIDEBAR NAVIGATION
 # =====================================================
 
-st.sidebar.title("Smart Biopsy Navigator™")
+st.sidebar.title("Smart Biopsy Navigator")
 
 page = st.sidebar.radio(
     "Select Page",
-    ["🧠 Clinical Dashboard", "💼 Business Overview"]
+    ["📂 Clinical Dashboard", "💼 Business Overview"]
 )
 
 # =====================================================
-# 🧠 CLINICAL DASHBOARD
+# 📂 CLINICAL DASHBOARD
 # =====================================================
 
-if page == "🧠 Clinical Dashboard":
+if page == "📂 Clinical Dashboard":
 
     st.title("Diagnostic Decision Engine – Multi Organ")
 
