@@ -1142,3 +1142,184 @@ if nav == "Admin Panel":
 # =====================================================
 # ================= END MODULE ========================
 # =====================================================
+# =====================================================
+# ===== ACCURATE MULTI-ORGAN ML TRAINING ENGINE ======
+# =====================================================
+
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import (
+    confusion_matrix,
+    roc_auc_score,
+    roc_curve,
+    classification_report
+)
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.calibration import calibration_curve
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+# =====================================================
+# TRAINING PANEL
+# =====================================================
+
+if nav == "AI Training Lab":
+
+    st.header("Multi-Organ AI Training Engine")
+
+    if len(st.session_state.db) == 0:
+        st.warning("No data available.")
+    else:
+
+        df = st.session_state.db.copy()
+
+        # ---------------------------------------------
+        # ORGAN FILTER
+        # ---------------------------------------------
+        organ = st.selectbox("Select Organ",
+                             df["Organ"].unique())
+
+        df = df[df["Organ"] == organ]
+
+        if len(df) < 50:
+            st.warning("Not enough data for training.")
+        else:
+
+            st.write(f"Training on {len(df)} cases")
+
+            # ---------------------------------------------
+            # TARGET ENCODING
+            # ---------------------------------------------
+            df = df[df["Status"].isin(["BENIGN", "MALIGNANT"])]
+
+            y = df["Status"]
+            le = LabelEncoder()
+            y = le.fit_transform(y)  # 0=Benign, 1=Malignant
+
+            # ---------------------------------------------
+            # FEATURE SELECTION (Structured Only)
+            # ---------------------------------------------
+            feature_cols = [
+                col for col in df.columns
+                if col not in ["Status", "Patient", "HN"]
+                and df[col].dtype != "object"
+            ]
+
+            X = df[feature_cols]
+
+            # ---------------------------------------------
+            # TRAIN / TEST SPLIT (Stratified)
+            # ---------------------------------------------
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y,
+                test_size=0.2,
+                stratify=y,
+                random_state=42
+            )
+
+            # ---------------------------------------------
+            # MODEL (Class Weight Balanced)
+            # ---------------------------------------------
+            model = RandomForestClassifier(
+                n_estimators=200,
+                class_weight="balanced",
+                random_state=42
+            )
+
+            model.fit(X_train, y_train)
+
+            # ---------------------------------------------
+            # PREDICTIONS
+            # ---------------------------------------------
+            y_pred = model.predict(X_test)
+            y_prob = model.predict_proba(X_test)[:, 1]
+
+            # ---------------------------------------------
+            # METRICS
+            # ---------------------------------------------
+            cm = confusion_matrix(y_test, y_pred)
+            auc = roc_auc_score(y_test, y_prob)
+
+            tn, fp, fn, tp = cm.ravel()
+
+            sensitivity = tp / (tp + fn)
+            specificity = tn / (tn + fp)
+            miss_rate = fn / (tp + fn)
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("AUC", f"{auc:.3f}")
+            col2.metric("Sensitivity", f"{sensitivity*100:.1f}%")
+            col3.metric("Specificity", f"{specificity*100:.1f}%")
+
+            st.metric("Miss Rate", f"{miss_rate*100:.1f}%")
+
+            # ---------------------------------------------
+            # CONFUSION MATRIX
+            # ---------------------------------------------
+            st.subheader("Confusion Matrix")
+
+            fig_cm, ax_cm = plt.subplots()
+            sns.heatmap(cm, annot=True, fmt="d", cmap="Reds")
+            st.pyplot(fig_cm)
+
+            # ---------------------------------------------
+            # ROC CURVE
+            # ---------------------------------------------
+            st.subheader("ROC Curve")
+
+            fpr, tpr, _ = roc_curve(y_test, y_prob)
+
+            fig_roc, ax_roc = plt.subplots()
+            ax_roc.plot(fpr, tpr)
+            ax_roc.plot([0,1],[0,1], linestyle="--")
+            ax_roc.set_xlabel("False Positive Rate")
+            ax_roc.set_ylabel("True Positive Rate")
+            st.pyplot(fig_roc)
+
+            # ---------------------------------------------
+            # CALIBRATION CURVE
+            # ---------------------------------------------
+            st.subheader("Calibration Curve")
+
+            prob_true, prob_pred = calibration_curve(
+                y_test, y_prob, n_bins=10
+            )
+
+            fig_cal, ax_cal = plt.subplots()
+            ax_cal.plot(prob_pred, prob_true, marker="o")
+            ax_cal.plot([0,1],[0,1], linestyle="--")
+            st.pyplot(fig_cal)
+
+            # ---------------------------------------------
+            # CROSS VALIDATION (Overfitting Check)
+            # ---------------------------------------------
+            st.subheader("Cross-Validation Check")
+
+            skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+            cv_scores = cross_val_score(
+                model,
+                X,
+                y,
+                cv=skf,
+                scoring="roc_auc"
+            )
+
+            st.write("CV AUC Scores:", cv_scores)
+            st.write("Mean CV AUC:", np.mean(cv_scores))
+
+            # ---------------------------------------------
+            # FEATURE IMPORTANCE
+            # ---------------------------------------------
+            st.subheader("Feature Importance")
+
+            importance = model.feature_importances_
+            feat_df = pd.DataFrame({
+                "Feature": feature_cols,
+                "Importance": importance
+            }).sort_values(by="Importance", ascending=False)
+
+            st.dataframe(feat_df)
+
+            st.success("Training Complete.")
