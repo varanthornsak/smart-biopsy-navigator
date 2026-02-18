@@ -176,7 +176,8 @@ if nav == "Diagnostic Hub":
         )
 
         if uploaded_file is not None:
-            st.image(uploaded_file, caption="Uploaded Ultrasound", use_container_width=True)
+            with st.expander("🔍 View Ultrasound Image"):
+                st.image(uploaded_file, width=400)
 
         # =============================
         # Tumor Size
