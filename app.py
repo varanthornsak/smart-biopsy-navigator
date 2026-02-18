@@ -326,49 +326,53 @@ elif nav == "Professional Analytics":
     st.plotly_chart(risk_fig, use_container_width=True)
 
     # =====================================================
-# CONFIDENCE DISTRIBUTION (COLORED BY STATUS)
+# NAVIGATION
 # =====================================================
 
-# Clinical color mapping
-STATUS_COLOR = {
-    "NORMAL": "#16A34A",      # Green
-    "BENIGN": "#EAB308",      # Yellow
-    "MALIGNANT": "#DC2626"    # Red
-}
+if nav == "Clinical View":
 
-temp_df = df.copy()
+    # =====================================================
+    # CONFIDENCE DISTRIBUTION (COLORED BY STATUS)
+    # =====================================================
 
-temp_df["Conf_Bin"] = pd.cut(
-    temp_df["Calibrated_Confidence"],
-    bins=5
-)
+    STATUS_COLOR = {
+        "NORMAL": "#16A34A",
+        "BENIGN": "#EAB308",
+        "MALIGNANT": "#DC2626"
+    }
 
-calibration_df = (
-    temp_df.groupby(["Conf_Bin", "Status"])
-    .size()
-    .reset_index(name="Count")
-)
+    temp_df = df.copy()
 
-calibration_df["Conf_Bin"] = calibration_df["Conf_Bin"].astype(str)
+    temp_df["Conf_Bin"] = pd.cut(
+        temp_df["Calibrated_Confidence"],
+        bins=5
+    )
 
-calib_fig = px.bar(
-    calibration_df,
-    x="Conf_Bin",
-    y="Count",
-    color="Status",  # 👈 สำคัญมาก
-    color_discrete_map=STATUS_COLOR,
-    title="Confidence Distribution by Clinical Status",
-    barmode="group"  # เปลี่ยนเป็น "stack" ถ้าอยากซ้อน
-)
+    calibration_df = (
+        temp_df.groupby(["Conf_Bin", "Status"])
+        .size()
+        .reset_index(name="Count")
+    )
 
-st.plotly_chart(calib_fig, use_container_width=True)
+    calibration_df["Conf_Bin"] = calibration_df["Conf_Bin"].astype(str)
 
+    calib_fig = px.bar(
+        calibration_df,
+        x="Conf_Bin",
+        y="Count",
+        color="Status",
+        color_discrete_map=STATUS_COLOR,
+        title="Confidence Distribution by Clinical Status",
+        barmode="group"
+    )
+
+    st.plotly_chart(calib_fig, use_container_width=True)
 
     # =====================================================
     # MONTHLY TREND
     # =====================================================
 
-if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
+    if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
 
         monthly = (
             df.groupby(pd.Grouper(key="Timestamp", freq="M"))
@@ -388,36 +392,37 @@ if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
 
         st.plotly_chart(trend_fig, use_container_width=True)
 
-   # =====================================================
-# HIGH-RISK TABLE (COLORED)
-# =====================================================
+    # =====================================================
+    # HIGH-RISK TABLE (COLORED)
+    # =====================================================
 
-st.markdown("### High-Risk Case Review")
+    st.markdown("### High-Risk Case Review")
 
-high_risk_df = df[df["Risk_Score"] >= 80].sort_values(
-    by="Risk_Score",
-    ascending=False
-)
+    high_risk_df = df[df["Risk_Score"] >= 80].sort_values(
+        by="Risk_Score",
+        ascending=False
+    )
 
-def highlight_status(row):
-    if row["Status"] == "MALIGNANT":
-        return ["background-color: #FEE2E2"] * len(row)
-    elif row["Status"] == "BENIGN":
-        return ["background-color: #FEF9C3"] * len(row)
-    elif row["Status"] == "NORMAL":
-        return ["background-color: #DCFCE7"] * len(row)
-    return [""] * len(row)
+    def highlight_status(row):
+        if row["Status"] == "MALIGNANT":
+            return ["background-color: #FEE2E2"] * len(row)
+        elif row["Status"] == "BENIGN":
+            return ["background-color: #FEF9C3"] * len(row)
+        elif row["Status"] == "NORMAL":
+            return ["background-color: #DCFCE7"] * len(row)
+        return [""] * len(row)
 
-if len(high_risk_df) > 0:
-    styled_df = high_risk_df.style.apply(highlight_status, axis=1)
-    st.dataframe(styled_df, use_container_width=True)
-else:
-    st.success("No high-risk cases detected.")
+    if len(high_risk_df) > 0:
+        styled_df = high_risk_df.style.apply(highlight_status, axis=1)
+        st.dataframe(styled_df, use_container_width=True)
+    else:
+        st.success("No high-risk cases detected.")
 
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
 # =====================================================
+
 elif nav == "Executive Board View":
 
     st.title("Executive Business Intelligence")
@@ -436,6 +441,7 @@ elif nav == "Executive Board View":
             px.area(trend, x="Date", y="Cases"),
             use_container_width=True
         )
+
 
 # =====================================================
 # CASE ARCHIVE
