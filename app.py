@@ -241,62 +241,90 @@ elif nav == "Professional Analytics":
 
     if len(df) > 0:
 
-        # ---------------------------
-        # Premium Donut Chart
-        # ---------------------------
-        fig_pie = px.pie(
-            df,
-            names="Status",
-            color="Status",
-            color_discrete_map=STATUS_COLOR,
-            hole=0.55
-        )
+    # -----------------------------------
+    # Force Clinical Status Order
+    # -----------------------------------
+    status_order = ["NORMAL", "BENIGN", "MALIGNANT"]
 
-        fig_pie.update_traces(
-            textposition='inside',
-            textinfo='percent+label',
-            marker=dict(line=dict(color='#ffffff', width=2))
-        )
+    df["Status"] = pd.Categorical(
+        df["Status"],
+        categories=status_order,
+        ordered=True
+    )
 
-        fig_pie.update_layout(
-            title="Risk Distribution",
-            title_font_size=22,
-            legend=dict(orientation="h", y=-0.15),
-            margin=dict(t=60, b=40),
-            template="plotly_white"
-        )
+    # -----------------------------------
+    # Count Summary (Fixed 3 Categories)
+    # -----------------------------------
+    summary = df["Status"].value_counts().reindex(status_order, fill_value=0).reset_index()
+    summary.columns = ["Status", "Count"]
 
-        st.plotly_chart(fig_pie, use_container_width=True)
+    # -----------------------------------
+    # Donut Chart (Strict Clinical Colors)
+    # -----------------------------------
+    fig_pie = px.pie(
+        summary,
+        names="Status",
+        values="Count",
+        category_orders={"Status": status_order},
+        color="Status",
+        color_discrete_map={
+            "NORMAL": "#10B981",      # Green
+            "BENIGN": "#F59E0B",      # Yellow
+            "MALIGNANT": "#EF4444"    # Red
+        },
+        hole=0.6
+    )
 
-        # ---------------------------
-        # Premium Organ Bar Chart
-        # ---------------------------
-        fig_bar = px.bar(
-            df,
-            x="Organ",
-            color="Status",
-            color_discrete_map=STATUS_COLOR,
-            barmode="group"
-        )
+    fig_pie.update_traces(
+        textinfo="percent+label",
+        marker=dict(line=dict(color="white", width=2))
+    )
 
-        fig_bar.update_layout(
-            title="Organ Case Distribution",
-            title_font_size=22,
-            xaxis_title="Organ",
-            yaxis_title="Cases",
-            template="plotly_white",
-            margin=dict(t=60)
-        )
+    fig_pie.update_layout(
+        title="Risk Distribution",
+        template="plotly_white",
+        legend=dict(orientation="h", y=-0.15),
+        margin=dict(t=60)
+    )
 
-        fig_bar.update_traces(
-            marker_line_width=1.5,
-            marker_line_color="white"
-        )
+    st.plotly_chart(fig_pie, use_container_width=True)
 
-        st.plotly_chart(fig_bar, use_container_width=True)
+    # -----------------------------------
+    # Bar Chart (Strict Clinical View)
+    # -----------------------------------
+    organ_summary = (
+        df.groupby(["Organ", "Status"])
+        .size()
+        .reset_index(name="Count")
+    )
 
-    else:
-        st.info("No data available yet.")
+    fig_bar = px.bar(
+        organ_summary,
+        x="Organ",
+        y="Count",
+        color="Status",
+        category_orders={"Status": status_order},
+        color_discrete_map={
+            "NORMAL": "#10B981",
+            "BENIGN": "#F59E0B",
+            "MALIGNANT": "#EF4444"
+        },
+        barmode="group"
+    )
+
+    fig_bar.update_layout(
+        title="Organ Case Distribution",
+        xaxis_title="Organ",
+        yaxis_title="Cases",
+        template="plotly_white",
+        margin=dict(t=60)
+    )
+
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+else:
+    st.info("No data available yet.")
+
 
 
 # =====================================================
