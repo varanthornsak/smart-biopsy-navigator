@@ -388,31 +388,32 @@ if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
 
         st.plotly_chart(trend_fig, use_container_width=True)
 
-    # =====================================================
-    # HIGH-RISK TABLE (COLORED)
-    # =====================================================
+   # =====================================================
+# HIGH-RISK TABLE (COLORED)
+# =====================================================
 
-        st.markdown("### High-Risk Case Review")
+st.markdown("### High-Risk Case Review")
 
-        high_risk_df = df[df["Risk_Score"] >= 80].sort_values(
-        by="Risk_Score",
-        ascending=False
-    )
+high_risk_df = df[df["Risk_Score"] >= 80].sort_values(
+    by="Risk_Score",
+    ascending=False
+)
 
-        def highlight_status(row):
+def highlight_status(row):
     if row["Status"] == "MALIGNANT":
-            return ["background-color: #FEE2E2"] * len(row)
-        elif row["Status"] == "BENIGN":
-            return ["background-color: #FEF9C3"] * len(row)
-        elif row["Status"] == "NORMAL":
-            return ["background-color: #DCFCE7"] * len(row)
-        return [""] * len(row)
+        return ["background-color: #FEE2E2"] * len(row)
+    elif row["Status"] == "BENIGN":
+        return ["background-color: #FEF9C3"] * len(row)
+    elif row["Status"] == "NORMAL":
+        return ["background-color: #DCFCE7"] * len(row)
+    return [""] * len(row)
 
-        if len(high_risk_df) > 0:
-        styled_df = high_risk_df.style.apply(highlight_status, axis=1)
-        st.dataframe(styled_df, use_container_width=True)
-        else:
-        st.success("No high-risk cases detected.")
+if len(high_risk_df) > 0:
+    styled_df = high_risk_df.style.apply(highlight_status, axis=1)
+    st.dataframe(styled_df, use_container_width=True)
+else:
+    st.success("No high-risk cases detected.")
+
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
