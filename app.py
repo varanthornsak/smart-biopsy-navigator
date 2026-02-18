@@ -141,32 +141,24 @@ def generate_pdf(patient, hn, organ, status, confidence):
 # =====================================================
 if nav == "Diagnostic Hub":
 
-    st.title("Diagnostic Decision Engine – Multi Organ")
+    st.title("AI Diagnostic Engine")
 
-    col1, col2 = st.columns([1, 1.3])
+    col1, col2 = st.columns([1,1])
 
+    # ================= LEFT PANEL =================
     with col1:
+
         patient = st.text_input("Patient Name")
         hn = st.text_input("HN")
-        organ = st.selectbox("Organ",
-                             ["Liver", "Thyroid", "Breast", "Lymph Nodes"])
-        file = st.file_uploader("Upload Image (Optional)")
+        organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
 
-             # =====================================================
-        # LIVER – AFP OPTIONAL
-        # =====================================================
+        # ----- Marker Logic -----
+        marker = None
+
         if organ == "Liver":
-
             use_afp = st.checkbox("Include AFP (Optional Biomarker)")
-
             if use_afp:
-                marker = st.number_input(
-                    "AFP (ng/mL)",
-                    min_value=0.0,
-                    value=10.0
-                )
-            else:
-                marker = None
+                marker = st.number_input("AFP (ng/mL)", min_value=0.0, value=10.0)
 
         elif organ == "Thyroid":
             marker = st.selectbox("TI-RADS", [1,2,3,4,5])
@@ -174,33 +166,26 @@ if nav == "Diagnostic Hub":
         elif organ == "Breast":
             marker = st.selectbox("BI-RADS", [1,2,3,4,5])
 
-        else:
-            marker = None
         size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
         if st.button("Run AI Analysis"):
+
             if patient and hn:
 
                 status, confidence = run_ai(organ, marker, size)
 
-                new = pd.DataFrame([{
-                    "Date": str(datetime.date.today()),
-                    "HN": hn,
-                    "Patient": patient,
-                    "Organ": organ,
-                    "Status": status,
-                    "Confidence": confidence,
-                    "Marker_Val": marker,
-                    "Tumor_Size": size
-                }])
-
-                st.session_state.db = pd.concat(
-                    [st.session_state.db, new],
-                    ignore_index=True
-                )
+                # 🔥 IMPORTANT
+                st.session_state.last_result = {
+                    "status": status,
+                    "confidence": confidence
+                }
 
                 st.success("Analysis Complete")
 
+            else:
+                st.warning("Please fill patient info")
+
+    # ================= RIGHT PANEL =================
     with col2:
 
         st.subheader("AI Result Dashboard")
@@ -212,21 +197,21 @@ if nav == "Diagnostic Hub":
 
             # ===== COLOR SYSTEM =====
             if status == "NORMAL":
-                color = "green"
+                bg = "#28a745"      # Green
             elif status == "BENIGN":
-                color = "orange"
+                bg = "#ffc107"      # Yellow
             else:
-                color = "red"
+                bg = "#dc3545"      # Red
 
             st.markdown(
                 f"""
                 <div style="
-                    padding:30px;
-                    border-radius:15px;
+                    padding:40px;
+                    border-radius:20px;
                     text-align:center;
-                    background-color:{color};
+                    background-color:{bg};
                     color:white;
-                    font-size:28px;
+                    font-size:32px;
                     font-weight:bold;
                 ">
                     {status}
@@ -239,6 +224,7 @@ if nav == "Diagnostic Hub":
 
         else:
             st.info("Run analysis to see result")
+
 
 # =====================================================
 # PROFESSIONAL ANALYTICS
