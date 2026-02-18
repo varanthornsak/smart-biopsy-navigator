@@ -392,7 +392,7 @@ if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
     # HIGH-RISK TABLE (COLORED)
     # =====================================================
 
-    st.markdown("### High-Risk Case Review")
+        st.markdown("### High-Risk Case Review")
 
     high_risk_df = df[df["Risk_Score"] >= 80].sort_values(
         by="Risk_Score",
