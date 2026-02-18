@@ -247,7 +247,7 @@ if nav == "Diagnostic Hub":
 
 
 # =====================================================
-# 📊 PROFESSIONAL ANALYTICS (SAFE VERSION)
+# 📊 PROFESSIONAL ANALYTICS – HOSPITAL VERSION
 # =====================================================
 
 if nav == "Professional Analytics":
@@ -264,75 +264,100 @@ if nav == "Professional Analytics":
 
         df = st.session_state.db.copy()
 
-        # ทำให้ Status เป็นมาตรฐาน
+        # ===== Clean data =====
         df["Status"] = df["Status"].astype(str).str.upper().str.strip()
+        df["Date"] = pd.to_datetime(df["Date"])
 
         status_counts = df["Status"].value_counts()
 
         # ================= KPI =================
-        col1, col2, col3 = st.columns(3)
+        total_cases = len(df)
+        malignant_cases = status_counts.get("MALIGNANT", 0)
+        malignancy_rate = round((malignant_cases / total_cases) * 100, 1)
 
-        col1.metric("🟢 NORMAL", status_counts.get("NORMAL", 0))
-        col2.metric("🟡 BENIGN", status_counts.get("BENIGN", 0))
-        col3.metric("🔴 MALIGNANT", status_counts.get("MALIGNANT", 0))
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric("Total Cases", total_cases)
+        col2.metric("🟢 Normal", status_counts.get("NORMAL", 0))
+        col3.metric("🔴 Malignant", malignant_cases)
+        col4.metric("Malignancy Rate (%)", f"{malignancy_rate}%")
 
         st.markdown("---")
 
-        # ================= PIE =================
+        # ================= DONUT =================
         st.subheader("Risk Distribution")
 
         labels = status_counts.index.tolist()
         values = status_counts.values.tolist()
 
-        colors = [
-            STATUS_COLOR.get(s, "#9ca3af")
-            for s in labels
-        ]
+        colors = [STATUS_COLOR.get(s, "#9ca3af") for s in labels]
 
-        pie_fig = go.Figure(
-            data=[
-                go.Pie(
-                    labels=labels,
-                    values=values,
-                    marker=dict(colors=colors),
-                    hole=0.0,
-                    textinfo="percent+label",
-                    textfont=dict(size=22, color="black")
-                )
-            ]
-        )
+        pie_fig = go.Figure(data=[
+            go.Pie(
+                labels=labels,
+                values=values,
+                hole=0.5,
+                marker=dict(colors=colors),
+                textinfo="percent+label",
+                textfont=dict(size=18)
+            )
+        ])
 
-        pie_fig.update_layout(
-            height=650,
-            font=dict(size=20),
-            legend=dict(font=dict(size=18)),
-            margin=dict(t=40, b=20, l=20, r=20)
-        )
+        pie_fig.update_layout(height=500)
 
         st.plotly_chart(pie_fig, use_container_width=True)
 
-        # ================= BAR =================
-        st.subheader("Case Distribution")
+        # ================= CASE TREND =================
+        st.subheader("Case Volume Trend")
 
-        bar_fig = go.Figure()
+        trend_df = df.groupby(df["Date"].dt.date).size().reset_index(name="Count")
 
-        for status in labels:
-            bar_fig.add_trace(go.Bar(
-                x=[status],
-                y=[status_counts[status]],
-                marker_color=STATUS_COLOR.get(status, "#9ca3af")
-            ))
+        trend_fig = go.Figure()
+        trend_fig.add_trace(go.Scatter(
+            x=trend_df["Date"],
+            y=trend_df["Count"],
+            mode="lines+markers"
+        ))
 
-        bar_fig.update_layout(
-            showlegend=False,
-            height=500
-        )
+        trend_fig.update_layout(height=450)
 
-        st.plotly_chart(bar_fig, use_container_width=True)
+        st.plotly_chart(trend_fig, use_container_width=True)
+
+        # ================= ORGAN DISTRIBUTION =================
+        st.subheader("Organ Distribution")
+
+        organ_counts = df["Organ"].value_counts()
+
+        organ_fig = go.Figure()
+        organ_fig.add_trace(go.Bar(
+            x=organ_counts.index,
+            y=organ_counts.values
+        ))
+
+        organ_fig.update_layout(height=450)
+
+        st.plotly_chart(organ_fig, use_container_width=True)
+
+        # ================= CONFIDENCE DISTRIBUTION =================
+        st.subheader("AI Confidence Distribution")
+
+        conf_fig = go.Figure()
+        conf_fig.add_trace(go.Histogram(
+            x=df["Confidence"] * 100,
+            nbinsx=10
+        ))
+
+        conf_fig.update_layout(height=450)
+
+        st.plotly_chart(conf_fig, use_container_width=True)
+
+        # ================= DATA TABLE =================
+        st.subheader("Case Database")
+
+        st.dataframe(df, use_container_width=True)
 
     else:
         st.info("No case data available yet.")
-
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
