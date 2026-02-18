@@ -149,7 +149,6 @@ if run and patient and hn:
         risk = np.random.randint(40, 95)
         confidence = round(np.random.uniform(0.55, 0.95), 2)
 
-    # Save to database
     new = pd.DataFrame([{
         "Patient_Name": patient,
         "HN": hn,
@@ -165,10 +164,7 @@ if run and patient and hn:
         ignore_index=True
     )
 
-    # =============================
     # RISK BADGE
-    # =============================
-
     if risk >= 85:
         st.error(f"🔴 HIGH RISK (Score: {risk})")
     elif risk >= 60:
@@ -176,35 +172,8 @@ if run and patient and hn:
     else:
         st.success(f"🟢 LOW RISK (Score: {risk})")
 
-        # =============================
-        # RECOMMENDATION
-        # =============================
-
-        st.markdown("#### Clinical Recommendation")
-
-        if risk >= 85:
-            st.write("• Urgent biopsy recommended")
-            st.write("• Multidisciplinary review")
-        elif risk >= 60:
-            st.write("• Short interval follow-up")
-            st.write("• Correlate with imaging")
-        else:
-            st.write("• Routine monitoring")
-
-        # =============================
-        # AUDIT TRAIL
-        # =============================
-
-        st.markdown("---")
-        st.caption(
-            f"""
-            Model Version: v2.1  
-            Timestamp: {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-            """
-        )
-
-    else:
-        st.info("Enter patient data and run AI analysis.")
+else:
+    st.info("Enter patient data and run AI analysis.")
 
 # =====================================================
 # PROFESSIONAL ANALYTICS – ENTERPRISE COLORED VERSION
