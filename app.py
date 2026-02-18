@@ -723,7 +723,7 @@ if nav == "Executive Board View":
 
         st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
 # ============================================================
-# ADVANCED HOSPITAL FEATURES MODULE
+# ADVANCED HOSPITAL FEATURES MODULE (STABLE VERSION)
 # Audit Log | Case Assignment | SLA | AI Drift | FHIR Export
 # ============================================================
 
@@ -750,24 +750,30 @@ if "assignments" not in st.session_state:
 if "ai_history" not in st.session_state:
     st.session_state.ai_history = []
 
+if "demo_loaded" not in st.session_state:
+    st.session_state.demo_loaded = False
+
 
 # ============================================================
 # HELPER FUNCTIONS
 # ============================================================
 
 def log_action(case_id, action, user="system"):
-    st.session_state.audit_log.append({
-        "timestamp": datetime.now(),
+    entry = {
+        "timestamp": datetime.now().isoformat(),
         "case_id": case_id,
         "action": action,
         "user": user
-    })
+    }
+    st.session_state.audit_log.append(entry)
 
 
 def calculate_sla_status(request_time):
     if not request_time:
         return "Unknown"
+
     diff = datetime.now() - request_time
+
     if diff <= timedelta(hours=24):
         return "On Track"
     elif diff <= timedelta(hours=48):
@@ -777,7 +783,7 @@ def calculate_sla_status(request_time):
 
 
 def build_fhir_bundle(case):
-    bundle = {
+    return {
         "resourceType": "Bundle",
         "type": "collection",
         "id": str(uuid.uuid4()),
@@ -793,9 +799,7 @@ def build_fhir_bundle(case):
                 "resource": {
                     "resourceType": "Observation",
                     "status": "final",
-                    "code": {
-                        "text": case["organ"]
-                    },
+                    "code": {"text": case["organ"]},
                     "valueString": case["diagnosis"],
                     "interpretation": [{
                         "text": case["ai_prediction"]
@@ -804,7 +808,46 @@ def build_fhir_bundle(case):
             }
         ]
     }
-    return bundle
+
+
+# ============================================================
+# DEMO DATA LOADER (so system works immediately)
+# ============================================================
+
+st.markdown("### ⚙ System Controls")
+
+colA, colB = st.columns(2)
+
+with colA:
+    if st.button("Load Demo Data") and not st.session_state.demo_loaded:
+
+        for i in range(3):
+            case_id = str(uuid.uuid4())[:8]
+            case = {
+                "case_id": case_id,
+                "patient_name": f"Demo Patient {i+1}",
+                "organ": ["Lung", "Liver", "Breast"][i],
+                "diagnosis": ["Benign", "Malignant", "Normal"][i],
+                "ai_prediction": ["Benign", "Malignant", "Normal"][i],
+                "ai_confidence": 0.7 + i * 0.1,
+                "status": "Requested",
+                "request_time": datetime.now() - timedelta(hours=i*20)
+            }
+
+            st.session_state.cases.append(case)
+            log_action(case_id, "Demo Case Created", user="system")
+
+        st.session_state.demo_loaded = True
+        st.success("Demo data loaded")
+
+with colB:
+    if st.button("Reset System"):
+        st.session_state.cases = []
+        st.session_state.audit_log = []
+        st.session_state.assignments = {}
+        st.session_state.ai_history = []
+        st.session_state.demo_loaded = False
+        st.success("System reset")
 
 
 # ============================================================
@@ -814,9 +857,14 @@ def build_fhir_bundle(case):
 st.markdown("## 🧾 Audit Log")
 
 if st.session_state.audit_log:
+
     audit_df = pd.DataFrame(st.session_state.audit_log)
-    st.dataframe(audit_df.sort_values("timestamp", ascending=False),
-                 use_container_width=True)
+
+    if "timestamp" in audit_df.columns:
+        audit_df = audit_df.sort_values("timestamp", ascending=False)
+
+    st.dataframe(audit_df, use_container_width=True)
+
 else:
     st.info("No audit records yet.")
 
@@ -828,6 +876,7 @@ else:
 st.markdown("## 👩‍⚕️ Case Assignment")
 
 if st.session_state.cases:
+
     case_ids = [c["case_id"] for c in st.session_state.cases]
 
     selected_case = st.selectbox("Select Case", case_ids)
@@ -835,17 +884,20 @@ if st.session_state.cases:
     assignee = st.text_input("Assign to Pathologist / Staff")
 
     if st.button("Assign Case"):
-        st.session_state.assignments[selected_case] = assignee
-        log_action(selected_case, f"Assigned to {assignee}", user="admin")
-        st.success("Case Assigned")
+        if assignee.strip() != "":
+            st.session_state.assignments[selected_case] = assignee
+            log_action(selected_case, f"Assigned to {assignee}", user="admin")
+            st.success("Case Assigned")
+        else:
+            st.warning("Please enter assignee name")
 
     if st.session_state.assignments:
-        st.write("### Current Assignments")
         assign_df = pd.DataFrame(
             list(st.session_state.assignments.items()),
             columns=["Case ID", "Assigned To"]
         )
         st.dataframe(assign_df, use_container_width=True)
+
 else:
     st.info("No cases available.")
 
@@ -859,14 +911,14 @@ st.markdown("## ⏱ SLA Monitoring")
 sla_data = []
 
 for case in st.session_state.cases:
-    sla_status = calculate_sla_status(case.get("request_time"))
     sla_data.append({
         "Case ID": case["case_id"],
         "Status": case.get("status", "Unknown"),
-        "SLA": sla_status
+        "SLA": calculate_sla_status(case.get("request_time"))
     })
 
 if sla_data:
+
     sla_df = pd.DataFrame(sla_data)
     st.dataframe(sla_df, use_container_width=True)
 
@@ -878,18 +930,24 @@ if sla_data:
         values=sla_counts.values
     ))
     fig.update_layout(height=400)
+
     st.plotly_chart(fig, use_container_width=True)
+
 else:
     st.info("No SLA data.")
 
 
 # ============================================================
-# SECTION: AI PERFORMANCE DRIFT
+# SECTION: AI PERFORMANCE DRIFT (No duplicate accumulation)
 # ============================================================
 
 st.markdown("## 🤖 AI Performance Drift Detection")
 
 if st.session_state.cases:
+
+    # regenerate fresh history (avoid duplication on rerun)
+    st.session_state.ai_history = []
+
     for case in st.session_state.cases:
         st.session_state.ai_history.append({
             "timestamp": datetime.now(),
@@ -897,6 +955,7 @@ if st.session_state.cases:
         })
 
 if st.session_state.ai_history:
+
     drift_df = pd.DataFrame(st.session_state.ai_history)
 
     fig = go.Figure()
@@ -905,13 +964,16 @@ if st.session_state.ai_history:
         y=drift_df["confidence"],
         mode="lines+markers"
     ))
+
     fig.update_layout(
         title="AI Confidence Trend",
         xaxis_title="Time",
         yaxis_title="Confidence",
         height=400
     )
+
     st.plotly_chart(fig, use_container_width=True)
+
 else:
     st.info("No AI data available.")
 
@@ -923,6 +985,7 @@ else:
 st.markdown("## 📦 FHIR Bundle Export")
 
 if st.session_state.cases:
+
     export_case = st.selectbox(
         "Select Case to Export",
         [c["case_id"] for c in st.session_state.cases],
@@ -944,5 +1007,6 @@ if st.session_state.cases:
     )
 
     st.json(bundle)
+
 else:
     st.info("No case available for export.")
