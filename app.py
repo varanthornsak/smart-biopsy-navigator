@@ -817,24 +817,6 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
         file_name=f"{last['Case_ID']}_Enterprise_Report.pdf",
         mime="application/pdf"
     )
-# =====================================================
-# MULTI-HOSPITAL SUPPORT
-# =====================================================
-
-HOSPITALS = [
-    "Siam Neuro Hospital",
-    "Bangkok Oncology Center",
-    "Chiang Mai Diagnostic Institute",
-    "Phuket Advanced Imaging"
-]
-
-if "hospital" not in st.session_state:
-    st.session_state.hospital = HOSPITALS[0]
-
-with st.sidebar:
-    st.markdown("---")
-    st.session_state.hospital = st.selectbox("Active Institution", HOSPITALS)
-
 
 # =====================================================
 # ROLE BASED ACCESS CONTROL (STRICT)
