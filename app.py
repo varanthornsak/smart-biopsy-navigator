@@ -353,7 +353,7 @@ if nav == "Diagnostic Hub":
                 st.caption(
                     "Final diagnosis must be made by a licensed physician."
                 )
-               st.markdown("---")
+                st.markdown("---")
                 st.markdown("# 🧬 Smart Biopsy Navigator™")
                 st.caption("AI-Powered Oncology Decision Intelligence Platform")
                 st.markdown("---")
