@@ -180,8 +180,10 @@ if nav == "Diagnostic Hub":
                              ["Liver", "Thyroid", "Breast", "Lymph Nodes"])
         file = st.file_uploader("Upload Image (Optional)")
 
-        if organ == "Liver":
-            afp_input = st.text_input("AFP (optional)", value="")
+           if organ == "Liver":
+    
+        afp_input = st.text_input("AFP (optional)", value="")
+    
         if afp_input.strip() == "":
             afp_value = 0
             afp_available = 0
@@ -192,13 +194,18 @@ if nav == "Diagnostic Hub":
             except ValueError:
                 st.error("AFP must be a number")
                 st.stop()
+    
+        marker = afp_value   # ใช้ AFP เป็น marker
+    
+    elif organ == "Thyroid":
+        marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
+    
+    elif organ == "Breast":
+        marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
+    
+    else:
+        marker = 0
 
-        elif organ == "Thyroid":
-            marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
-        elif organ == "Breast":
-            marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
-        else:
-            marker = 0
 
         size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
