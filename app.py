@@ -295,33 +295,8 @@ elif nav == "Professional Analytics":
 
         st.plotly_chart(fig_bar, use_container_width=True)
 
-
-# ---------------------------
-# Premium Organ Bar Chart
-# ---------------------------
-fig_bar = px.bar(
-    df,
-    x="Organ",
-    color="Status",
-    color_discrete_map=STATUS_COLOR,
-    barmode="group"
-)
-
-fig_bar.update_layout(
-    title="Organ Case Distribution",
-    title_font_size=22,
-    xaxis_title="Organ",
-    yaxis_title="Cases",
-    template="plotly_white",
-    margin=dict(t=60)
-)
-
-fig_bar.update_traces(
-    marker_line_width=1.5,
-    marker_line_color="white"
-)
-
-st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+        st.info("No data available yet.")
 
 
 # =====================================================
