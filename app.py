@@ -50,23 +50,21 @@ def run_ai(organ, marker, size):
     confidence = min(score / 100, 1)
 
     if confidence < 0.30:
-        status = "Low Risk"
+        status = "Normal"
     elif confidence < 0.70:
-        status = "Intermediate Risk"
+        status = "Benign"
     else:
-        status = "High Risk"
+        status = "Malignant"
 
     return status, confidence
     
-# 🔥 ADD THIS
-STATUS_COLOR = {
-    "Low Risk": "#00cc96",
-    "Intermediate Risk": "#FFA500",
-    "High Risk": "#EF553B",
-    "Benign": "#00cc96",
-    "Indeterminate": "#FFA500",
-    "Malignant": "#EF553B"
-}
+    if last["Status"] == "Normal":
+        color = "#00cc96"      # เขียว
+    elif last["Status"] == "Benign":
+        color = "#FFA500"      # เหลือง
+    else:
+        color = "#EF553B"      # แดง
+
 
 # =====================================================
 # SIDEBAR NAVIGATION
