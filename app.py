@@ -1,12 +1,43 @@
 # ==========================================
-# 🔐 AUTH SYSTEM
+# IMPORT SECTION
 # ==========================================
+
+import streamlit as st
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import io
+import datetime
+import plotly.graph_objects as go
+import plotly.express as px
+
+
+# ==========================================
+# SESSION STATE INIT
+# ==========================================
+
+if "db" not in st.session_state:
+    st.session_state.db = pd.DataFrame(
+        columns=[
+            "Date",
+            "HN",
+            "Patient",
+            "Organ",
+            "Status",
+            "Confidence",
+            "Marker_Val",
+            "Tumor_Size"
+        ]
+    )
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 
-# ---------- LOGIN PAGE ----------
+# ==========================================
+# LOGIN PAGE
+# ==========================================
+
 if not st.session_state.authenticated:
 
     st.title("🔐 Smart Biopsy Navigator Login")
@@ -17,16 +48,15 @@ if not st.session_state.authenticated:
     if st.button("Login"):
         if username == "admin" and password == "1234":
             st.session_state.authenticated = True
-            st.success("Login successful")
             st.rerun()
         else:
             st.error("Invalid credentials")
 
-    st.stop()   # ⛔ หยุดที่นี่ถ้ายังไม่ login
+    st.stop()
 
 
 # ==========================================
-# SIDEBAR NAVIGATION (AFTER LOGIN)
+# SIDEBAR NAVIGATION
 # ==========================================
 
 st.sidebar.title("Smart Biopsy Navigator")
@@ -39,6 +69,7 @@ page = st.sidebar.radio(
     "Select Page",
     ["📂 Clinical Dashboard", "💼 Business Overview"]
 )
+
 
 
 # ==========================================
