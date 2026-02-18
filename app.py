@@ -314,7 +314,7 @@ pie_fig.update_layout(
 st.plotly_chart(pie_fig, use_container_width=True)
 
 
-        # ================= BAR =================
+              # ================= BAR =================
         st.subheader("Case Distribution")
 
         bar_fig = go.Figure()
@@ -328,13 +328,10 @@ st.plotly_chart(pie_fig, use_container_width=True)
 
         bar_fig.update_layout(
             showlegend=False,
-            height=400
+            height=500
         )
 
         st.plotly_chart(bar_fig, use_container_width=True)
-
-    else:
-        st.info("No case data available yet.")
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
