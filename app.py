@@ -1,14 +1,13 @@
-import streamlit as st
+import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
-import datetime
-import time
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
 import matplotlib.pyplot as plt
-import io
+
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.calibration import calibration_curve
+
 
 # =====================================================
 # PAGE CONFIG
