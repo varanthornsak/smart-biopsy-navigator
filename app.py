@@ -149,6 +149,7 @@ if run and patient and hn:
         risk = np.random.randint(40, 95)
         confidence = round(np.random.uniform(0.55, 0.95), 2)
 
+    # Save to database
     new = pd.DataFrame([{
         "Patient_Name": patient,
         "HN": hn,
@@ -164,31 +165,16 @@ if run and patient and hn:
         ignore_index=True
     )
 
+    # =============================
+    # RISK BADGE
+    # =============================
 
-        # =============================
-        # RISK BADGE
-        # =============================
-        
-        if risk >= 85:
-            st.error(f"🔴 HIGH RISK (Score: {risk})")
-        elif risk >= 60:
-            st.warning(f"🟡 INTERMEDIATE RISK (Score: {risk})")
-        else:
-            st.success(f"🟢 LOW RISK (Score: {risk})")
-
-
-        # =============================
-        # CONFIDENCE
-        # =============================
-
-        st.markdown("#### Model Confidence")
-
-        if confidence >= 0.8:
-            st.success(f"{confidence}")
-        elif confidence >= 0.6:
-            st.warning(f"{confidence}")
-        else:
-            st.error(f"{confidence}")
+    if risk >= 85:
+        st.error(f"🔴 HIGH RISK (Score: {risk})")
+    elif risk >= 60:
+        st.warning(f"🟡 INTERMEDIATE RISK (Score: {risk})")
+    else:
+        st.success(f"🟢 LOW RISK (Score: {risk})")
 
         # =============================
         # RECOMMENDATION
