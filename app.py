@@ -70,7 +70,7 @@ def run_ai(organ, marker, size):
 # SIDEBAR NAVIGATION
 # =====================================================
 
-st.sidebar.title("🧬 Smart Biopsy Navigator™")
+st.sidebar.title("Smart Biopsy Navigator™")
 
 page = st.sidebar.radio(
     "Select Page",
