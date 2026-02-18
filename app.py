@@ -192,10 +192,12 @@ if nav == "Diagnostic Hub":
                 st.success("Analysis Complete")
 
     with col2:
-        if len(st.session_state.db) > 0:
+         if len(st.session_state.db) > 0:
             last = st.session_state.db.iloc[-1]
-            color = STATUS_COLOR[last["Status"]]
-
+    
+            status_value = str(last["Status"]).upper().strip()
+            color = STATUS_COLOR.get(status_value, "#6B7280")
+    
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
                 value=last["Confidence"] * 100,
@@ -205,23 +207,11 @@ if nav == "Diagnostic Hub":
                     'bar': {'color': color}
                 }
             ))
+    
             st.plotly_chart(fig, use_container_width=True)
+    
+            st.markdown(f"## {status_value}")
 
-            st.markdown(f"## {last['Status']}")
-
-            pdf = generate_pdf(
-                last["Patient"],
-                last["HN"],
-                last["Organ"],
-                last["Status"],
-                last["Confidence"]
-            )
-
-            st.download_button(
-                "Download PDF Report",
-                pdf,
-                file_name="Smart_Biopsy_Report.pdf"
-            )
 
 # =====================================================
 # PROFESSIONAL ANALYTICS
