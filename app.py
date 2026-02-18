@@ -475,12 +475,26 @@ if len(st.session_state.db) > 0:
 
 
 # =====================================================
-# ADD EXPLAINABLE AI PANEL TO DIAGNOSTIC HUB
+# ADD EXPLAINABLE AI PANEL TO DIAGNOSTIC HUB (FIXED)
 # =====================================================
 if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
 
-    last = st.session_state.db.iloc[-1]
+    df = st.session_state.db
+    last_index = df.index[-1]
 
+    # -------- Auto-fix missing enterprise fields --------
+    if pd.isna(df.loc[last_index, "Case_ID"]) or df.loc[last_index, "Case_ID"] == "":
+        df.loc[last_index, "Case_ID"] = generate_case_id()
+
+    if pd.isna(df.loc[last_index, "Timestamp"]) or df.loc[last_index, "Timestamp"] == "":
+        df.loc[last_index, "Timestamp"] = str(datetime.datetime.now())
+
+    if pd.isna(df.loc[last_index, "Created_By"]) or df.loc[last_index, "Created_By"] == "":
+        df.loc[last_index, "Created_By"] = st.session_state.role
+
+    last = df.loc[last_index]
+
+    # -------- Generate explanation --------
     reasons, recommendation = generate_explanation(
         last["Organ"],
         last["Marker_Val"],
@@ -491,20 +505,20 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
     st.markdown("---")
     st.subheader("AI Risk Explanation")
 
-    st.write("**Case ID:**", last["Case_ID"])
-    st.write("**Generated:**", last["Timestamp"])
-    st.write("**Created By:**", last["Created_By"])
+    st.markdown(f"**Case ID:** {last['Case_ID']}")
+    st.markdown(f"**Generated:** {last['Timestamp']}")
+    st.markdown(f"**Created By:** {last['Created_By']}")
 
-    st.write("### Risk Factors Identified:")
+    st.markdown("### Risk Factors Identified:")
+
     if len(reasons) > 0:
         for r in reasons:
-            st.write("•", r)
+            st.markdown(f"- {r}")
     else:
-        st.write("No high-risk features detected.")
+        st.markdown("No high-risk features detected.")
 
-    st.write("### Clinical Recommendation:")
+    st.markdown("### Clinical Recommendation:")
     st.success(recommendation)
-
 
 # =====================================================
 # ENHANCED EXECUTIVE METRICS
