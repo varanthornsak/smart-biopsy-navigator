@@ -10,7 +10,12 @@ import io
 import datetime
 
 import plotly.graph_objects as go
-import plotly.express as px
+import plotly.express as
+        "Date", "HN", "Patient", "Organ",
+        "Status", "Confidence",
+        "Marker_Val", "Tumor_Size"
+    ])
+ px
 
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.preprocessing import LabelEncoder
@@ -41,11 +46,6 @@ if "role" not in st.session_state:
 
 if "db" not in st.session_state:
     st.session_state.db = pd.DataFrame(columns=[
-        "Date", "HN", "Patient", "Organ",
-        "Status", "Confidence",
-        "Marker_Val", "Tumor_Size"
-    ])
-
 # =====================================================
 # CONSTANTS
 # =====================================================
@@ -1074,10 +1074,7 @@ if nav == "Professional Analytics":
     col2.metric("Specificity", f"{specificity*100:.1f}%")
     col3.metric("Miss Rate Reduction", f"{reduction:.1f}%")
 
-    # Confusion Matrix
-    st.subheader("Confusion Matrix")
-    cm = confusion_matrix(y_true, y_pred)
-    fig_cm, ax_cm = plt.subplots()
+
     # Confusion Matrix
     st.subheader("Confusion Matrix")
 
