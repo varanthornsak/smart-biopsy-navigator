@@ -541,7 +541,7 @@ else:
 # =====================================================
 # EXECUTIVE BOARD VIEW
 # =====================================================
-elif nav == "Executive Board View":
+    if nav == "Executive Board View":
 
     st.title("Executive Business Intelligence")
 
