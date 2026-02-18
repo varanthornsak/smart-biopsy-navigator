@@ -381,6 +381,31 @@ if nav == "Professional Analytics":
 # 🏥 EXECUTIVE BOARD VIEW – HOSPITAL EDITION
 # =====================================================
 
+# ================= WORKFLOW TRACKING =================
+
+st.subheader("Specimen Workflow Status")
+
+workflow_steps = ["Requested", "Collected", "In Lab", "Resulted"]
+
+# ตัวอย่าง: ดึง status ล่าสุดจาก db
+if len(st.session_state.db) > 0:
+    current_status = "In Lab"  # ปกติควรดึงจาก df
+else:
+    current_status = "Requested"
+
+current_index = workflow_steps.index(current_status)
+
+progress_value = (current_index + 1) / len(workflow_steps)
+
+st.progress(progress_value)
+
+cols = st.columns(len(workflow_steps))
+for i, step in enumerate(workflow_steps):
+    if i <= current_index:
+        cols[i].success(step)
+    else:
+        cols[i].write(step)
+
 if nav == "Professional Analytics":
 
     st.title("Executive Clinical AI Dashboard")
