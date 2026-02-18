@@ -212,18 +212,27 @@ if nav == "Diagnostic Hub":
 
         else:
             st.info("Run analysis to generate result.")
-
 # =====================================================
-# PROFESSIONAL ANALYTICS – ENTERPRISE BI
+# PROFESSIONAL ANALYTICS – ENTERPRISE COLORED VERSION
 # =====================================================
 
-if nav == "Professional Analytics":
+elif nav == "Professional Analytics":
 
     st.title("Enterprise Clinical Intelligence Dashboard")
 
     if len(st.session_state.db) == 0:
         st.info("No case data available.")
         st.stop()
+
+    # =====================================================
+    # COLOR STANDARD (Clinical Grade)
+    # =====================================================
+
+    STATUS_COLOR = {
+        "NORMAL": "#16A34A",      # Green
+        "BENIGN": "#EAB308",      # Yellow
+        "MALIGNANT": "#DC2626"    # Red
+    }
 
     df = st.session_state.db.copy()
 
@@ -240,7 +249,7 @@ if nav == "Professional Analytics":
         df["Calibrated_Confidence"] = df["Confidence"]
 
     # =====================================================
-    # KPI ROW
+    # KPI SECTION
     # =====================================================
 
     total_cases = len(df)
@@ -248,7 +257,7 @@ if nav == "Professional Analytics":
     benign_cases = (df["Status"] == "BENIGN").sum()
     normal_cases = (df["Status"] == "NORMAL").sum()
 
-    malignancy_rate = (malignant_cases / total_cases) * 100 if total_cases > 0 else 0
+    malignancy_rate = (malignant_cases / total_cases) * 100 if total_cases else 0
     avg_confidence = df["Calibrated_Confidence"].mean() * 100
 
     col1, col2, col3, col4 = st.columns(4)
@@ -261,7 +270,92 @@ if nav == "Professional Analytics":
     st.markdown("---")
 
     # =====================================================
-    # 1️⃣ Monthly Case Trend
+    # STATUS DISTRIBUTION PIE
+    # =====================================================
+
+    status_counts = df["Status"].value_counts().reset_index()
+    status_counts.columns = ["Status", "Count"]
+
+    pie_fig = px.pie(
+        status_counts,
+        names="Status",
+        values="Count",
+        color="Status",
+        color_discrete_map=STATUS_COLOR,
+        hole=0.4,
+        title="Clinical Status Distribution"
+    )
+
+    st.plotly_chart(pie_fig, use_container_width=True)
+
+    # =====================================================
+    # ORGAN MALIGNANCY RATE
+    # =====================================================
+
+    if "Organ" in df.columns:
+
+        organ_stats = (
+            df.groupby("Organ")["Status"]
+            .apply(lambda x: (x == "MALIGNANT").mean() * 100)
+            .reset_index(name="Malignancy_Rate")
+        )
+
+        organ_fig = px.bar(
+            organ_stats,
+            x="Organ",
+            y="Malignancy_Rate",
+            color_discrete_sequence=["#DC2626"],
+            title="Malignancy Rate by Organ (%)"
+        )
+
+        st.plotly_chart(organ_fig, use_container_width=True)
+
+    # =====================================================
+    # RISK SCORE DISTRIBUTION
+    # =====================================================
+
+    risk_fig = px.histogram(
+        df,
+        x="Risk_Score",
+        color="Status",
+        color_discrete_map=STATUS_COLOR,
+        nbins=20,
+        title="Risk Score Distribution by Clinical Status"
+    )
+
+    st.plotly_chart(risk_fig, use_container_width=True)
+
+    # =====================================================
+    # CONFIDENCE DISTRIBUTION (FIXED)
+    # =====================================================
+
+    temp_df = df.copy()
+
+    temp_df["Conf_Bin"] = pd.cut(
+        temp_df["Calibrated_Confidence"],
+        bins=5
+    )
+
+    calibration_df = (
+        temp_df.groupby("Conf_Bin")
+        .size()
+        .reset_index(name="Count")
+    )
+
+    calibration_df["Conf_Bin"] = calibration_df["Conf_Bin"].astype(str)
+
+    calib_fig = px.bar(
+        calibration_df,
+        x="Conf_Bin",
+        y="Count",
+        color_discrete_sequence=["#2563EB"],
+        title="Confidence Distribution"
+    )
+
+    st.plotly_chart(calib_fig, use_container_width=True)
+
+    # =====================================================
+    # MONTHLY TREND
     # =====================================================
 
     if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
@@ -285,92 +379,7 @@ if nav == "Professional Analytics":
         st.plotly_chart(trend_fig, use_container_width=True)
 
     # =====================================================
-    # 2️⃣ Organ-based Malignancy Rate
-    # =====================================================
-
-    if "Organ" in df.columns:
-
-        organ_stats = (
-            df.groupby("Organ")["Status"]
-            .apply(lambda x: (x == "MALIGNANT").mean() * 100)
-            .reset_index(name="Malignancy_Rate")
-        )
-
-        organ_fig = px.bar(
-            organ_stats,
-            x="Organ",
-            y="Malignancy_Rate",
-            title="Malignancy Rate by Organ (%)"
-        )
-
-        st.plotly_chart(organ_fig, use_container_width=True)
-
-    # =====================================================
-    # 3️⃣ Risk Score Distribution
-    # =====================================================
-
-    risk_fig = px.histogram(
-        df,
-        x="Risk_Score",
-        nbins=20,
-        title="Risk Score Distribution"
-    )
-
-    st.plotly_chart(risk_fig, use_container_width=True)
-
-   # =====================================================
-# 4️⃣ Confidence Calibration Curve (FIXED)
-# =====================================================
-
-if "Calibrated_Confidence" in df.columns:
-
-    temp_df = df.copy()
-
-    # ตัดช่วง confidence
-    temp_df["Conf_Bin"] = pd.cut(
-        temp_df["Calibrated_Confidence"],
-        bins=5
-    )
-
-    calibration_df = (
-        temp_df.groupby("Conf_Bin")
-        .size()
-        .reset_index(name="Count")
-    )
-
-    # 🔥 แปลง interval เป็น string กัน plotly error
-    calibration_df["Conf_Bin"] = calibration_df["Conf_Bin"].astype(str)
-
-    calib_fig = px.bar(
-        calibration_df,
-        x="Conf_Bin",
-        y="Count",
-        title="Confidence Distribution"
-    )
-
-    st.plotly_chart(calib_fig, use_container_width=True)
-
-
-    # =====================================================
-    # 5️⃣ Workload by User Role
-    # =====================================================
-
-    if "Created_By" in df.columns:
-
-        workload = df["Created_By"].value_counts().reset_index()
-        workload.columns = ["Role", "Cases"]
-
-        workload_fig = px.pie(
-            workload,
-            names="Role",
-            values="Cases",
-            title="Case Distribution by Role"
-        )
-
-        st.plotly_chart(workload_fig, use_container_width=True)
-
-    # =====================================================
-    # 6️⃣ High Risk Case Table
+    # HIGH-RISK TABLE (COLORED)
     # =====================================================
 
     st.markdown("### High-Risk Case Review")
@@ -380,27 +389,20 @@ if "Calibrated_Confidence" in df.columns:
         ascending=False
     )
 
+    def highlight_status(row):
+        if row["Status"] == "MALIGNANT":
+            return ["background-color: #FEE2E2"] * len(row)
+        elif row["Status"] == "BENIGN":
+            return ["background-color: #FEF9C3"] * len(row)
+        elif row["Status"] == "NORMAL":
+            return ["background-color: #DCFCE7"] * len(row)
+        return [""] * len(row)
+
     if len(high_risk_df) > 0:
-        st.dataframe(high_risk_df, use_container_width=True)
+        styled_df = high_risk_df.style.apply(highlight_status, axis=1)
+        st.dataframe(styled_df, use_container_width=True)
     else:
         st.success("No high-risk cases detected.")
-
-    # =====================================================
-    # 7️⃣ Executive Insight Panel
-    # =====================================================
-
-    st.markdown("---")
-    st.subheader("AI Performance Insight")
-
-    if malignancy_rate > 25:
-        st.error("Malignancy rate above expected threshold.")
-    elif malignancy_rate > 15:
-        st.warning("Moderate malignancy burden detected.")
-    else:
-        st.success("Malignancy rate within expected range.")
-
-    if avg_confidence < 60:
-        st.warning("AI confidence calibration may require review.")
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
