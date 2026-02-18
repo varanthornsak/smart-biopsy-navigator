@@ -240,19 +240,70 @@ if app_mode == "Clinical Workspace":
 
         tensor = transform(image).unsqueeze(0)
 
-        with torch.no_grad():
-            output = model(tensor)
-            prob = torch.softmax(output, dim=1)[0][1].item()
+     with torch.no_grad():
+    output = model(tensor)
+    probs = torch.softmax(output, dim=1)[0]
 
-        if prob < 0.1:
-            label = "Normal"
-            style = "green"
-        elif prob < threshold:
-            label = "Likely Benign"
-            style = "yellow"
-        else:
-            label = "Suspicious Malignant"
-            style = "red"
+    prob_normal = probs[0].item()
+    prob_benign = probs[1].item()
+    prob_malignant = probs[2].item()
+
+    pred_class = torch.argmax(probs).item()
+
+# ---------------- Classification ----------------
+
+if pred_class == 0:
+    label = "Normal"
+    style = "green"
+    prob_display = prob_normal
+
+elif pred_class == 1:
+    label = "Likely Benign"
+    style = "yellow"
+    prob_display = prob_benign
+
+else:
+    label = "Suspicious Malignant"
+    style = "red"
+    prob_display = prob_malignant
+
+# Optional confidence margin
+sorted_probs = sorted(
+    [prob_normal, prob_benign, prob_malignant],
+    reverse=True
+)
+
+margin = sorted_probs[0] - sorted_probs[1]
+
+if margin < 0.10:
+    label = "Indeterminate – Radiologist Review Recommended"
+    style = "yellow"
+
+case_id = str(uuid.uuid4())[:8]
+
+col1, col2 = st.columns([1.3, 1])
+
+# ================= IMAGE =================
+with col1:
+    st.image(image, use_column_width=True)
+
+# ================= RESULT CARD =================
+with col2:
+
+    st.markdown(
+        f"""
+        <div class='card {style}'>
+            <div style="font-size:24px; font-weight:700;">
+                {label}
+            </div>
+            <div style="font-size:20px;">
+                {round(prob_display*100,2)}%
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 
         case_id = str(uuid.uuid4())[:8]
 
