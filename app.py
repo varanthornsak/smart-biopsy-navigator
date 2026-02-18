@@ -100,37 +100,6 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# SIDEBAR NAVIGATION (AFTER LOGIN)
-# ==========================================
-
-st.sidebar.title("Smart Biopsy Navigator")
-
-st.sidebar.markdown("### 👤 User Info")
-st.sidebar.write(f"Hospital: {st.session_state.hospital}")
-st.sidebar.write(f"Role: {st.session_state.role}")
-
-if st.sidebar.button("Logout", key="logout_button"):
-    st.session_state.authenticated = False
-    st.session_state.hospital = None
-    st.session_state.role = None
-    st.rerun()
-
-page = st.sidebar.radio(
-    "Select Page",
-    ["📂 Clinical Dashboard", "💼 Business Overview"]
-)
-
-# ==========================================
-# SIDEBAR NAVIGATION
-# ==========================================
-
-st.sidebar.title("Smart Biopsy Navigator")
-
-if st.sidebar.button("Logout"):
-    st.session_state.authenticated = False
-    st.rerun()
-
-# ==========================================
 # AI ENGINE
 # ==========================================
 
