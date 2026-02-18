@@ -337,7 +337,7 @@ st.title("Diagnostic Hub")
 # =====================================================
 # 1️⃣ PATIENT CONTEXT PANEL
 # =====================================================
-
+df = st.session_state.db
 if len(df) > 0:
 
     selected_case = st.selectbox(
