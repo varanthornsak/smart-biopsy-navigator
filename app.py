@@ -404,11 +404,6 @@ with st.sidebar:
         "User Manual"
     ])
 
-    if st.button("Logout"):
-        st.session_state.auth = False
-        st.session_state.role = None
-        st.rerun()
-
 # =====================================================
 # AI LOGIC
 # =====================================================
