@@ -214,113 +214,89 @@ if nav == "Diagnostic Hub":
             st.info("Run analysis to generate result.")
 
 # =====================================================
-# PROFESSIONAL ANALYTICS
+# 📊 PROFESSIONAL ANALYTICS
 # =====================================================
-elif nav == "Professional Analytics":
 
-    st.title("Professional Clinical Dashboard")
+if nav == "Professional Analytics":
 
-    df = st.session_state.db.copy()
+    st.title("Professional Analytics Dashboard")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Cases", len(df))
-    c2.metric(
-        "Malignancy %",
-        f"{(df['Status']=='MALIGNANT').mean()*100 if len(df)>0 else 0:.1f}%"
-    )
-    c3.metric(
-        "Avg Confidence",
-        f"{df['Confidence'].mean()*100 if len(df)>0 else 0:.1f}%"
-    )
+    # ===== Standard Risk Colors =====
+    STATUS_COLOR = {
+        "NORMAL": "#28a745",
+        "BENIGN": "#ffc107",
+        "MALIGNANT": "#dc3545"
+    }
 
-    if len(df) == 0:
-        st.info("No data available yet.")
+    if len(st.session_state.db) > 0:
+
+        df = st.session_state.db
+
+        # ================= KPI SUMMARY =================
+        st.subheader("Case Summary")
+
+        status_counts = df["Status"].value_counts()
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.markdown(
+            f"<h3 style='color:{STATUS_COLOR['NORMAL']}'>NORMAL</h3>",
+            unsafe_allow_html=True
+        )
+        col1.metric("Cases", status_counts.get("NORMAL", 0))
+
+        col2.markdown(
+            f"<h3 style='color:{STATUS_COLOR['BENIGN']}'>BENIGN</h3>",
+            unsafe_allow_html=True
+        )
+        col2.metric("Cases", status_counts.get("BENIGN", 0))
+
+        col3.markdown(
+            f"<h3 style='color:{STATUS_COLOR['MALIGNANT']}'>MALIGNANT</h3>",
+            unsafe_allow_html=True
+        )
+        col3.metric("Cases", status_counts.get("MALIGNANT", 0))
+
+        st.markdown("---")
+
+        # ================= PIE CHART =================
+        st.subheader("Risk Distribution")
+
+        colors = [STATUS_COLOR[s] for s in status_counts.index]
+
+        pie_fig = go.Figure(data=[go.Pie(
+            labels=status_counts.index,
+            values=status_counts.values,
+            marker=dict(colors=colors),
+            hole=0.4
+        )])
+
+        pie_fig.update_layout(height=400)
+
+        st.plotly_chart(pie_fig, use_container_width=True)
+
+        # ================= BAR CHART =================
+        st.subheader("Case Distribution")
+
+        bar_fig = go.Figure()
+
+        for status in status_counts.index:
+            bar_fig.add_trace(go.Bar(
+                x=[status],
+                y=[status_counts[status]],
+                marker_color=STATUS_COLOR[status],
+                name=status
+            ))
+
+        bar_fig.update_layout(
+            showlegend=False,
+            height=400
+        )
+
+        st.plotly_chart(bar_fig, use_container_width=True)
+
     else:
-
-        # -----------------------------------
-        # FIXED CLINICAL STATUS ORDER
-        # -----------------------------------
-        status_order = ["NORMAL", "BENIGN", "MALIGNANT"]
-
-        # -----------------------------------
-        # DONUT CHART (STRICT 3 COLORS)
-        # -----------------------------------
-        summary = (
-            df["Status"]
-            .value_counts()
-            .reindex(status_order, fill_value=0)
-            .reset_index()
-        )
-        summary.columns = ["Status", "Count"]
-
-        fig_pie = px.pie(
-            summary,
-            names="Status",
-            values="Count",
-            category_orders={"Status": status_order},
-            color="Status",
-            color_discrete_map={
-                "NORMAL": "#10B981",
-                "BENIGN": "#F59E0B",
-                "MALIGNANT": "#EF4444"
-            },
-            hole=0.6
-        )
-
-        fig_pie.update_traces(
-            textinfo="percent+label",
-            marker=dict(line=dict(color="white", width=2))
-        )
-
-        fig_pie.update_layout(
-            title="Risk Distribution",
-            template="plotly_white",
-            legend=dict(orientation="h", y=-0.15),
-            margin=dict(t=60)
-        )
-
-        st.plotly_chart(fig_pie, use_container_width=True)
-
-        # -----------------------------------
-        # ORGAN CASE DISTRIBUTION (STRICT 3 COLORS)
-        # -----------------------------------
-        organ_summary = (
-            df.groupby(["Organ", "Status"])
-            .size()
-            .unstack(fill_value=0)
-            .reindex(columns=status_order, fill_value=0)
-            .stack()
-            .reset_index(name="Count")
-        )
-
-        fig_bar = px.bar(
-            organ_summary,
-            x="Organ",
-            y="Count",
-            color="Status",
-            category_orders={"Status": status_order},
-            color_discrete_map={
-                "NORMAL": "#10B981",
-                "BENIGN": "#F59E0B",
-                "MALIGNANT": "#EF4444"
-            },
-            barmode="group"
-        )
-
-        fig_bar.update_layout(
-            title="Organ Case Distribution",
-            xaxis_title="Organ",
-            yaxis_title="Cases",
-            template="plotly_white",
-            margin=dict(t=60)
-        )
-
-        fig_bar.update_traces(
-            marker_line_width=1,
-            marker_line_color="white"
-        )
-
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.info("No case data available yet. Run AI analysis first.")
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
