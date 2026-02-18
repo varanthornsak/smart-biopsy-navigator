@@ -181,7 +181,18 @@ if nav == "Diagnostic Hub":
         file = st.file_uploader("Upload Image (Optional)")
 
         if organ == "Liver":
-            marker = st.number_input("AFP", min_value=0.0, value=10.0)
+            afp_input = st.text_input("AFP (optional)", value="")
+        if afp_input.strip() == "":
+            afp_value = 0
+            afp_available = 0
+        else:
+            try:
+                afp_value = float(afp_input)
+                afp_available = 1
+            except ValueError:
+                st.error("AFP must be a number")
+                st.stop()
+
         elif organ == "Thyroid":
             marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
         elif organ == "Breast":
