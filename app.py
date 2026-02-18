@@ -353,66 +353,10 @@ if nav == "Diagnostic Hub":
                 st.caption(
                     "Final diagnosis must be made by a licensed physician."
                 )
-                # =====================================================
-                # 🚀 INVESTOR PITCHING UPGRADE PANEL
-                # =====================================================
-                
+               st.markdown("---")
+                st.markdown("# 🧬 Smart Biopsy Navigator™")
+                st.caption("AI-Powered Oncology Decision Intelligence Platform")
                 st.markdown("---")
-                
-                st.markdown("""
-                # 🧬 Smart Biopsy Navigator™  
-                ### AI-Powered Oncology Decision Intelligence Platform
-                """)
-                
-                st.caption("For Research & Clinical Evaluation Use")
-                st.markdown("---")
-                
-                # =====================================================
-                # Executive Metrics (Investor Snapshot)
-                # =====================================================
-                
-                colA, colB, colC, colD = st.columns(4)
-                
-                colA.metric("Model AUC", "0.89")
-                colB.metric("Validated Cases", len(st.session_state.db))
-                colC.metric("Target Organs", "Liver • Breast • Lung")
-                colD.metric("Deployment", "Cloud-ready")
-                
-                st.markdown("---")
-                
-                # =====================================================
-                # Impact & Vision Section
-                # =====================================================
-                
-                with st.expander("🚀 Why This Matters (Investor View)", expanded=True):
-                
-                    st.markdown("""
-                    ### The Problem
-                    • Delayed cancer detection  
-                    • Variability in biopsy interpretation  
-                    • Limited specialist access in regional hospitals  
-                
-                    ### Our Solution
-                    Smart Biopsy Navigator™ provides:
-                    • Standardized malignancy risk scoring  
-                    • Real-time AI-driven clinical decision support  
-                    • Built-in explainability & audit logging  
-                
-                    ### Competitive Edge
-                    ✓ Multi-organ AI model  
-                    ✓ Real-time scoring  
-                    ✓ Confidence calibration  
-                    ✓ Audit-ready infrastructure  
-                
-                    ### Vision
-                    Become the AI triage intelligence layer for oncology diagnostics.
-                    """)
-                
-                st.markdown("---")
-                
-                # =====================================================
-                # AI Confidence Calibration Panel
-                # =====================================================
                 
                 if len(st.session_state.db) > 0:
                 
@@ -420,28 +364,50 @@ if nav == "Diagnostic Hub":
                     confidence = last["Confidence"]
                     conf_percent = confidence * 100
                 
-                    st.markdown("### 📊 AI Confidence Calibration")
+                    left, right = st.columns([2,1])
                 
-                    st.progress(int(conf_percent))
-                    st.write(f"Model Confidence: {conf_percent:.2f}%")
+                    # =============================
+                    # LEFT SIDE — CORE RESULT
+                    # =============================
+                    with left:
                 
-                    expected_accuracy = confidence * 0.9
-                    st.info(f"Estimated Real-world Accuracy: {expected_accuracy:.2%}")
+                        st.markdown("## Malignancy Risk Score")
+                        st.progress(int(conf_percent))
+                        st.markdown(f"### {conf_percent:.2f}% Confidence")
                 
-                    if confidence >= 0.85:
-                        st.success("AI Confidence Level: Very High")
-                    elif confidence >= 0.60:
-                        st.info("AI Confidence Level: High")
-                    else:
-                        st.warning("AI Confidence Level: Moderate")
+                        if confidence < 0.30:
+                            st.success("Low Risk")
+                        elif confidence < 0.70:
+                            st.warning("Intermediate Risk")
+                        else:
+                            st.error("High Risk")
+                
+                    # =============================
+                    # RIGHT SIDE — INVESTOR SNAPSHOT
+                    # =============================
+                    with right:
+                
+                        st.markdown("### Model Snapshot")
+                        st.metric("Model AUC", "0.89")
+                        st.metric("Validated Cases", len(st.session_state.db))
+                        st.metric("Deployment", "Cloud-ready")
                 
                 st.markdown("---")
                 
-                # =====================================================
-                # Enterprise Badge
-                # =====================================================
+                with st.expander("📊 AI Details"):
                 
-                st.success("🏥 Designed for Hospital Integration | ☁ Cloud Deployable | 🔒 Audit Compliant")
+                    st.write(f"Organ: {last['Organ']}")
+                    st.write(f"Marker Value: {last['Marker_Val']}")
+                    st.write(f"Tumor Size: {last['Tumor_Size']} mm")
+                
+                with st.expander("🚀 Market & Vision"):
+                    st.markdown("""
+                    • Standardized malignancy scoring  
+                    • AI-assisted triage  
+                    • Built-in audit trail  
+                    • Designed for hospital integration  
+                    """)
+
 
 
 # =====================================================
