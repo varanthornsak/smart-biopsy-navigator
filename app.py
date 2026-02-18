@@ -496,9 +496,9 @@ def generate_pdf(patient, hn, organ, status, confidence):
 # =====================================================
 # EXECUTIVE BOARD VIEW
 # =====================================================
-elif nav == "Executive Board View":
+    if nav == "Executive Board View":
 
-    st.title("Executive Business Intelligence")
+        st.title("Executive Business Intelligence")
 
     df = st.session_state.db
     total = len(df)
