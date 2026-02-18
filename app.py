@@ -181,10 +181,26 @@ def run_ai(organ, marker, size):
 # 💼 BUSINESS OVERVIEW
 # =====================================================
 
-    if page == "💼 Business Overview":
+if page == "💼 Business Overview":
 
     st.title("💼 Business & Growth Strategy")
-    st.markdown("---")
+
+    st.subheader("Market Opportunity")
+    st.write("AI-assisted diagnostic decision tools for multi-organ biopsy triage.")
+
+    st.subheader("Revenue Model")
+    st.write("""
+    - Hospital Subscription Model  
+    - Enterprise License  
+    - API Integration for Radiology Systems  
+    """)
+
+    st.subheader("Growth Strategy")
+    st.write("""
+    - Expand to multi-center validation  
+    - Add deep learning imaging model  
+    - Regulatory pathway preparation  
+    """)
 
     st.subheader("💰 Business Model")
     st.info("""
