@@ -434,7 +434,8 @@ elif nav == "Executive Board View":
         trend = df.groupby("Date").size().reset_index(name="Cases")
         st.plotly_chart(
             px.area(trend, x="Date", y="Cases"),
-            use_container_width=True)
+            use_container_width=True
+        )
 
 # =====================================================
 # CASE ARCHIVE
