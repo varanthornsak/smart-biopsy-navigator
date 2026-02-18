@@ -340,35 +340,35 @@ st.title("Diagnostic Hub")
 
 df = st.session_state.db
 
-# ทำความสะอาดชื่อคอลัมน์ (กัน space / case mismatch)
 df.columns = df.columns.str.strip()
 
-if len(df) > 0:
+if len(df) == 0:
+    st.info("No data available.")
 
-    # ตรวจสอบว่ามีคอลัมน์ Patient_ID หรือไม่
+else:
+
     if "Patient_ID" not in df.columns:
-        st.error("Column 'Patient_ID' not found in database.")
+        st.error("Column 'Patient_ID' not found.")
         st.write("Available columns:", df.columns)
-        st.stop()
 
-    selected_case = st.selectbox(
-        "Select Case",
-        df["Patient_ID"].astype(str)
-    )
+    else:
+        selected_case = st.selectbox(
+            "Select Case",
+            df["Patient_ID"].astype(str)
+        )
 
-    case = df[df["Patient_ID"].astype(str) == selected_case].iloc[0]
+        case = df[df["Patient_ID"].astype(str) == selected_case].iloc[0]
 
-    st.markdown("### Patient Overview")
+        st.markdown("### Patient Overview")
 
-    st.info(
-        f"""
-        **Patient ID:** {case.get('Patient_ID', 'N/A')}  
-        **Age:** {case.get('Age', 'N/A')} | **Sex:** {case.get('Sex', 'N/A')}  
-        **Organ:** {case.get('Organ', 'N/A')}  
-        **Indication:** {case.get('Indication', 'N/A')}
-        """
-    )
-
+        st.info(
+            f"""
+            **Patient ID:** {case.get('Patient_ID', 'N/A')}  
+            **Age:** {case.get('Age', 'N/A')} | **Sex:** {case.get('Sex', 'N/A')}  
+            **Organ:** {case.get('Organ', 'N/A')}  
+            **Indication:** {case.get('Indication', 'N/A')}
+            """
+        )
 else:
     st.info("No data available.")
 
