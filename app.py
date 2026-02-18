@@ -821,7 +821,8 @@ with tab4:
 # =====================================================
 # 📘 USER MANUAL (WORKING VERSION)
 # =====================================================
-elif nav == "User Manual":
+
+if nav == "User Manual":
 
     st.title("Smart Biopsy Pro – Detailed Operational Manual")
 
@@ -860,3 +861,4 @@ elif nav == "User Manual":
     """)
 
     st.success("User Manual Loaded Successfully")
+
