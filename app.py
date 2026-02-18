@@ -137,8 +137,21 @@ def generate_pdf(patient, hn, organ, status, confidence):
     buffer.seek(0)
     return buffer
 
+# =============================
+# PATIENT INPUT SECTION
+# =============================
+
+patient = st.text_input("Patient Name")
+hn = st.text_input("HN")
+organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
+size = st.slider("Lesion Size (mm)", 1, 100, 10)
+
+# 👇 วางบรรทัดนี้ตรงนี้ (ปุ่มต้องอยู่ก่อน result panel)
+run = st.button("Run AI Analysis", use_container_width=True)
+
+
 # =====================================================
-# RIGHT PANEL – RESULT DISPLAY
+# RESULT DISPLAY
 # =====================================================
 
 st.subheader("AI Clinical Output")
