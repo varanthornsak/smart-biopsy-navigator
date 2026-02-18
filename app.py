@@ -252,7 +252,7 @@ if nav == "Diagnostic Hub":
     # RESULT PANEL
     # =====================================================
 
-   with col2:
+    with col2:
     if len(st.session_state.db) > 0:
 
         last = st.session_state.db.iloc[-1]
