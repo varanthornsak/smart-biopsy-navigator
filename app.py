@@ -334,6 +334,77 @@ if nav == "Diagnostic Hub":
                 "Final diagnosis must be made by a licensed physician. "
                 "Results should be interpreted in conjunction with imaging and laboratory findings."
             )
+            # =====================================================
+            # ADVANCED PROFESSIONAL EXTENSIONS
+            # =====================================================
+            
+            # -----------------------------------------------------
+            # 1️⃣ Confidence Bar Visualization
+            # -----------------------------------------------------
+            
+            st.markdown("### AI Confidence Level")
+            
+            conf_percent = confidence * 100
+            st.progress(int(conf_percent))
+            
+            st.write(f"Confidence Score: {conf_percent:.2f}%")
+            
+            # -----------------------------------------------------
+            # 2️⃣ Multi-Model Ensemble Badge (UI-level badge)
+            # -----------------------------------------------------
+            
+            st.markdown("### Model Architecture")
+            st.info(
+                """
+                🧠 Ensemble AI Model  
+                • Imaging-based predictor  
+                • Clinical marker weighting  
+                • Size-adjusted risk calibration  
+                """
+            )
+            
+            # -----------------------------------------------------
+            # 3️⃣ AI Confidence Calibration Panel (visual guidance)
+            # -----------------------------------------------------
+            
+            st.markdown("### AI Confidence Interpretation Guide")
+            
+            calibration_df = pd.DataFrame({
+                "Confidence Range": ["0–30%", "30–70%", "70–100%"],
+                "Clinical Meaning": [
+                    "Low probability of malignancy",
+                    "Indeterminate – further evaluation advised",
+                    "High probability – urgent clinical correlation recommended"
+                ]
+            })
+            
+            st.table(calibration_df)
+            
+            # -----------------------------------------------------
+            # 4️⃣ Audit Log (Session-Level)
+            # -----------------------------------------------------
+            
+            if "audit_log" not in st.session_state:
+                st.session_state.audit_log = []
+            
+            st.session_state.audit_log.append({
+                "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Patient": last["Patient"],
+                "HN": last["HN"],
+                "Organ": last["Organ"],
+                "Status": last["Status"],
+                "Confidence": round(conf_percent, 2)
+            })
+            
+            st.markdown("### Audit Log (Session Activity)")
+            
+            audit_df = pd.DataFrame(st.session_state.audit_log)
+            st.dataframe(audit_df, use_container_width=True)
+            
+            # -----------------------------------------------------
+            # Footer separator
+            # -----------------------------------------------------
+            st.markdown("---")
 
 
 # =====================================================
