@@ -24,20 +24,33 @@ from sklearn.calibration import calibration_curve
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import datetime
 
-# Initialize database in session state
+
+# ==========================================
+# SESSION STATE INIT
+# ==========================================
+
 if "db" not in st.session_state:
     st.session_state.db = pd.DataFrame(
-        columns=["Organ", "Marker", "Size", "Status", "Confidence"]
+        columns=[
+            "Date",
+            "HN",
+            "Patient",
+            "Organ",
+            "Status",
+            "Confidence",
+            "Marker_Val",
+            "Tumor_Size"
+        ]
     )
+
+
+# ==========================================
+# AI ENGINE
+# ==========================================
 
 def run_ai(organ, marker, size):
 
-    # ตัวอย่าง logic demo
     score = 0
 
     if organ == "Liver":
@@ -52,7 +65,6 @@ def run_ai(organ, marker, size):
     else:
         score = size * 0.5
 
-    # normalize ให้เป็น 0–1
     confidence = min(score / 100, 1)
 
     if confidence < 0.30:
@@ -63,114 +75,7 @@ def run_ai(organ, marker, size):
         status = "Malignant"
 
     return status, confidence
-    
-    if last["Status"] == "Normal":
-        color = "#00cc96"      # เขียว
-    elif last["Status"] == "Benign":
-        color = "#FFA500"      # เหลือง
-    else:
-        color = "#EF553B"      # แดง
 
-
-# =====================================================
-# SIDEBAR NAVIGATION
-# =====================================================
-
-st.sidebar.title("Smart Biopsy Navigator")
-
-page = st.sidebar.radio(
-    "Select Page",
-    ["📂 Clinical Dashboard", "💼 Business Overview"]
-)
-
-# =====================================================
-# 📂 CLINICAL DASHBOARD
-# =====================================================
-
-if page == "📂 Clinical Dashboard":
-
-    st.title("Diagnostic Decision Engine – Multi Organ")
-
-    col1, col2 = st.columns([1, 1.3])
-
-    # =============================
-    # LEFT PANEL — INPUT
-    # =============================
-    with col1:
-
-        patient = st.text_input("Patient Name")
-        hn = st.text_input("HN")
-
-        organ = st.selectbox(
-            "Organ",
-            ["Liver", "Thyroid", "Breast", "Lymph Nodes"]
-        )
-
-        # 📷 Ultrasound Upload
-        file = st.file_uploader(
-            "Upload Ultrasound Image",
-            type=["png", "jpg", "jpeg"]
-        )
-
-        if file is not None:
-            st.image(
-                file,
-                caption="Ultrasound Preview",
-                use_container_width=True
-            )
-
-        # -------- Organ Specific --------
-        if organ == "Liver":
-
-            afp_input = st.text_input("AFP (optional)", value="")
-
-            if afp_input.strip() == "":
-                marker = 0
-            else:
-                try:
-                    marker = float(afp_input)
-                except ValueError:
-                    st.error("AFP must be a number")
-                    st.stop()
-
-        elif organ == "Thyroid":
-            marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
-
-        elif organ == "Breast":
-            marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
-
-        else:
-            marker = 0
-
-        size = st.slider("Lesion Size (mm)", 1, 100, 10)
-
-        # -------- Run AI --------
-        if st.button("Run AI Analysis"):
-
-            if patient and hn:
-
-                status, confidence = run_ai(organ, marker, size)
-
-                new = pd.DataFrame([{
-                    "Date": str(datetime.date.today()),
-                    "HN": hn,
-                    "Patient": patient,
-                    "Organ": organ,
-                    "Status": status,
-                    "Confidence": confidence,
-                    "Marker_Val": marker,
-                    "Tumor_Size": size
-                }])
-
-                st.session_state.db = pd.concat(
-                    [st.session_state.db, new],
-                    ignore_index=True
-                )
-
-                st.success("Analysis Complete")
-
-            else:
-                st.warning("Please enter Patient Name and HN")
 
     # =============================
     # RIGHT PANEL — RESULT
