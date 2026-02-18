@@ -292,10 +292,10 @@ if nav == "Professional Analytics":
             labels=labels,
             values=values,
             marker=dict(colors=colors),
-            hole=0.4
+            hole=0.0
         )])
 
-        pie_fig.update_layout(height=400)
+        pie_fig.update_layout(height=650)
 
         st.plotly_chart(pie_fig, use_container_width=True)
 
