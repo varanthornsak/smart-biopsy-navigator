@@ -214,14 +214,13 @@ if nav == "Diagnostic Hub":
             st.info("Run analysis to generate result.")
 
 # =====================================================
-# 📊 PROFESSIONAL ANALYTICS
+# 📊 PROFESSIONAL ANALYTICS (SAFE VERSION)
 # =====================================================
 
 if nav == "Professional Analytics":
 
     st.title("Professional Analytics Dashboard")
 
-    # ===== Standard Risk Colors =====
     STATUS_COLOR = {
         "NORMAL": "#28a745",
         "BENIGN": "#ffc107",
@@ -230,43 +229,36 @@ if nav == "Professional Analytics":
 
     if len(st.session_state.db) > 0:
 
-        df = st.session_state.db
+        df = st.session_state.db.copy()
 
-        # ================= KPI SUMMARY =================
-        st.subheader("Case Summary")
+        # 🔥 ทำให้ status เป็นมาตรฐานก่อน
+        df["Status"] = df["Status"].astype(str).str.upper().str.strip()
 
         status_counts = df["Status"].value_counts()
 
+        # ================= KPI =================
         col1, col2, col3 = st.columns(3)
 
-        col1.markdown(
-            f"<h3 style='color:{STATUS_COLOR['NORMAL']}'>NORMAL</h3>",
-            unsafe_allow_html=True
-        )
-        col1.metric("Cases", status_counts.get("NORMAL", 0))
-
-        col2.markdown(
-            f"<h3 style='color:{STATUS_COLOR['BENIGN']}'>BENIGN</h3>",
-            unsafe_allow_html=True
-        )
-        col2.metric("Cases", status_counts.get("BENIGN", 0))
-
-        col3.markdown(
-            f"<h3 style='color:{STATUS_COLOR['MALIGNANT']}'>MALIGNANT</h3>",
-            unsafe_allow_html=True
-        )
-        col3.metric("Cases", status_counts.get("MALIGNANT", 0))
+        col1.metric("🟢 NORMAL", status_counts.get("NORMAL", 0))
+        col2.metric("🟡 BENIGN", status_counts.get("BENIGN", 0))
+        col3.metric("🔴 MALIGNANT", status_counts.get("MALIGNANT", 0))
 
         st.markdown("---")
 
-        # ================= PIE CHART =================
+        # ================= PIE =================
         st.subheader("Risk Distribution")
 
-        colors = [STATUS_COLOR[s] for s in status_counts.index]
+        labels = status_counts.index.tolist()
+        values = status_counts.values.tolist()
+
+        colors = [
+            STATUS_COLOR.get(s, "#9ca3af")  # เทา fallback กัน error
+            for s in labels
+        ]
 
         pie_fig = go.Figure(data=[go.Pie(
-            labels=status_counts.index,
-            values=status_counts.values,
+            labels=labels,
+            values=values,
             marker=dict(colors=colors),
             hole=0.4
         )])
@@ -275,17 +267,16 @@ if nav == "Professional Analytics":
 
         st.plotly_chart(pie_fig, use_container_width=True)
 
-        # ================= BAR CHART =================
+        # ================= BAR =================
         st.subheader("Case Distribution")
 
         bar_fig = go.Figure()
 
-        for status in status_counts.index:
+        for status in labels:
             bar_fig.add_trace(go.Bar(
                 x=[status],
                 y=[status_counts[status]],
-                marker_color=STATUS_COLOR[status],
-                name=status
+                marker_color=STATUS_COLOR.get(status, "#9ca3af")
             ))
 
         bar_fig.update_layout(
@@ -296,7 +287,7 @@ if nav == "Professional Analytics":
         st.plotly_chart(bar_fig, use_container_width=True)
 
     else:
-        st.info("No case data available yet. Run AI analysis first.")
+        st.info("No case data available yet.")
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
