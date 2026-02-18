@@ -253,7 +253,7 @@ if nav == "Diagnostic Hub":
     # =====================================================
 
     with col2:
-    if len(st.session_state.db) > 0:
+        if len(st.session_state.db) > 0:
 
         last = st.session_state.db.iloc[-1]
         confidence = last["Confidence"]
