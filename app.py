@@ -368,7 +368,7 @@ st.plotly_chart(calib_fig, use_container_width=True)
     # MONTHLY TREND
     # =====================================================
 
-    if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
+if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
 
         monthly = (
             df.groupby(pd.Grouper(key="Timestamp", freq="M"))
