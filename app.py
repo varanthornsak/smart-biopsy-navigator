@@ -260,7 +260,7 @@ if nav == "Professional Analytics":
             labels=labels,
             values=values,
             marker=dict(colors=colors),
-            hole=0.2
+            hole=0.0
         )])
 
         pie_fig.update_layout(height=600)
