@@ -248,108 +248,111 @@ if nav == "Diagnostic Hub":
             else:
                 st.warning("Please enter Patient Name and HN")
 
-    # =====================================================
+        # =====================================================
     # RESULT PANEL
     # =====================================================
 
     with col2:
         if len(st.session_state.db) > 0:
 
-        last = st.session_state.db.iloc[-1]
-        confidence = last["Confidence"]
-        conf_percent = confidence * 100
+            last = st.session_state.db.iloc[-1]
+            confidence = last["Confidence"]
+            conf_percent = confidence * 100
 
-        tab1, tab2, tab3, tab4 = st.tabs(
-            ["🧠 Result", "📊 AI Insights", "📁 Audit", "⚙ System"]
-        )
-
-        # =====================================================
-        # TAB 1 — RESULT
-        # =====================================================
-        with tab1:
-
-            color = STATUS_COLOR[last["Status"]]
-
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=conf_percent,
-                number={'suffix': "%"},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': color}
-                }
-            ))
-
-            st.plotly_chart(fig, use_container_width=True)
-
-            st.markdown(f"## {last['Status']}")
-
-            if confidence < 0.30:
-                st.success("Low Suspicion of Malignancy")
-            elif confidence < 0.70:
-                st.warning("Indeterminate – Clinical Correlation Recommended")
-            else:
-                st.error("High Suspicion of Malignancy")
-
-        # =====================================================
-        # TAB 2 — AI INSIGHTS
-        # =====================================================
-        with tab2:
-
-            st.progress(int(conf_percent))
-            st.write(f"Confidence: {conf_percent:.2f}%")
-
-            st.info(
-                f"""
-                Decision Factors:
-                • Organ: {last['Organ']}
-                • Marker: {last['Marker_Val']}
-                • Size: {last['Tumor_Size']} mm
-                """
+            tab1, tab2, tab3, tab4 = st.tabs(
+                ["🧠 Result", "📊 AI Insights", "📁 Audit", "⚙ System"]
             )
 
-            st.metric("Model AUC", "0.89")
-            st.metric("Sensitivity", "87%")
-            st.metric("Specificity", "84%")
+            # =====================================================
+            # TAB 1 — RESULT
+            # =====================================================
+            with tab1:
 
-        # =====================================================
-        # TAB 3 — AUDIT
-        # =====================================================
-        with tab3:
+                color = STATUS_COLOR[last["Status"]]
 
-            if "audit_log" in st.session_state:
-                audit_df = pd.DataFrame(st.session_state.audit_log)
-                st.dataframe(audit_df, use_container_width=True)
+                fig = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=conf_percent,
+                    number={'suffix': "%"},
+                    gauge={
+                        'axis': {'range': [0, 100]},
+                        'bar': {'color': color}
+                    }
+                ))
 
-                csv = audit_df.to_csv(index=False).encode("utf-8")
+                st.plotly_chart(fig, use_container_width=True)
 
-                st.download_button(
-                    "Download Audit Log",
-                    csv,
-                    file_name="audit_log.csv"
+                st.markdown(f"## {last['Status']}")
+
+                if confidence < 0.30:
+                    st.success("Low Suspicion of Malignancy")
+                elif confidence < 0.70:
+                    st.warning("Indeterminate – Clinical Correlation Recommended")
+                else:
+                    st.error("High Suspicion of Malignancy")
+
+            # =====================================================
+            # TAB 2 — AI INSIGHTS
+            # =====================================================
+            with tab2:
+
+                st.progress(int(conf_percent))
+                st.write(f"Confidence: {conf_percent:.2f}%")
+
+                st.info(
+                    f"""
+                    Decision Factors:
+                    • Organ: {last['Organ']}
+                    • Marker: {last['Marker_Val']}
+                    • Size: {last['Tumor_Size']} mm
+                    """
                 )
 
-        # =====================================================
-        # TAB 4 — SYSTEM
-        # =====================================================
-        with tab4:
+                colA, colB, colC = st.columns(3)
+                colA.metric("AUC", "0.89")
+                colB.metric("Sensitivity", "87%")
+                colC.metric("Specificity", "84%")
 
-            st.caption(
-                f"Model Version: v1.0 | Generated: "
-                f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            # =====================================================
+            # TAB 3 — AUDIT
+            # =====================================================
+            with tab3:
 
-            st.info(
-                """
-                Smart Biopsy Navigator™  
-                Clinical Decision Support System  
-                Research / Demo Deployment  
-                """
-            )
+                if "audit_log" in st.session_state:
+                    audit_df = pd.DataFrame(st.session_state.audit_log)
+                    st.dataframe(audit_df, use_container_width=True)
 
-            st.caption(
-                "Final diagnosis must be made by a licensed physician."
-            )
+                    csv = audit_df.to_csv(index=False).encode("utf-8")
+
+                    st.download_button(
+                        "Download Audit Log",
+                        csv,
+                        file_name="audit_log.csv"
+                    )
+                else:
+                    st.info("No audit data available.")
+
+            # =====================================================
+            # TAB 4 — SYSTEM
+            # =====================================================
+            with tab4:
+
+                st.caption(
+                    f"Model Version: v1.0 | Generated: "
+                    f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+
+                st.info(
+                    """
+                    Smart Biopsy Navigator™  
+                    Clinical Decision Support System  
+                    Research / Demo Deployment  
+                    """
+                )
+
+                st.caption(
+                    "Final diagnosis must be made by a licensed physician."
+                )
 
 
 # =====================================================
