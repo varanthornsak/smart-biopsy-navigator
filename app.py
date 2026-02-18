@@ -326,33 +326,43 @@ elif nav == "Professional Analytics":
     st.plotly_chart(risk_fig, use_container_width=True)
 
     # =====================================================
-    # CONFIDENCE DISTRIBUTION (FIXED)
-    # =====================================================
+# CONFIDENCE DISTRIBUTION (COLORED BY STATUS)
+# =====================================================
 
-    temp_df = df.copy()
+# Clinical color mapping
+STATUS_COLOR = {
+    "NORMAL": "#16A34A",      # Green
+    "BENIGN": "#EAB308",      # Yellow
+    "MALIGNANT": "#DC2626"    # Red
+}
 
-    temp_df["Conf_Bin"] = pd.cut(
-        temp_df["Calibrated_Confidence"],
-        bins=5
-    )
+temp_df = df.copy()
 
-    calibration_df = (
-        temp_df.groupby("Conf_Bin")
-        .size()
-        .reset_index(name="Count")
-    )
+temp_df["Conf_Bin"] = pd.cut(
+    temp_df["Calibrated_Confidence"],
+    bins=5
+)
 
-    calibration_df["Conf_Bin"] = calibration_df["Conf_Bin"].astype(str)
+calibration_df = (
+    temp_df.groupby(["Conf_Bin", "Status"])
+    .size()
+    .reset_index(name="Count")
+)
 
-    calib_fig = px.bar(
-        calibration_df,
-        x="Conf_Bin",
-        y="Count",
-        color_discrete_sequence=["#2563EB"],
-        title="Confidence Distribution"
-    )
+calibration_df["Conf_Bin"] = calibration_df["Conf_Bin"].astype(str)
 
-    st.plotly_chart(calib_fig, use_container_width=True)
+calib_fig = px.bar(
+    calibration_df,
+    x="Conf_Bin",
+    y="Count",
+    color="Status",  # 👈 สำคัญมาก
+    color_discrete_map=STATUS_COLOR,
+    title="Confidence Distribution by Clinical Status",
+    barmode="group"  # เปลี่ยนเป็น "stack" ถ้าอยากซ้อน
+)
+
+st.plotly_chart(calib_fig, use_container_width=True)
+
 
     # =====================================================
     # MONTHLY TREND
