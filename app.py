@@ -148,68 +148,67 @@ if nav == "Diagnostic Hub":
     # ================= LEFT =================
     with col1:
 
-    st.subheader("Patient Information")
+        st.subheader("Patient Information")
 
-    patient = st.text_input("Patient Name")
-    hn = st.text_input("HN")
-    organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
+        patient = st.text_input("Patient Name")
+        hn = st.text_input("HN")
+        organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
 
-    # =============================
-    # AFP FIELD (แสดงตลอด แต่ optional)
-    # =============================
-    st.markdown("### Biomarker (Optional)")
-    marker = st.number_input(
-        "AFP (ng/mL) – Optional",
-        min_value=0.0,
-        value=0.0,
-        step=1.0
-    )
-
-    # =============================
-    # Ultrasound Image Upload
-    # =============================
-    st.markdown("### Ultrasound Image Upload")
-
-    uploaded_file = st.file_uploader(
-        "Upload Ultrasound Image",
-        type=["jpg", "jpeg", "png"]
-    )
-
-    if uploaded_file is not None:
-        st.image(uploaded_file, caption="Uploaded Ultrasound", use_container_width=True)
-
-    # =============================
-    # Tumor Size
-    # =============================
-    size = st.slider("Lesion Size (mm)", 1, 100, 10)
-
-    # =============================
-    # RUN AI BUTTON
-    # =============================
-    run = st.button("Run AI Analysis", use_container_width=True)
-
-    if run and patient and hn:
-
-        status, confidence = run_ai(organ, marker, size)
-
-        new = pd.DataFrame([{
-            "Date": datetime.date.today(),
-            "HN": hn,
-            "Patient": patient,
-            "Organ": organ,
-            "Status": status,
-            "Confidence": confidence,
-            "Marker_Val": marker,
-            "Tumor_Size": size
-        }])
-
-        st.session_state.db = pd.concat(
-            [st.session_state.db, new],
-            ignore_index=True
+        # =============================
+        # AFP FIELD (Optional)
+        # =============================
+        st.markdown("### Biomarker (Optional)")
+        marker = st.number_input(
+            "AFP (ng/mL) – Optional",
+            min_value=0.0,
+            value=0.0,
+            step=1.0
         )
 
-        st.success("Analysis Complete")
+        # =============================
+        # Ultrasound Image Upload
+        # =============================
+        st.markdown("### Ultrasound Image Upload")
 
+        uploaded_file = st.file_uploader(
+            "Upload Ultrasound Image",
+            type=["jpg", "jpeg", "png"]
+        )
+
+        if uploaded_file is not None:
+            st.image(uploaded_file, caption="Uploaded Ultrasound", use_container_width=True)
+
+        # =============================
+        # Tumor Size
+        # =============================
+        size = st.slider("Lesion Size (mm)", 1, 100, 10)
+
+        # =============================
+        # RUN AI BUTTON
+        # =============================
+        run = st.button("Run AI Analysis", use_container_width=True)
+
+        if run and patient and hn:
+
+            status, confidence = run_ai(organ, marker, size)
+
+            new = pd.DataFrame([{
+                "Date": datetime.date.today(),
+                "HN": hn,
+                "Patient": patient,
+                "Organ": organ,
+                "Status": status,
+                "Confidence": confidence,
+                "Marker_Val": marker,
+                "Tumor_Size": size
+            }])
+
+            st.session_state.db = pd.concat(
+                [st.session_state.db, new],
+                ignore_index=True
+            )
+
+            st.success("Analysis Complete")
 
     # ================= RIGHT =================
     with col2:
@@ -244,6 +243,7 @@ if nav == "Diagnostic Hub":
 
         else:
             st.info("Run analysis to generate result.")
+
 
 # =====================================================
 # 📊 PROFESSIONAL ANALYTICS (SAFE VERSION)
