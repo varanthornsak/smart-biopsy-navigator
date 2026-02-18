@@ -145,26 +145,19 @@ if nav == "Diagnostic Hub":
 
     col1, col2 = st.columns([1,1])
 
-    # ================= LEFT PANEL =================
+    # ================= LEFT =================
     with col1:
 
         patient = st.text_input("Patient Name")
         hn = st.text_input("HN")
         organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
 
-        # ----- Marker Logic -----
         marker = None
 
         if organ == "Liver":
             use_afp = st.checkbox("Include AFP (Optional Biomarker)")
             if use_afp:
                 marker = st.number_input("AFP (ng/mL)", min_value=0.0, value=10.0)
-
-        elif organ == "Thyroid":
-            marker = st.selectbox("TI-RADS", [1,2,3,4,5])
-
-        elif organ == "Breast":
-            marker = st.selectbox("BI-RADS", [1,2,3,4,5])
 
         size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
@@ -174,67 +167,51 @@ if nav == "Diagnostic Hub":
 
                 status, confidence = run_ai(organ, marker, size)
 
-                # 🔥 IMPORTANT
-                st.session_state.last_result = {
-                    "status": status,
-                    "confidence": confidence
-                }
+                new = pd.DataFrame([{
+                    "Status": status,
+                    "Confidence": confidence
+                }])
+
+                st.session_state.db = pd.concat(
+                    [st.session_state.db, new],
+                    ignore_index=True
+                )
 
                 st.success("Analysis Complete")
 
+    # ================= RIGHT =================
+    with col2:
+
+        st.subheader("AI Result Dashboard")
+
+        if len(st.session_state.db) > 0:
+
+            last = st.session_state.db.iloc[-1]
+            confidence_percent = last["Confidence"] * 100
+            status = last["Status"]
+
+            if status == "NORMAL":
+                color = "#28a745"
+            elif status == "BENIGN":
+                color = "#ffc107"
             else:
-                st.warning("Please fill patient info")
+                color = "#dc3545"
 
-    # ================= RIGHT PANEL =================
-   with col2:
-
-    if len(st.session_state.db) > 0:
-
-        last = st.session_state.db.iloc[-1]
-        confidence_percent = last["Confidence"] * 100
-        status = last["Status"]
-
-        color = STATUS_COLOR[status]
-
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=confidence_percent,
-            number={
-                'suffix': "%",
-                'font': {'size': 40}
-            },
-            title={
-                'text': f"<b>{status}</b>",
-                'font': {'size': 28}
-            },
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': color},
-                'steps': [
-                    {'range': [0, 33], 'color': "#D1FAE5"},
-                    {'range': [33, 66], 'color': "#FEF3C7"},
-                    {'range': [66, 100], 'color': "#FEE2E2"}
-                ],
-                'threshold': {
-                    'line': {'color': "black", 'width': 4},
-                    'thickness': 0.75,
-                    'value': confidence_percent
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=confidence_percent,
+                number={'suffix': "%"},
+                title={'text': status},
+                gauge={
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': color}
                 }
-            }
-        ))
+            ))
 
-        fig.update_layout(
-            paper_bgcolor="white",
-            height=420,
-            margin=dict(t=80, b=20)
-        )
+            st.plotly_chart(fig, use_container_width=True)
 
-        st.plotly_chart(fig, use_container_width=True)
-
-    else:
-        st.info("Run analysis to generate AI result.")
-
-
+        else:
+            st.info("Run analysis to generate result.")
 
 # =====================================================
 # PROFESSIONAL ANALYTICS
