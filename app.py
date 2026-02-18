@@ -181,7 +181,7 @@ def run_ai(organ, marker, size):
 # 💼 BUSINESS OVERVIEW
 # =====================================================
 
-elif page == "💼 Business Overview":
+    if page == "💼 Business Overview":
 
     st.title("💼 Business & Growth Strategy")
     st.markdown("---")
