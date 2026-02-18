@@ -229,197 +229,94 @@ if app_mode == "Clinical Workspace":
         type=["jpg", "png", "jpeg"]
     )
 
-    if uploaded:
+   if uploaded:
 
-        image = Image.open(uploaded).convert("RGB")
+    image = Image.open(uploaded).convert("RGB")
 
-        transform = transforms.Compose([
-            transforms.Resize((224,224)),
-            transforms.ToTensor()
-        ])
+    transform = transforms.Compose([
+        transforms.Resize((224,224)),
+        transforms.ToTensor()
+    ])
 
-        tensor = transform(image).unsqueeze(0)
+    tensor = transform(image).unsqueeze(0)
 
-     with torch.no_grad():
-    output = model(tensor)
-    probs = torch.softmax(output, dim=1)[0]
+    # ================= INFERENCE =================
+    with torch.no_grad():
+        output = model(tensor)
+        probs = torch.softmax(output, dim=1)[0]
 
-    prob_normal = probs[0].item()
-    prob_benign = probs[1].item()
-    prob_malignant = probs[2].item()
+        prob_normal = probs[0].item()
+        prob_benign = probs[1].item()
+        prob_malignant = probs[2].item()
 
-    pred_class = torch.argmax(probs).item()
+        pred_class = torch.argmax(probs).item()
 
-# ---------------- Classification ----------------
+    # ================= CLASSIFICATION =================
+    if pred_class == 0:
+        label = "Normal"
+        style = "green"
+        prob_display = prob_normal
 
-if pred_class == 0:
-    label = "Normal"
-    style = "green"
-    prob_display = prob_normal
+    elif pred_class == 1:
+        label = "Likely Benign"
+        style = "yellow"
+        prob_display = prob_benign
 
-elif pred_class == 1:
-    label = "Likely Benign"
-    style = "yellow"
-    prob_display = prob_benign
+    else:
+        label = "Suspicious Malignant"
+        style = "red"
+        prob_display = prob_malignant
 
-else:
-    label = "Suspicious Malignant"
-    style = "red"
-    prob_display = prob_malignant
+    # Optional confidence margin safeguard
+    sorted_probs = sorted(
+        [prob_normal, prob_benign, prob_malignant],
+        reverse=True
+    )
+    margin = sorted_probs[0] - sorted_probs[1]
 
-# Optional confidence margin
-sorted_probs = sorted(
-    [prob_normal, prob_benign, prob_malignant],
-    reverse=True
-)
+    if margin < 0.10:
+        label = "Indeterminate – Radiologist Review Recommended"
+        style = "yellow"
 
-margin = sorted_probs[0] - sorted_probs[1]
+    case_id = str(uuid.uuid4())[:8]
 
-if margin < 0.10:
-    label = "Indeterminate – Radiologist Review Recommended"
-    style = "yellow"
+    col1, col2 = st.columns([1.3, 1])
 
-case_id = str(uuid.uuid4())[:8]
+    # ================= IMAGE =================
+    with col1:
+        st.image(image, use_column_width=True)
 
-col1, col2 = st.columns([1.3, 1])
+    # ================= RESULT CARD =================
+    with col2:
 
-# ================= IMAGE =================
-with col1:
-    st.image(image, use_column_width=True)
-
-# ================= RESULT CARD =================
-with col2:
-
-    st.markdown(
-        f"""
-        <div class='card {style}'>
-            <div style="font-size:24px; font-weight:700;">
-                {label}
+        st.markdown(
+            f"""
+            <div class='card {style}'>
+                <div style="font-size:24px; font-weight:700;">
+                    {label}
+                </div>
+                <div style="font-size:20px;">
+                    {round(prob_display*100,2)}%
+                </div>
             </div>
-            <div style="font-size:20px;">
-                {round(prob_display*100,2)}%
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ================= FHIR SYNC =================
+    st.session_state.fhir_probability = prob_display
+    st.session_state.fhir_patient_id = case_id
+    st.session_state.uploaded_image = uploaded
+
+    log_case(
+        case_id,
+        st.session_state.hospital,
+        st.session_state.role,
+        organ,
+        prob_display,
+        label
     )
 
-
-        case_id = str(uuid.uuid4())[:8]
-
-        col1, col2 = st.columns([1.3,1])
-
-        # IMAGE
-        with col1:
-            st.image(image, use_column_width=True)
-
-        # RESULT PANEL
-        with col2:
-
-            st.markdown(
-                f"""
-                <div class='card {style}'>
-                    <div style="font-size:24px; font-weight:700;">
-                        {label}
-                    </div>
-                    <div style="font-size:18px;">
-                        {round(prob*100,2)}%
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            # RISK GAUGE
-            fig, ax = plt.subplots(figsize=(4,2.5))
-            ax.set_xlim(-1.2, 1.2)
-            ax.set_ylim(-0.2, 1.2)
-            ax.axis("off")
-
-            theta = np.linspace(0, math.pi, 200)
-            ax.fill_between(np.cos(theta[:70]), 0, np.sin(theta[:70]), alpha=0.12)
-            ax.fill_between(np.cos(theta[70:140]), 0, np.sin(theta[70:140]), alpha=0.12)
-            ax.fill_between(np.cos(theta[140:]), 0, np.sin(theta[140:]), alpha=0.12)
-            ax.plot(np.cos(theta), np.sin(theta), linewidth=2)
-
-            if label == "Normal":
-                needle_color = "#2ecc71"
-            elif label == "Likely Benign":
-                needle_color = "#f1c40f"
-            else:
-                needle_color = "#e74c3c"
-
-            angle = math.pi * (1 - prob)
-
-            ax.plot(
-                [0, np.cos(angle)],
-                [0, np.sin(angle)],
-                linewidth=3,
-                color=needle_color
-            )
-
-            ax.scatter(0,0,s=80)
-
-            ax.text(
-                0, -0.05,
-                f"{round(prob*100,1)}%",
-                ha="center",
-                fontsize=20,
-                fontweight="bold"
-            )
-
-            ax.text(
-                0, -0.18,
-                label,
-                ha="center",
-                fontsize=10
-            )
-
-            plt.tight_layout()
-            st.pyplot(fig)
-
-        # REPORT
-        st.markdown("### Structured Clinical Report")
-
-        report = f"""
-Case ID: {case_id}
-Hospital: {st.session_state.hospital}
-Role: {st.session_state.role}
-Organ: {organ}
-
-Probability: {round(prob,4)}
-Threshold: {threshold}
-Classification: {label}
-
-Recommended Action:
-"""
-
-        if label == "Normal":
-            report += "Routine surveillance."
-        elif label == "Likely Benign":
-            report += "Short interval follow-up."
-        else:
-            report += "Biopsy & oncology referral."
-
-        st.text_area("Report Preview", report, height=200)
-
-        st.download_button(
-            "Export Report",
-            data=report,
-            file_name=f"{case_id}_report.txt"
-        )
-
-        st.session_state.fhir_probability = prob_display
-        st.session_state.fhir_patient_id = case_id
-
-        log_case(
-            case_id,
-            st.session_state.hospital,
-            st.session_state.role,
-            organ,
-            prob,
-            label
-        )
 # =====================================================
 # ================= EXECUTIVE DASHBOARD =================
 # =====================================================
