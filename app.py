@@ -148,9 +148,9 @@ if nav == "Diagnostic Hub":
     # ================= LEFT =================
     with col1:
 
-    patient = st.text_input("Patient Name")
-    hn = st.text_input("HN")
-    organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
+        patient = st.text_input("Patient Name")
+        hn = st.text_input("HN")
+        organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
 
     marker = None
 
