@@ -1287,6 +1287,26 @@ if nav == "AI Training Lab":
             # ---------------------------------------------
             y_pred = model.predict(X_test)
             y_prob = model.predict_proba(X_test)[:, 1]
+        # =====================================
+        # CLINICAL WEIGHTING LOGIC
+        # =====================================
+
+            imaging_score = 0
+
+            if "Ultrasound_Score" in input_df.columns:
+                imaging_score += input_df["Ultrasound_Score"].values[0]
+            
+            if "Lesion_Size" in input_df.columns:
+                size = input_df["Lesion_Size"].values[0]
+                if size > 4:
+                    imaging_score += 0.2
+                elif size > 2:
+                    imaging_score += 0.1
+            
+            imaging_score = min(imaging_score, 1)
+            
+            # 70% imaging authority, 30% model probability
+            prob = 0.7 * imaging_score + 0.3 * prob
 
             # ---------------------------------------------
             # METRICS
