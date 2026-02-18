@@ -818,3 +818,80 @@ with tab4:
     else:
         st.info("No audit records")
 
+# =====================================================
+# 🧭 MAIN NAVIGATION SYSTEM (COMPLETE FIXED VERSION)
+# =====================================================
+
+nav = st.sidebar.radio(
+    "Navigation",
+    ["Professional Analytics", "Case Archive", "User Manual"]
+)
+
+# =====================================================
+# 🏥 PROFESSIONAL ANALYTICS
+# =====================================================
+if nav == "Professional Analytics":
+
+    st.title("Executive Clinical AI Dashboard")
+
+    if len(st.session_state.db) > 0:
+        df = st.session_state.db.copy()
+        st.success("Dashboard Loaded Successfully")
+        st.dataframe(df.head(), use_container_width=True)
+    else:
+        st.info("No case data available yet.")
+
+# =====================================================
+# 📂 CASE ARCHIVE
+# =====================================================
+elif nav == "Case Archive":
+
+    st.title("Case Archive")
+
+    if len(st.session_state.db) > 0:
+        st.dataframe(st.session_state.db, use_container_width=True)
+    else:
+        st.info("No archived cases available.")
+
+# =====================================================
+# 📘 USER MANUAL (WORKING VERSION)
+# =====================================================
+elif nav == "User Manual":
+
+    st.title("Smart Biopsy Pro – Detailed Operational Manual")
+
+    st.markdown("""
+    ## 1. System Overview
+    Smart Biopsy Pro is a Multi-Organ Clinical Decision Support System
+    integrating biomarker logic and morphology-based inference.
+
+    ## 2. Organ Modules
+    - Liver → AFP-based risk logic
+    - Thyroid → TI-RADS stratification
+    - Breast → BI-RADS prototype logic
+    - Lymph Nodes → Size-based malignancy logic
+
+    ## 3. Risk Classification
+    🟢 NORMAL → Routine follow-up  
+    🟡 BENIGN → Imaging surveillance  
+    🔴 MALIGNANT → Biopsy priority  
+
+    ## 4. Professional Analytics
+    Provides:
+    - Case volume monitoring
+    - Risk distribution
+    - Confidence tracking
+    - Organ workload analysis
+
+    ## 5. Executive Board View
+    Displays:
+    - Institutional risk burden
+    - AI adoption growth
+    - Institutional performance metrics
+
+    ## 6. Governance Notice
+    This system is decision-support only.
+    Final clinical decisions must be made by licensed physicians.
+    """)
+
+    st.success("User Manual Loaded Successfully")
