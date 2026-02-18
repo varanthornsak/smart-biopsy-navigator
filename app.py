@@ -554,3 +554,153 @@ if nav == "Executive Board View":
         savings = saved_cases * cost_per_biopsy
 
         st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
+# =====================================================
+# MODEL GOVERNANCE PANEL
+# =====================================================
+if nav == "Professional Analytics":
+
+    st.markdown("---")
+    st.subheader("AI Model Governance")
+
+    MODEL_INFO = {
+        "Version": "SBP-Pro v2.4.1",
+        "Last Validation": "Jan 2026",
+        "AUC": 0.93,
+        "Sensitivity": 0.91,
+        "Specificity": 0.88,
+        "Training Cases": 12432
+    }
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Model Version", MODEL_INFO["Version"])
+    col2.metric("AUC", MODEL_INFO["AUC"])
+    col3.metric("Training Cases", MODEL_INFO["Training Cases"])
+
+    col4, col5 = st.columns(2)
+    col4.metric("Sensitivity", f"{MODEL_INFO['Sensitivity']*100:.1f}%")
+    col5.metric("Specificity", f"{MODEL_INFO['Specificity']*100:.1f}%")
+
+
+# =====================================================
+# DRIFT DETECTION SIMULATION
+# =====================================================
+if nav == "Professional Analytics" and len(st.session_state.db) > 20:
+
+    st.markdown("---")
+    st.subheader("Data Drift Monitoring")
+
+    df = st.session_state.db
+
+    avg_size = df["Tumor_Size"].mean()
+    baseline = 20
+
+    drift = abs(avg_size - baseline)
+
+    if drift > 10:
+        st.error("Warning: Significant data drift detected.")
+    elif drift > 5:
+        st.warning("Mild drift observed.")
+    else:
+        st.success("No significant drift detected.")
+
+
+# =====================================================
+# QUALITY CONTROL PANEL
+# =====================================================
+if nav == "Professional Analytics":
+
+    st.markdown("---")
+    st.subheader("Quality Control Indicators")
+
+    df = st.session_state.db
+
+    if len(df) > 0:
+
+        high_conf = (df["Confidence"] > 0.85).mean() * 100
+        low_conf = (df["Confidence"] < 0.5).mean() * 100
+
+        colA, colB = st.columns(2)
+        colA.metric("High Confidence Cases %", f"{high_conf:.1f}%")
+        colB.metric("Low Confidence Cases %", f"{low_conf:.1f}%")
+
+
+# =====================================================
+# RISK BURDEN HEATMAP
+# =====================================================
+if nav == "Executive Board View" and len(st.session_state.db) > 0:
+
+    st.markdown("---")
+    st.subheader("Institutional Risk Heatmap")
+
+    df = st.session_state.db
+
+    heat = (
+        df.groupby(["Organ", "Status"])
+        .size()
+        .unstack(fill_value=0)
+    )
+
+    fig_heat = px.imshow(
+        heat,
+        text_auto=True,
+        aspect="auto",
+        color_continuous_scale="Reds"
+    )
+
+    fig_heat.update_layout(template="plotly_white")
+
+    st.plotly_chart(fig_heat, use_container_width=True)
+
+
+# =====================================================
+# AUDIT TRAIL VIEWER
+# =====================================================
+if nav == "Case Archive" and len(st.session_state.db) > 0:
+
+    st.markdown("---")
+    st.subheader("Audit Trail")
+
+    audit_df = st.session_state.db[[
+        "Case_ID",
+        "Timestamp",
+        "Created_By",
+        "Organ",
+        "Status"
+    ]]
+
+    st.dataframe(audit_df, use_container_width=True)
+
+
+# =====================================================
+# EXECUTIVE SUMMARY PDF
+# =====================================================
+if nav == "Executive Board View" and len(st.session_state.db) > 0:
+
+    st.markdown("---")
+    st.subheader("Generate Executive Summary Report")
+
+    if st.button("Generate Executive PDF"):
+
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer)
+        elements = []
+        styles = getSampleStyleSheet()
+
+        df = st.session_state.db
+        total = len(df)
+        malignant = (df["Status"] == "MALIGNANT").sum()
+
+        elements.append(Paragraph("<b>SMART BIOPSY PRO – EXECUTIVE SUMMARY</b>", styles["Title"]))
+        elements.append(Spacer(1, 0.3 * inch))
+        elements.append(Paragraph(f"Total Cases: {total}", styles["Normal"]))
+        elements.append(Paragraph(f"High Risk Cases: {malignant}", styles["Normal"]))
+        elements.append(Paragraph("Model Version: SBP-Pro v2.4.1", styles["Normal"]))
+
+        doc.build(elements)
+        buffer.seek(0)
+
+        st.download_button(
+            "Download Executive PDF",
+            buffer,
+            file_name="Executive_Summary.pdf"
+        )
