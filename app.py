@@ -130,13 +130,6 @@ if st.sidebar.button("Logout"):
     st.session_state.authenticated = False
     st.rerun()
 
-page = st.sidebar.radio(
-    "Select Page",
-    ["📂 Clinical Dashboard", "💼 Business Overview"]
-)
-
-
-
 # ==========================================
 # AI ENGINE
 # ==========================================
