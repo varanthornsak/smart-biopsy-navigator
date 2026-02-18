@@ -44,6 +44,16 @@ if "role" not in st.session_state:
 
 if "db" not in st.session_state:
     st.session_state.db = pd.DataFrame(columns=[
+        "Date",
+        "HN",
+        "Patient",
+        "Organ",
+        "Status",
+        "Confidence",
+        "Marker_Val",
+        "Tumor_Size"
+    ])
+
 # =====================================================
 # CONSTANTS
 # =====================================================
