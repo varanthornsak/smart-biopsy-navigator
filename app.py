@@ -318,24 +318,38 @@ if nav == "Professional Analytics":
 
     st.plotly_chart(risk_fig, use_container_width=True)
 
-    # =====================================================
-    # 4️⃣ Confidence Calibration Curve
-    # =====================================================
+   # =====================================================
+# 4️⃣ Confidence Calibration Curve (FIXED)
+# =====================================================
+
+if "Calibrated_Confidence" in df.columns:
+
+    temp_df = df.copy()
+
+    # ตัดช่วง confidence
+    temp_df["Conf_Bin"] = pd.cut(
+        temp_df["Calibrated_Confidence"],
+        bins=5
+    )
 
     calibration_df = (
-        df.groupby(pd.cut(df["Calibrated_Confidence"], bins=5))
+        temp_df.groupby("Conf_Bin")
         .size()
         .reset_index(name="Count")
     )
 
+    # 🔥 แปลง interval เป็น string กัน plotly error
+    calibration_df["Conf_Bin"] = calibration_df["Conf_Bin"].astype(str)
+
     calib_fig = px.bar(
         calibration_df,
-        x="Calibrated_Confidence",
+        x="Conf_Bin",
         y="Count",
         title="Confidence Distribution"
     )
 
     st.plotly_chart(calib_fig, use_container_width=True)
+
 
     # =====================================================
     # 5️⃣ Workload by User Role
