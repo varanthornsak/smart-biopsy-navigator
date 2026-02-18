@@ -230,7 +230,7 @@ elif nav == "Professional Analytics":
 
     st.title("Professional Clinical Dashboard")
 
-    df = st.session_state.db
+    df = st.session_state.db.copy()
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Cases", len(df))
@@ -247,9 +247,14 @@ elif nav == "Professional Analytics":
         st.info("No data available yet.")
     else:
 
+        # -----------------------------------
+        # FIXED CLINICAL STATUS ORDER
+        # -----------------------------------
         status_order = ["NORMAL", "BENIGN", "MALIGNANT"]
 
-        # ---- Prepare summary ----
+        # -----------------------------------
+        # DONUT CHART (STRICT 3 COLORS)
+        # -----------------------------------
         summary = (
             df["Status"]
             .value_counts()
@@ -258,7 +263,6 @@ elif nav == "Professional Analytics":
         )
         summary.columns = ["Status", "Count"]
 
-        # ---- Donut Chart ----
         fig_pie = px.pie(
             summary,
             names="Status",
@@ -287,49 +291,46 @@ elif nav == "Professional Analytics":
 
         st.plotly_chart(fig_pie, use_container_width=True)
 
-        # ---- Organ Distribution (Strict 3 Clinical Classes) ----
+        # -----------------------------------
+        # ORGAN CASE DISTRIBUTION (STRICT 3 COLORS)
+        # -----------------------------------
+        organ_summary = (
+            df.groupby(["Organ", "Status"])
+            .size()
+            .unstack(fill_value=0)
+            .reindex(columns=status_order, fill_value=0)
+            .stack()
+            .reset_index(name="Count")
+        )
 
-status_order = ["NORMAL", "BENIGN", "MALIGNANT"]
+        fig_bar = px.bar(
+            organ_summary,
+            x="Organ",
+            y="Count",
+            color="Status",
+            category_orders={"Status": status_order},
+            color_discrete_map={
+                "NORMAL": "#10B981",
+                "BENIGN": "#F59E0B",
+                "MALIGNANT": "#EF4444"
+            },
+            barmode="group"
+        )
 
-# Create complete multi-index so missing categories become 0
-organ_summary = (
-    df.groupby(["Organ", "Status"])
-    .size()
-    .unstack(fill_value=0)
-    .reindex(columns=status_order, fill_value=0)
-    .stack()
-    .reset_index(name="Count")
-)
+        fig_bar.update_layout(
+            title="Organ Case Distribution",
+            xaxis_title="Organ",
+            yaxis_title="Cases",
+            template="plotly_white",
+            margin=dict(t=60)
+        )
 
-fig_bar = px.bar(
-    organ_summary,
-    x="Organ",
-    y="Count",
-    color="Status",
-    category_orders={"Status": status_order},
-    color_discrete_map={
-        "NORMAL": "#10B981",
-        "BENIGN": "#F59E0B",
-        "MALIGNANT": "#EF4444"
-    },
-    barmode="group"
-)
+        fig_bar.update_traces(
+            marker_line_width=1,
+            marker_line_color="white"
+        )
 
-fig_bar.update_layout(
-    title="Organ Case Distribution",
-    xaxis_title="Organ",
-    yaxis_title="Cases",
-    template="plotly_white",
-    margin=dict(t=60)
-)
-
-fig_bar.update_traces(
-    marker_line_width=1,
-    marker_line_color="white"
-)
-
-st.plotly_chart(fig_bar, use_container_width=True)
-
+        st.plotly_chart(fig_bar, use_container_width=True)
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
