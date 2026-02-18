@@ -378,25 +378,123 @@ if nav == "Professional Analytics":
         st.info("No case data available yet.")
 
 # =====================================================
-# EXECUTIVE BOARD VIEW
+# 🏥 EXECUTIVE BOARD VIEW – HOSPITAL EDITION
 # =====================================================
-elif nav == "Executive Board View":
 
-    st.title("Executive Business Intelligence")
+if nav == "Professional Analytics":
 
-    df = st.session_state.db
-    total = len(df)
-    malignant = (df["Status"] == "MALIGNANT").sum()
+    st.title("Executive Clinical AI Dashboard")
 
-    st.metric("Total Diagnoses", total)
-    st.metric("High Risk Cases", malignant)
-    st.metric("Projected Quarterly Savings", "฿1,500,000")
+    STATUS_COLOR = {
+        "NORMAL": "#28a745",
+        "BENIGN": "#ffc107",
+        "MALIGNANT": "#dc3545"
+    }
 
-    if total > 0:
-        trend = df.groupby("Date").size().reset_index(name="Cases")
-        st.plotly_chart(
-            px.area(trend, x="Date", y="Cases"),
-            use_container_width=True)
+    if len(st.session_state.db) > 0:
+
+        df = st.session_state.db.copy()
+        df["Status"] = df["Status"].astype(str).str.upper().str.strip()
+        df["Date"] = pd.to_datetime(df["Date"])
+
+        total_cases = len(df)
+        malignant_cases = len(df[df["Status"] == "MALIGNANT"])
+        benign_cases = len(df[df["Status"] == "BENIGN"])
+        normal_cases = len(df[df["Status"] == "NORMAL"])
+
+        malignancy_rate = round((malignant_cases / total_cases) * 100, 1)
+
+        avg_conf = round((df["Confidence"].mean()) * 100, 1)
+
+        # ================= EXECUTIVE KPI =================
+        col1, col2, col3, col4, col5 = st.columns(5)
+
+        col1.metric("Total Cases", total_cases)
+        col2.metric("🔴 Malignant", malignant_cases)
+        col3.metric("🟡 Benign", benign_cases)
+        col4.metric("🟢 Normal", normal_cases)
+        col5.metric("Malignancy Rate", f"{malignancy_rate}%")
+
+        st.markdown("### AI Performance Overview")
+        st.metric("Average AI Confidence", f"{avg_conf}%")
+
+        st.markdown("---")
+
+        # ================= WORKLOAD TREND =================
+        st.subheader("Case Volume Trend")
+
+        trend_df = df.groupby(df["Date"].dt.date).size().reset_index(name="Count")
+
+        trend_fig = go.Figure()
+        trend_fig.add_trace(go.Scatter(
+            x=trend_df["Date"],
+            y=trend_df["Count"],
+            mode="lines+markers",
+            line=dict(width=3)
+        ))
+
+        trend_fig.update_layout(height=450)
+        st.plotly_chart(trend_fig, use_container_width=True)
+
+        # ================= ORGAN RISK BURDEN =================
+        st.subheader("Organ Risk Burden (Stacked)")
+
+        organ_status = df.groupby(["Organ", "Status"]).size().reset_index(name="Count")
+
+        organ_fig = go.Figure()
+
+        for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
+            subset = organ_status[organ_status["Status"] == status]
+
+            organ_fig.add_trace(go.Bar(
+                x=subset["Organ"],
+                y=subset["Count"],
+                name=status,
+                marker_color=STATUS_COLOR.get(status)
+            ))
+
+        organ_fig.update_layout(
+            barmode="stack",
+            height=450
+        )
+
+        st.plotly_chart(organ_fig, use_container_width=True)
+
+        # ================= CONFIDENCE BY RISK =================
+        st.subheader("AI Confidence by Risk Level")
+
+        conf_fig = go.Figure()
+
+        for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
+            subset = df[df["Status"] == status]
+
+            conf_fig.add_trace(go.Histogram(
+                x=subset["Confidence"] * 100,
+                name=status,
+                marker_color=STATUS_COLOR.get(status),
+                opacity=0.6
+            ))
+
+        conf_fig.update_layout(
+            barmode="overlay",
+            height=450
+        )
+
+        st.plotly_chart(conf_fig, use_container_width=True)
+
+        # ================= HIGH RISK ALERT PANEL =================
+        st.subheader("High-Risk Alert Panel")
+
+        high_risk_df = df[df["Status"] == "MALIGNANT"]
+
+        if len(high_risk_df) > 0:
+            st.error(f"{len(high_risk_df)} High-Risk Cases Detected")
+            st.dataframe(high_risk_df.tail(10), use_container_width=True)
+        else:
+            st.success("No high-risk cases detected.")
+
+    else:
+        st.info("No case data available yet.")
 
 # =====================================================
 # CASE ARCHIVE
