@@ -184,8 +184,6 @@ if page == "🧠 Clinical Dashboard":
             # ---- RESULT ----
             with tab1:
 
-                color = STATUS_COLOR.get(last["Status"], "#636EFA")
-
                 fig = go.Figure(go.Indicator(
                     mode="gauge+number",
                     value=conf_percent,
