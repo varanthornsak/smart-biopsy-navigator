@@ -511,3 +511,176 @@ if nav == "Executive Board View":
         savings = saved_cases * cost_per_biopsy
 
         st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
+# =====================================================
+# ENTERPRISE CONFIGURATION LAYER
+# =====================================================
+
+ENTERPRISE_MODE = True
+SYSTEM_VERSION = "SBP Enterprise v2.3"
+AI_MODEL_VERSION = "MorphoBio-AI 4.1"
+
+if "system_log" not in st.session_state:
+    st.session_state.system_log = []
+
+
+# =====================================================
+# ADVANCED NUMERIC RISK SCORING MODEL
+# =====================================================
+def calculate_risk_score(organ, marker, size):
+
+    score = 0
+
+    # Morphology Weight
+    score += size * 0.8
+
+    # Biomarker Weight
+    if marker is not None:
+        score += marker * 0.05
+
+    # Organ risk weighting
+    organ_weight = {
+        "Liver": 1.3,
+        "Breast": 1.2,
+        "Thyroid": 1.1,
+        "Lung": 1.4
+    }
+
+    score *= organ_weight.get(organ, 1.0)
+
+    return round(score, 2)
+
+
+# =====================================================
+# CONFIDENCE CALIBRATION (Sigmoid Scaling)
+# =====================================================
+import math
+
+def calibrated_confidence(score):
+    sigmoid = 1 / (1 + math.exp(-0.05 * (score - 50)))
+    return round(sigmoid, 3)
+
+
+# =====================================================
+# ENTERPRISE LOGGING ENGINE
+# =====================================================
+def log_event(event_type, case_id):
+
+    st.session_state.system_log.append({
+        "Timestamp": str(datetime.datetime.now()),
+        "Event": event_type,
+        "Case_ID": case_id,
+        "User": st.session_state.role,
+        "System_Version": SYSTEM_VERSION
+    })
+
+
+# =====================================================
+# PATCH DIAGNOSTIC HUB WITH RISK SCORE
+# =====================================================
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    df = st.session_state.db
+    last_index = df.index[-1]
+    last = df.loc[last_index]
+
+    risk_score = calculate_risk_score(
+        last["Organ"],
+        last["Marker_Val"],
+        last["Tumor_Size"]
+    )
+
+    calibrated = calibrated_confidence(risk_score)
+
+    df.loc[last_index, "Risk_Score"] = risk_score
+    df.loc[last_index, "Calibrated_Confidence"] = calibrated
+
+    st.markdown("### Advanced Risk Metrics")
+    col1, col2 = st.columns(2)
+
+    col1.metric("Risk Score", risk_score)
+    col2.metric("Calibrated Confidence", f"{calibrated*100:.1f}%")
+
+    log_event("AI_ANALYSIS_COMPLETED", last["Case_ID"])
+
+
+# =====================================================
+# ENTERPRISE AUDIT TRAIL VIEW
+# =====================================================
+if nav == "Professional Analytics" and ENTERPRISE_MODE:
+
+    st.markdown("---")
+    st.subheader("System Audit Trail")
+
+    if len(st.session_state.system_log) > 0:
+        log_df = pd.DataFrame(st.session_state.system_log)
+        st.dataframe(log_df, use_container_width=True)
+    else:
+        st.info("No system events logged yet.")
+
+
+# =====================================================
+# EXECUTIVE FORECAST MODEL
+# =====================================================
+if nav == "Executive Board View" and len(st.session_state.db) > 10:
+
+    st.markdown("---")
+    st.subheader("6-Month Workload Forecast")
+
+    df = st.session_state.db.copy()
+    df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
+
+    monthly = df.groupby(pd.Grouper(key="Timestamp", freq="M")).size().reset_index(name="Cases")
+
+    if len(monthly) > 1:
+        monthly["Forecast"] = monthly["Cases"].rolling(2).mean()
+
+        forecast_fig = px.line(
+            monthly,
+            x="Timestamp",
+            y=["Cases", "Forecast"],
+            markers=True
+        )
+
+        st.plotly_chart(forecast_fig, use_container_width=True)
+
+
+# =====================================================
+# ENTERPRISE PDF REPORT (FORMAL STYLE)
+# =====================================================
+def generate_enterprise_pdf(case_row):
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    elements.append(Paragraph(f"<b>{SYSTEM_VERSION}</b>", styles["Title"]))
+    elements.append(Spacer(1, 0.2 * inch))
+    elements.append(Paragraph(f"AI Model: {AI_MODEL_VERSION}", styles["Normal"]))
+    elements.append(Spacer(1, 0.3 * inch))
+
+    for field in case_row.index:
+        elements.append(
+            Paragraph(f"<b>{field}:</b> {case_row[field]}", styles["Normal"])
+        )
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
+# =====================================================
+# DOWNLOAD BUTTON IN DIAGNOSTIC HUB
+# =====================================================
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last = st.session_state.db.iloc[-1]
+
+    pdf_buffer = generate_enterprise_pdf(last)
+
+    st.download_button(
+        label="Download Enterprise Report (PDF)",
+        data=pdf_buffer,
+        file_name=f"{last['Case_ID']}_Enterprise_Report.pdf",
+        mime="application/pdf"
+    )
