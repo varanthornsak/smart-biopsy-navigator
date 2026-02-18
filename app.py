@@ -83,7 +83,7 @@ if not st.session_state.authenticated:
 
     password = st.text_input("Enter Secure Password", type="password")
 
-    if st.button("Login Securely", key="login_button")
+    if st.button("Login Securely", key="login_button"):
 
         if password == "SNH_SECURE":
 
