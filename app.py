@@ -381,31 +381,6 @@ if nav == "Professional Analytics":
 # 🏥 EXECUTIVE BOARD VIEW – HOSPITAL EDITION
 # =====================================================
 
-# ================= WORKFLOW TRACKING =================
-
-st.subheader("Specimen Workflow Status")
-
-workflow_steps = ["Requested", "Collected", "In Lab", "Resulted"]
-
-# ตัวอย่าง: ดึง status ล่าสุดจาก db
-if len(st.session_state.db) > 0:
-    current_status = "In Lab"  # ปกติควรดึงจาก df
-else:
-    current_status = "Requested"
-
-current_index = workflow_steps.index(current_status)
-
-progress_value = (current_index + 1) / len(workflow_steps)
-
-st.progress(progress_value)
-
-cols = st.columns(len(workflow_steps))
-for i, step in enumerate(workflow_steps):
-    if i <= current_index:
-        cols[i].success(step)
-    else:
-        cols[i].write(step)
-
 if nav == "Professional Analytics":
 
     st.title("Executive Clinical AI Dashboard")
@@ -428,12 +403,10 @@ if nav == "Professional Analytics":
         normal_cases = len(df[df["Status"] == "NORMAL"])
 
         malignancy_rate = round((malignant_cases / total_cases) * 100, 1)
+        avg_conf = round(df["Confidence"].mean() * 100, 1)
 
-        avg_conf = round((df["Confidence"].mean()) * 100, 1)
-
-        # ================= EXECUTIVE KPI =================
+        # ================= KPI =================
         col1, col2, col3, col4, col5 = st.columns(5)
-
         col1.metric("Total Cases", total_cases)
         col2.metric("🔴 Malignant", malignant_cases)
         col3.metric("🟡 Benign", benign_cases)
@@ -442,10 +415,28 @@ if nav == "Professional Analytics":
 
         st.markdown("### AI Performance Overview")
         st.metric("Average AI Confidence", f"{avg_conf}%")
+        st.markdown("---")
+
+        # ================= WORKFLOW TRACKING =================
+        st.subheader("Specimen Workflow Status")
+
+        workflow_steps = ["Requested", "Collected", "In Lab", "Resulted"]
+        current_status = "In Lab" if total_cases > 0 else "Requested"
+        current_index = workflow_steps.index(current_status)
+        progress_value = (current_index + 1) / len(workflow_steps)
+
+        st.progress(progress_value, text=current_status)
+
+        cols = st.columns(len(workflow_steps))
+        for i, step in enumerate(workflow_steps):
+            if i <= current_index:
+                cols[i].success(step)
+            else:
+                cols[i].write(step)
 
         st.markdown("---")
 
-        # ================= WORKLOAD TREND =================
+        # ================= CASE VOLUME TREND =================
         st.subheader("Case Volume Trend")
 
         trend_df = df.groupby(df["Date"].dt.date).size().reset_index(name="Count")
@@ -459,30 +450,34 @@ if nav == "Professional Analytics":
         ))
 
         trend_fig.update_layout(height=450)
-        st.plotly_chart(trend_fig, use_container_width=True)
 
-      # ================= ORGAN RISK BURDEN =================
+        st.plotly_chart(
+            trend_fig,
+            use_container_width=True,
+            key="trend_chart"
+        )
+
+        # ================= ORGAN RISK BURDEN =================
         st.subheader("Organ Risk Burden (Stacked)")
-        
+
         organ_status = (
             df.groupby(["Organ", "Status"])
               .size()
               .reset_index(name="Count")
         )
-        
+
         organ_fig = go.Figure()
-        
+
         for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
             subset = organ_status[organ_status["Status"] == status]
-        
             if not subset.empty:
                 organ_fig.add_trace(go.Bar(
                     x=subset["Organ"],
                     y=subset["Count"],
                     name=status,
-                    marker_color=STATUS_COLOR.get(status, "#9ca3af")
+                    marker_color=STATUS_COLOR.get(status)
                 ))
-        
+
         organ_fig.update_layout(
             barmode="stack",
             height=450,
@@ -490,37 +485,42 @@ if nav == "Professional Analytics":
             yaxis_title="Number of Cases",
             legend_title="Status"
         )
-        
+
         st.plotly_chart(
             organ_fig,
             use_container_width=True,
-            key="organ_risk_burden_chart"  
+            key="organ_chart"
         )
 
-
-        # ================= CONFIDENCE BY RISK =================
+        # ================= AI CONFIDENCE =================
         st.subheader("AI Confidence by Risk Level")
 
         conf_fig = go.Figure()
 
         for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
             subset = df[df["Status"] == status]
-
-            conf_fig.add_trace(go.Histogram(
-                x=subset["Confidence"] * 100,
-                name=status,
-                marker_color=STATUS_COLOR.get(status),
-                opacity=0.6
-            ))
+            if not subset.empty:
+                conf_fig.add_trace(go.Histogram(
+                    x=subset["Confidence"] * 100,
+                    name=status,
+                    marker_color=STATUS_COLOR.get(status),
+                    opacity=0.6
+                ))
 
         conf_fig.update_layout(
             barmode="overlay",
-            height=450
+            height=450,
+            xaxis_title="Confidence (%)",
+            yaxis_title="Frequency"
         )
 
-        st.plotly_chart(conf_fig, use_container_width=True)
+        st.plotly_chart(
+            conf_fig,
+            use_container_width=True,
+            key="confidence_chart"
+        )
 
-        # ================= HIGH RISK ALERT PANEL =================
+        # ================= HIGH RISK PANEL =================
         st.subheader("High-Risk Alert Panel")
 
         high_risk_df = df[df["Status"] == "MALIGNANT"]
@@ -534,53 +534,6 @@ if nav == "Professional Analytics":
     else:
         st.info("No case data available yet.")
 
-# =====================================================
-# CASE ARCHIVE
-# =====================================================
-elif nav == "Case Archive":
-    st.dataframe(st.session_state.db, use_container_width=True)
-
-# =====================================================
-# USER MANUAL (DETAILED)
-# =====================================================
-elif nav == "User Manual":
-
-    st.title("Smart Biopsy Pro – Detailed Operational Manual")
-
-    st.markdown("""
-# 1. System Overview
-Smart Biopsy Pro is a Multi-Organ Clinical Decision Support System
-integrating biomarker logic and morphology-based inference.
-
-# 2. Organ Modules
-- Liver → AFP-based risk logic
-- Thyroid → TI-RADS stratification
-- Breast → BI-RADS prototype logic
-- Lymph Nodes → Size-based malignancy logic
-
-# 3. Risk Classification
-🟢 NORMAL → Routine follow-up  
-🟡 BENIGN → Imaging surveillance  
-🔴 MALIGNANT → Biopsy priority  
-
-# 4. Professional Analytics
-Provides:
-- Case volume monitoring
-- Risk distribution
-- Confidence tracking
-- Organ workload analysis
-
-# 5. Executive Board View
-Displays:
-- Institutional risk burden
-- Financial impact simulation
-- AI adoption growth
-
-# 6. Governance Notice
-This system is decision-support only.
-Final clinical decisions must be made
-by licensed physicians.
-""")
 # =====================================================
 # ADVANCED ENTERPRISE EXTENSIONS (APPEND BELOW EXISTING CODE)
 # =====================================================
