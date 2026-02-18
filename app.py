@@ -277,31 +277,42 @@ if nav == "Professional Analytics":
 
         st.markdown("---")
 
-        # ================= PIE =================
-        st.subheader("Risk Distribution")
+       # ================= PIE =================
+st.subheader("Risk Distribution")
 
-        labels = status_counts.index.tolist()
-        values = status_counts.values.tolist()
+labels = status_counts.index.tolist()
+values = status_counts.values.tolist()
 
-        colors = [
-            STATUS_COLOR.get(s, "#9ca3af")  # เทา fallback กัน error
-            for s in labels
-        ]
+colors = [
+    STATUS_COLOR.get(s, "#9ca3af")
+    for s in labels
+]
 
-        pie_fig = go.Figure(data=[go.Pie(
+pie_fig = go.Figure(
+    data=[
+        go.Pie(
             labels=labels,
             values=values,
             marker=dict(colors=colors),
-            hole=0.0
-            textinfo='percent+label',
+            hole=0.0,
+            textinfo="percent+label",
             textfont=dict(
-                size=24,          
+                size=22,
                 color="black"
-        )])
+            )
+        )
+    ]
+)
 
-        pie_fig.update_layout(height=550)
+pie_fig.update_layout(
+    height=650,
+    font=dict(size=20),
+    legend=dict(font=dict(size=18)),
+    margin=dict(t=40, b=20, l=20, r=20)
+)
 
-        st.plotly_chart(pie_fig, use_container_width=True)
+st.plotly_chart(pie_fig, use_container_width=True)
+
 
         # ================= BAR =================
         st.subheader("Case Distribution")
