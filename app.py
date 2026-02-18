@@ -88,39 +88,29 @@ with st.sidebar:
 # =====================================================
 # AI LOGIC
 # =====================================================
-def run_ai(organ, marker, size):
-
+    # =====================================================
+    # LIVER – MORPHOLOGY PRIORITY (AFP OPTIONAL)
+    # =====================================================
     if organ == "Liver":
-        if marker > 400 or (marker > 200 and size > 50):
-            return "MALIGNANT", 0.92
-        elif marker > 20 or size > 30:
-            return "BENIGN", 0.55
-        else:
-            return "NORMAL", 0.08
 
-    elif organ == "Thyroid":
-        if marker >= 5 or (marker == 4 and size > 25):
+        # 1️⃣ Morphology priority (Ultrasound size dominant)
+        if size > 60:
             return "MALIGNANT", 0.90
-        elif marker == 4 or size > 15:
-            return "BENIGN", 0.50
-        else:
-            return "NORMAL", 0.07
 
-    elif organ == "Breast":
-        if marker >= 5:
-            return "MALIGNANT", 0.88
-        elif marker == 4:
-            return "BENIGN", 0.60
-        else:
-            return "NORMAL", 0.10
+        # 2️⃣ Very high AFP overrides
+        if marker is not None and marker > 400:
+            return "MALIGNANT", 0.92
 
-    elif organ == "Lymph Nodes":
+        # 3️⃣ Moderate morphology risk
         if size > 30:
-            return "MALIGNANT", 0.85
-        elif size > 15:
+            return "BENIGN", 0.60
+
+        # 4️⃣ Moderate AFP risk
+        if marker is not None and marker > 200:
             return "BENIGN", 0.55
-        else:
-            return "NORMAL", 0.12
+
+        # 5️⃣ Low risk
+        return "NORMAL", 0.15
 
 # =====================================================
 # PDF GENERATOR
