@@ -29,6 +29,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import datetime
 
+# Initialize database in session state
+if "db" not in st.session_state:
+    st.session_state.db = pd.DataFrame(
+        columns=["Organ", "Marker", "Size", "Status", "Confidence"]
+    )
+
 def run_ai(organ, marker, size):
 
     # ตัวอย่าง logic demo
