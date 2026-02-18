@@ -293,9 +293,13 @@ if nav == "Professional Analytics":
             values=values,
             marker=dict(colors=colors),
             hole=0.0
+            textinfo='percent+label',
+            textfont=dict(
+                size=24,          
+                color="black
         )])
 
-        pie_fig.update_layout(height=650)
+        pie_fig.update_layout(height=550)
 
         st.plotly_chart(pie_fig, use_container_width=True)
 
