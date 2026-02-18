@@ -217,105 +217,106 @@ st.sidebar.markdown("---")
 st.sidebar.caption("Version: Liver v2.1 | Production Simulation")
 
 # =====================================================
-# ================= CLINICAL WORKSPACE =================
+# CASE VIEWER
 # =====================================================
-if app_mode == "Clinical Workspace":
+with tabs[1]:
 
-    st.markdown("<div class='big-title'>Clinical Workspace</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>AI-assisted Ultrasound Risk Stratification</div>", unsafe_allow_html=True)
+    st.subheader("New Case")
+
+    organ = "Liver"
 
     uploaded = st.file_uploader(
         "Upload Ultrasound Image",
         type=["jpg", "png", "jpeg"]
     )
 
-   if uploaded:
+    if uploaded is not None:
 
-    image = Image.open(uploaded).convert("RGB")
+        image = Image.open(uploaded).convert("RGB")
 
-    transform = transforms.Compose([
-        transforms.Resize((224,224)),
-        transforms.ToTensor()
-    ])
+        transform = transforms.Compose([
+            transforms.Resize((224,224)),
+            transforms.ToTensor()
+        ])
 
-    tensor = transform(image).unsqueeze(0)
+        tensor = transform(image).unsqueeze(0)
 
-    # ================= INFERENCE =================
-    with torch.no_grad():
-        output = model(tensor)
-        probs = torch.softmax(output, dim=1)[0]
+        # ================= INFERENCE =================
+        with torch.no_grad():
+            output = model(tensor)
+            probs = torch.softmax(output, dim=1)[0]
 
-        prob_normal = probs[0].item()
-        prob_benign = probs[1].item()
-        prob_malignant = probs[2].item()
+            prob_normal = probs[0].item()
+            prob_benign = probs[1].item()
+            prob_malignant = probs[2].item()
 
-        pred_class = torch.argmax(probs).item()
+            pred_class = torch.argmax(probs).item()
 
-    # ================= CLASSIFICATION =================
-    if pred_class == 0:
-        label = "Normal"
-        style = "green"
-        prob_display = prob_normal
+        # ================= CLASSIFICATION =================
+        if pred_class == 0:
+            label = "Normal"
+            style = "green"
+            prob_display = prob_normal
 
-    elif pred_class == 1:
-        label = "Likely Benign"
-        style = "yellow"
-        prob_display = prob_benign
+        elif pred_class == 1:
+            label = "Likely Benign"
+            style = "yellow"
+            prob_display = prob_benign
 
-    else:
-        label = "Suspicious Malignant"
-        style = "red"
-        prob_display = prob_malignant
+        else:
+            label = "Suspicious Malignant"
+            style = "red"
+            prob_display = prob_malignant
 
-    # Optional confidence margin safeguard
-    sorted_probs = sorted(
-        [prob_normal, prob_benign, prob_malignant],
-        reverse=True
-    )
-    margin = sorted_probs[0] - sorted_probs[1]
+        # Confidence margin safeguard
+        sorted_probs = sorted(
+            [prob_normal, prob_benign, prob_malignant],
+            reverse=True
+        )
+        margin = sorted_probs[0] - sorted_probs[1]
 
-    if margin < 0.10:
-        label = "Indeterminate – Radiologist Review Recommended"
-        style = "yellow"
+        if margin < 0.10:
+            label = "Indeterminate – Radiologist Review Recommended"
+            style = "yellow"
 
-    case_id = str(uuid.uuid4())[:8]
+        case_id = str(uuid.uuid4())[:8]
 
-    col1, col2 = st.columns([1.3, 1])
+        col1, col2 = st.columns([1.3, 1])
 
-    # ================= IMAGE =================
-    with col1:
-        st.image(image, use_column_width=True)
+        # ================= IMAGE =================
+        with col1:
+            st.image(image, use_column_width=True)
 
-    # ================= RESULT CARD =================
-    with col2:
-
-        st.markdown(
-            f"""
-            <div class='card {style}'>
-                <div style="font-size:24px; font-weight:700;">
-                    {label}
+        # ================= RESULT CARD =================
+        with col2:
+            st.markdown(
+                f"""
+                <div class='card {style}'>
+                    <div style="font-size:24px; font-weight:700;">
+                        {label}
+                    </div>
+                    <div style="font-size:20px;">
+                        {round(prob_display*100,2)}%
+                    </div>
                 </div>
-                <div style="font-size:20px;">
-                    {round(prob_display*100,2)}%
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
+                """,
+                unsafe_allow_html=True
+            )
+
+        # ================= FHIR SYNC =================
+        st.session_state.fhir_probability = prob_display
+        st.session_state.fhir_patient_id = case_id
+        st.session_state.uploaded_image = uploaded
+
+        log_case(
+            case_id,
+            st.session_state.hospital,
+            st.session_state.role,
+            organ,
+            prob_display,
+            label
         )
 
-    # ================= FHIR SYNC =================
-    st.session_state.fhir_probability = prob_display
-    st.session_state.fhir_patient_id = case_id
-    st.session_state.uploaded_image = uploaded
-
-    log_case(
-        case_id,
-        st.session_state.hospital,
-        st.session_state.role,
-        organ,
-        prob_display,
-        label
-    )
 
 # =====================================================
 # ================= EXECUTIVE DASHBOARD =================
