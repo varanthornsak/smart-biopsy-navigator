@@ -8,17 +8,21 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 import io
+import numpy as np
+import os
+import hashlib
 
 # =====================================================
-# PAGE CONFIG
+# PAGE CONFIG (ต้องมีครั้งเดียว)
 # =====================================================
 st.set_page_config(
     page_title="Smart Biopsy Pro | Enterprise Multi-Organ",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # =====================================================
-# SAFE SESSION INITIALIZATION (CRITICAL FOR CLOUD)
+# SAFE SESSION INIT
 # =====================================================
 if "auth" not in st.session_state:
     st.session_state.auth = False
@@ -28,10 +32,12 @@ if "role" not in st.session_state:
 
 if "db" not in st.session_state:
     st.session_state.db = pd.DataFrame(columns=[
-        "Date", "HN", "Patient", "Organ",
-        "Status", "Confidence",
-        "Marker_Val", "Tumor_Size"
+        "Date","HN","Patient","Organ",
+        "Status","Confidence","Marker_Val","Tumor_Size"
     ])
+
+if "audit_log" not in st.session_state:
+    st.session_state.audit_log = []
 
 # =====================================================
 # CONSTANTS
@@ -42,18 +48,19 @@ STATUS_COLOR = {
     "MALIGNANT": "#EF4444"
 }
 
-ROLES = ["Admin", "Clinician", "Radiologist", "Executive"]
+ROLES = ["Admin","Clinician","Radiologist","Executive"]
 
 # =====================================================
 # LOGIN
 # =====================================================
 if not st.session_state.auth:
+
     st.title("SMART BIOPSY PRO – ENTERPRISE AI")
 
-    role = st.selectbox("Select Role", ROLES)
-    pwd = st.text_input("Security Key", type="password")
+    role = st.selectbox("Select Role", ROLES, key="login_role")
+    pwd = st.text_input("Security Key", type="password", key="login_pwd")
 
-    if st.button("LOGIN"):
+    if st.button("LOGIN", key="login_btn"):
         if pwd == "SNH_SECURE":
             st.session_state.auth = True
             st.session_state.role = role
@@ -67,20 +74,26 @@ if not st.session_state.auth:
 # SIDEBAR
 # =====================================================
 with st.sidebar:
+
+    st.markdown("## Smart Biopsy Pro")
+
     if st.session_state.role:
-        st.markdown(f"### Role: {st.session_state.role}")
-    else:
-        st.markdown("### Role: Not Assigned")
+        st.markdown(f"**Role:** {st.session_state.role}")
 
-    nav = st.radio("Navigation", [
-        "Diagnostic Hub",
-        "Professional Analytics",
-        "Executive Board View",
-        "Case Archive",
-        "User Manual"
-    ])
+    nav = st.radio(
+        "Navigation",
+        [
+            "Diagnostic Hub",
+            "Professional Analytics",
+            "Executive Board View",
+            "Case Archive",
+            "User Manual",
+            "VC AI Module"
+        ],
+        key="main_nav"
+    )
 
-    if st.button("Logout"):
+    if st.button("Logout", key="sidebar_logout"):
         st.session_state.auth = False
         st.session_state.role = None
         st.rerun()
@@ -150,27 +163,28 @@ if nav == "Diagnostic Hub":
 
     st.title("Diagnostic Decision Engine – Multi Organ")
 
-    col1, col2 = st.columns([1, 1.3])
+    col1, col2 = st.columns([1,1.3])
 
     with col1:
-        patient = st.text_input("Patient Name")
-        hn = st.text_input("HN")
+        patient = st.text_input("Patient Name", key="dh_patient")
+        hn = st.text_input("HN", key="dh_hn")
         organ = st.selectbox("Organ",
-                             ["Liver", "Thyroid", "Breast", "Lymph Nodes"])
-        file = st.file_uploader("Upload Image (Optional)")
+                             ["Liver","Thyroid","Breast","Lymph Nodes"],
+                             key="dh_organ")
 
         if organ == "Liver":
-            marker = st.number_input("AFP", min_value=0.0, value=10.0)
+            marker = st.number_input("AFP",0.0,value=10.0,key="dh_marker")
         elif organ == "Thyroid":
-            marker = st.selectbox("TI-RADS", [1, 2, 3, 4, 5])
+            marker = st.selectbox("TI-RADS",[1,2,3,4,5],key="dh_marker")
         elif organ == "Breast":
-            marker = st.selectbox("BI-RADS", [1, 2, 3, 4, 5])
+            marker = st.selectbox("BI-RADS",[1,2,3,4,5],key="dh_marker")
         else:
             marker = 0
 
-        size = st.slider("Lesion Size (mm)", 1, 100, 10)
+        size = st.slider("Lesion Size (mm)",1,100,10,key="dh_size")
 
-        if st.button("Run AI Analysis"):
+        if st.button("Run AI Analysis", key="dh_run"):
+
             if patient and hn:
                 status, confidence = run_ai(organ, marker, size)
 
@@ -186,27 +200,26 @@ if nav == "Diagnostic Hub":
                 }])
 
                 st.session_state.db = pd.concat(
-                    [st.session_state.db, new],
-                    ignore_index=True)
+                    [st.session_state.db,new],
+                    ignore_index=True
+                )
 
                 st.success("Analysis Complete")
 
     with col2:
-        if len(st.session_state.db) > 0:
+        if len(st.session_state.db)>0:
             last = st.session_state.db.iloc[-1]
             color = STATUS_COLOR[last["Status"]]
 
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
-                value=last["Confidence"] * 100,
-                number={'suffix': "%"},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': color}
-                }
+                value=last["Confidence"]*100,
+                number={'suffix':"%"},
+                gauge={'axis':{'range':[0,100]},
+                       'bar':{'color':color}}
             ))
-            st.plotly_chart(fig, use_container_width=True)
 
+            st.plotly_chart(fig,use_container_width=True)
             st.markdown(f"## {last['Status']}")
 
             pdf = generate_pdf(
@@ -220,7 +233,8 @@ if nav == "Diagnostic Hub":
             st.download_button(
                 "Download PDF Report",
                 pdf,
-                file_name="Smart_Biopsy_Report.pdf"
+                file_name="Smart_Biopsy_Report.pdf",
+                key="dh_pdf"
             )
 
 # =====================================================
@@ -232,30 +246,23 @@ elif nav == "Professional Analytics":
 
     df = st.session_state.db
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Cases", len(df))
+    c1,c2,c3 = st.columns(3)
+
+    c1.metric("Total Cases",len(df))
     c2.metric("Malignancy %",
               f"{(df['Status']=='MALIGNANT').mean()*100 if len(df)>0 else 0:.1f}%")
     c3.metric("Avg Confidence",
               f"{df['Confidence'].mean()*100 if len(df)>0 else 0:.1f}%")
 
-    if len(df) > 0:
+    if len(df)>0:
         st.plotly_chart(
-            px.pie(df,
-                   names="Status",
-                   color="Status",
-                   color_discrete_map=STATUS_COLOR),
-            use_container_width=True)
-
-        st.plotly_chart(
-            px.bar(df,
-                   x="Organ",
+            px.pie(df,names="Status",
                    color="Status",
                    color_discrete_map=STATUS_COLOR),
             use_container_width=True)
 
 # =====================================================
-# EXECUTIVE BOARD VIEW
+# EXECUTIVE VIEW
 # =====================================================
 elif nav == "Executive Board View":
 
@@ -263,349 +270,53 @@ elif nav == "Executive Board View":
 
     df = st.session_state.db
     total = len(df)
-    malignant = (df["Status"] == "MALIGNANT").sum()
+    malignant = (df["Status"]=="MALIGNANT").sum()
 
-    st.metric("Total Diagnoses", total)
-    st.metric("High Risk Cases", malignant)
-    st.metric("Projected Quarterly Savings", "฿1,500,000")
-
-    if total > 0:
-        trend = df.groupby("Date").size().reset_index(name="Cases")
-        st.plotly_chart(
-            px.area(trend, x="Date", y="Cases"),
-            use_container_width=True)
+    st.metric("Total Diagnoses",total)
+    st.metric("High Risk Cases",malignant)
+    st.metric("Projected Quarterly Savings","฿1,500,000")
 
 # =====================================================
 # CASE ARCHIVE
 # =====================================================
 elif nav == "Case Archive":
-    st.dataframe(st.session_state.db, use_container_width=True)
+    st.dataframe(st.session_state.db,use_container_width=True)
 
 # =====================================================
-# USER MANUAL (DETAILED)
+# USER MANUAL
 # =====================================================
 elif nav == "User Manual":
 
-    st.title("Smart Biopsy Pro – Detailed Operational Manual")
+    st.title("Smart Biopsy Pro – Detailed Manual")
 
     st.markdown("""
-# 1. System Overview
-Smart Biopsy Pro is a Multi-Organ Clinical Decision Support System
-integrating biomarker logic and morphology-based inference.
+Multi-Organ AI Decision Support System  
+Liver, Thyroid, Breast, Lymph Nodes  
 
-# 2. Organ Modules
-- Liver → AFP-based risk logic
-- Thyroid → TI-RADS stratification
-- Breast → BI-RADS prototype logic
-- Lymph Nodes → Size-based malignancy logic
+NORMAL → Routine follow-up  
+BENIGN → Imaging surveillance  
+MALIGNANT → Biopsy priority  
 
-# 3. Risk Classification
-🟢 NORMAL → Routine follow-up  
-🟡 BENIGN → Imaging surveillance  
-🔴 MALIGNANT → Biopsy priority  
-
-# 4. Professional Analytics
-Provides:
-- Case volume monitoring
-- Risk distribution
-- Confidence tracking
-- Organ workload analysis
-
-# 5. Executive Board View
-Displays:
-- Institutional risk burden
-- Financial impact simulation
-- AI adoption growth
-
-# 6. Governance Notice
-This system is decision-support only.
-Final clinical decisions must be made
-by licensed physicians.
+Decision support only.  
+Final diagnosis by licensed physician.
 """)
-# ============================================================
-# SMART BIOPSY PRO – ENTERPRISE VC BUILD
-# Multi-Organ AI Clinical Assistant
-# ============================================================
 
-import streamlit as st
-import pandas as pd
-import numpy as np
-import datetime
-import os
-import hashlib
+# =====================================================
+# VC AI MODULE (SECOND SYSTEM FIXED – NO DUPLICATE)
+# =====================================================
+elif nav == "VC AI Module":
 
-# Optional AI
-try:
-    import torch
-except:
-    torch = None
+    st.title("VC Production AI Module")
 
-try:
-    import joblib
-except:
-    joblib = None
-
-# ============================================================
-# PAGE CONFIG
-# ============================================================
-
-st.set_page_config(
-    page_title="Smart Biopsy Pro",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# ============================================================
-# DARK MODE + VC UI
-# ============================================================
-
-st.markdown("""
-<style>
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-}
-.main {
-    background-color: #0E1117;
-    color: white;
-}
-section[data-testid="stSidebar"] {
-    background-color: #111827;
-}
-.stButton>button {
-    background-color: #2563EB;
-    color: white;
-    border-radius: 10px;
-    height: 3em;
-    font-weight: 600;
-}
-.stButton>button:hover {
-    background-color: #1D4ED8;
-}
-.block-container {
-    padding-top: 2rem;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ============================================================
-# SAFE SESSION INIT
-# ============================================================
-
-if "auth" not in st.session_state:
-    st.session_state.auth = False
-
-if "role" not in st.session_state:
-    st.session_state.role = None
-
-if "db" not in st.session_state:
-    st.session_state.db = pd.DataFrame(columns=[
-        "Date", "HN", "Patient",
-        "Organ", "Prediction",
-        "Confidence", "Marker",
-        "Tumor_Size"
-    ])
-
-if "audit_log" not in st.session_state:
-    st.session_state.audit_log = []
-
-# ============================================================
-# SIMPLE AUTH SYSTEM (HASHED)
-# ============================================================
-
-def hash_pw(pw):
-    return hashlib.sha256(pw.encode()).hexdigest()
-
-USERS = {
-    "admin": {
-        "password": hash_pw("admin123"),
-        "role": "Admin"
-    },
-    "doctor": {
-        "password": hash_pw("doctor123"),
-        "role": "Doctor"
-    }
-}
-
-def login():
-    st.title("🔐 Smart Biopsy Pro Login")
-
-    user = st.text_input("Username")
-    pw = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if user in USERS and USERS[user]["password"] == hash_pw(pw):
-            st.session_state.auth = True
-            st.session_state.role = USERS[user]["role"]
-            st.success("Login successful")
-            st.rerun()
-        else:
-            st.error("Invalid credentials")
-
-# ============================================================
-# LOAD REAL MODEL (Production Style)
-# ============================================================
-
-@st.cache_resource
-def load_model(organ):
-    model_path_pt = f"models/{organ}.pt"
-    model_path_pkl = f"models/{organ}.pkl"
-
-    if torch and os.path.exists(model_path_pt):
-        model = torch.jit.load(model_path_pt)
-        model.eval()
-        return model
-
-    if joblib and os.path.exists(model_path_pkl):
-        return joblib.load(model_path_pkl)
-
-    return None
-
-def predict_with_model(model, marker, size):
-    if model is None:
-        prob = np.random.uniform(0.4, 0.95)
-    else:
-        try:
-            input_data = np.array([[marker, size]])
-            if torch and isinstance(model, torch.jit.ScriptModule):
-                tensor = torch.tensor(input_data, dtype=torch.float32)
-                output = model(tensor)
-                prob = float(output.detach().numpy()[0][0])
-            else:
-                prob = float(model.predict_proba(input_data)[0][1])
-        except:
-            prob = np.random.uniform(0.4, 0.95)
-
-    prediction = "Malignant" if prob > 0.6 else "Benign"
-    return prediction, prob
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-
-def sidebar():
-    st.sidebar.title("Smart Biopsy Pro")
-    st.sidebar.markdown("---")
-
-    if st.session_state.role:
-        st.sidebar.markdown(f"**Role:** {st.session_state.role}")
-
-    page = st.sidebar.radio(
-        "Navigation",
-        ["Dashboard", "New Case", "Database", "Audit Log"]
-    )
-
-    if st.sidebar.button("Logout"):
-        st.session_state.auth = False
-        st.session_state.role = None
-        st.rerun()
-
-    return page
-
-# ============================================================
-# DASHBOARD
-# ============================================================
-
-def dashboard():
-    st.title("📊 Clinical Dashboard")
-
-    col1, col2, col3 = st.columns(3)
-
-    total_cases = len(st.session_state.db)
-    malignant = len(st.session_state.db[
-        st.session_state.db["Prediction"] == "Malignant"
-    ])
-
-    with col1:
-        st.metric("Total Cases", total_cases)
-
-    with col2:
-        st.metric("Malignant Cases", malignant)
-
-    with col3:
-        rate = (malignant / total_cases * 100) if total_cases > 0 else 0
-        st.metric("Malignancy Rate", f"{rate:.1f}%")
-
-# ============================================================
-# NEW CASE
-# ============================================================
-
-def new_case():
-    st.title("🧬 New Biopsy Case")
-
-    organ = st.selectbox(
-        "Select Organ",
-        ["liver", "thyroid", "breast", "lymph_node"]
-    )
-
-    hn = st.text_input("Hospital Number")
-    patient = st.text_input("Patient Name")
-    marker = st.number_input("Tumor Marker Value", 0.0)
-    size = st.number_input("Tumor Size (cm)", 0.0)
-
-    if st.button("Run AI Diagnosis"):
-        model = load_model(organ)
-        prediction, prob = predict_with_model(model, marker, size)
-
-        new_row = {
-            "Date": datetime.datetime.now(),
-            "HN": hn,
-            "Patient": patient,
-            "Organ": organ,
-            "Prediction": prediction,
-            "Confidence": round(prob, 3),
-            "Marker": marker,
-            "Tumor_Size": size
-        }
-
-        st.session_state.db = pd.concat(
-            [st.session_state.db, pd.DataFrame([new_row])],
-            ignore_index=True
-        )
+    if st.button("Run VC Demo AI", key="vc_run"):
+        prob = np.random.uniform(0.4,0.95)
+        pred = "Malignant" if prob>0.6 else "Benign"
 
         st.session_state.audit_log.append(
-            f"{datetime.datetime.now()} - {organ} case added by {st.session_state.role}"
+            f"{datetime.datetime.now()} VC AI run by {st.session_state.role}"
         )
 
-        if prediction == "Malignant":
-            st.error(f"⚠ Malignant ({prob:.2%})")
+        if pred=="Malignant":
+            st.error(f"Malignant ({prob:.2%})")
         else:
             st.success(f"Benign ({prob:.2%})")
-
-# ============================================================
-# DATABASE
-# ============================================================
-
-def database():
-    st.title("🗂 Case Database")
-    st.dataframe(st.session_state.db, use_container_width=True)
-
-    if st.button("Export CSV"):
-        st.session_state.db.to_csv("cases_export.csv", index=False)
-        st.success("Exported to cases_export.csv")
-
-# ============================================================
-# AUDIT LOG
-# ============================================================
-
-def audit():
-    st.title("🧾 Audit Log")
-    for entry in st.session_state.audit_log[::-1]:
-        st.write(entry)
-
-# ============================================================
-# MAIN APP
-# ============================================================
-
-if not st.session_state.auth:
-    login()
-else:
-    page = sidebar()
-
-    if page == "Dashboard":
-        dashboard()
-    elif page == "New Case":
-        new_case()
-    elif page == "Database":
-        database()
-    elif page == "Audit Log":
-        audit()
