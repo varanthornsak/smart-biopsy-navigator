@@ -235,7 +235,7 @@ def run_ai(organ, marker, size):
 # 💼 BUSINESS OVERVIEW
 # =====================================================
 
-if page == "💼 Business Overview":
+if nav == "💼 Business Overview":
 
     st.title("💼 Business & Growth Strategy")
 
