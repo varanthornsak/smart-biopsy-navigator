@@ -138,7 +138,7 @@ def generate_pdf(patient, hn, organ, status, confidence):
 # 🧪 DIAGNOSTIC HUB (CLEAN VERSION)
 # =====================================================
 
-elif nav == "Diagnostic Hub":
+if nav == "Diagnostic Hub":
 
     st.title("Smart Biopsy Pro – Diagnostic Hub")
 
