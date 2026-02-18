@@ -214,80 +214,179 @@ if nav == "Diagnostic Hub":
             st.info("Run analysis to generate result.")
 
 # =====================================================
-# 📊 PROFESSIONAL ANALYTICS (SAFE VERSION)
+# PROFESSIONAL ANALYTICS – ENTERPRISE BI
 # =====================================================
 
 if nav == "Professional Analytics":
 
-    st.title("Professional Analytics Dashboard")
+    st.title("Enterprise Clinical Intelligence Dashboard")
 
-    STATUS_COLOR = {
-        "NORMAL": "#28a745",
-        "BENIGN": "#ffc107",
-        "MALIGNANT": "#dc3545"
-    }
+    if len(st.session_state.db) == 0:
+        st.info("No case data available.")
+        st.stop()
 
-    if len(st.session_state.db) > 0:
+    df = st.session_state.db.copy()
 
-        df = st.session_state.db.copy()
+    # ---------- Data Cleaning ----------
+    df["Status"] = df["Status"].astype(str).str.upper().str.strip()
 
-        # 🔥 ทำให้ status เป็นมาตรฐานก่อน
-        df["Status"] = df["Status"].astype(str).str.upper().str.strip()
+    if "Timestamp" in df.columns:
+        df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
 
-        status_counts = df["Status"].value_counts()
+    if "Risk_Score" not in df.columns:
+        df["Risk_Score"] = 0
 
-        # ================= KPI =================
-        col1, col2, col3 = st.columns(3)
+    if "Calibrated_Confidence" not in df.columns:
+        df["Calibrated_Confidence"] = df["Confidence"]
 
-        col1.metric("🟢 NORMAL", status_counts.get("NORMAL", 0))
-        col2.metric("🟡 BENIGN", status_counts.get("BENIGN", 0))
-        col3.metric("🔴 MALIGNANT", status_counts.get("MALIGNANT", 0))
+    # =====================================================
+    # KPI ROW
+    # =====================================================
 
-        st.markdown("---")
+    total_cases = len(df)
+    malignant_cases = (df["Status"] == "MALIGNANT").sum()
+    benign_cases = (df["Status"] == "BENIGN").sum()
+    normal_cases = (df["Status"] == "NORMAL").sum()
 
-        # ================= PIE =================
-        st.subheader("Risk Distribution")
+    malignancy_rate = (malignant_cases / total_cases) * 100 if total_cases > 0 else 0
+    avg_confidence = df["Calibrated_Confidence"].mean() * 100
 
-        labels = status_counts.index.tolist()
-        values = status_counts.values.tolist()
+    col1, col2, col3, col4 = st.columns(4)
 
-        colors = [
-            STATUS_COLOR.get(s, "#9ca3af")  # เทา fallback กัน error
-            for s in labels
-        ]
+    col1.metric("Total Cases", total_cases)
+    col2.metric("Malignancy Rate", f"{malignancy_rate:.1f}%")
+    col3.metric("Avg AI Confidence", f"{avg_confidence:.1f}%")
+    col4.metric("High-Risk Cases", (df["Risk_Score"] >= 80).sum())
 
-        pie_fig = go.Figure(data=[go.Pie(
-            labels=labels,
-            values=values,
-            marker=dict(colors=colors),
-            hole=0.0
-        )])
+    st.markdown("---")
 
-        pie_fig.update_layout(height=600)
+    # =====================================================
+    # 1️⃣ Monthly Case Trend
+    # =====================================================
 
-        st.plotly_chart(pie_fig, use_container_width=True)
+    if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
 
-        # ================= BAR =================
-        st.subheader("Case Distribution")
-
-        bar_fig = go.Figure()
-
-        for status in labels:
-            bar_fig.add_trace(go.Bar(
-                x=[status],
-                y=[status_counts[status]],
-                marker_color=STATUS_COLOR.get(status, "#9ca3af")
-            ))
-
-        bar_fig.update_layout(
-            showlegend=False,
-            height=400
+        monthly = (
+            df.groupby(pd.Grouper(key="Timestamp", freq="M"))
+            .size()
+            .reset_index(name="Cases")
         )
 
-        st.plotly_chart(bar_fig, use_container_width=True)
+        monthly["Rolling_Avg"] = monthly["Cases"].rolling(3).mean()
 
+        trend_fig = px.line(
+            monthly,
+            x="Timestamp",
+            y=["Cases", "Rolling_Avg"],
+            markers=True,
+            title="Monthly Case Volume Trend"
+        )
+
+        st.plotly_chart(trend_fig, use_container_width=True)
+
+    # =====================================================
+    # 2️⃣ Organ-based Malignancy Rate
+    # =====================================================
+
+    if "Organ" in df.columns:
+
+        organ_stats = (
+            df.groupby("Organ")["Status"]
+            .apply(lambda x: (x == "MALIGNANT").mean() * 100)
+            .reset_index(name="Malignancy_Rate")
+        )
+
+        organ_fig = px.bar(
+            organ_stats,
+            x="Organ",
+            y="Malignancy_Rate",
+            title="Malignancy Rate by Organ (%)"
+        )
+
+        st.plotly_chart(organ_fig, use_container_width=True)
+
+    # =====================================================
+    # 3️⃣ Risk Score Distribution
+    # =====================================================
+
+    risk_fig = px.histogram(
+        df,
+        x="Risk_Score",
+        nbins=20,
+        title="Risk Score Distribution"
+    )
+
+    st.plotly_chart(risk_fig, use_container_width=True)
+
+    # =====================================================
+    # 4️⃣ Confidence Calibration Curve
+    # =====================================================
+
+    calibration_df = (
+        df.groupby(pd.cut(df["Calibrated_Confidence"], bins=5))
+        .size()
+        .reset_index(name="Count")
+    )
+
+    calib_fig = px.bar(
+        calibration_df,
+        x="Calibrated_Confidence",
+        y="Count",
+        title="Confidence Distribution"
+    )
+
+    st.plotly_chart(calib_fig, use_container_width=True)
+
+    # =====================================================
+    # 5️⃣ Workload by User Role
+    # =====================================================
+
+    if "Created_By" in df.columns:
+
+        workload = df["Created_By"].value_counts().reset_index()
+        workload.columns = ["Role", "Cases"]
+
+        workload_fig = px.pie(
+            workload,
+            names="Role",
+            values="Cases",
+            title="Case Distribution by Role"
+        )
+
+        st.plotly_chart(workload_fig, use_container_width=True)
+
+    # =====================================================
+    # 6️⃣ High Risk Case Table
+    # =====================================================
+
+    st.markdown("### High-Risk Case Review")
+
+    high_risk_df = df[df["Risk_Score"] >= 80].sort_values(
+        by="Risk_Score",
+        ascending=False
+    )
+
+    if len(high_risk_df) > 0:
+        st.dataframe(high_risk_df, use_container_width=True)
     else:
-        st.info("No case data available yet.")
+        st.success("No high-risk cases detected.")
+
+    # =====================================================
+    # 7️⃣ Executive Insight Panel
+    # =====================================================
+
+    st.markdown("---")
+    st.subheader("AI Performance Insight")
+
+    if malignancy_rate > 25:
+        st.error("Malignancy rate above expected threshold.")
+    elif malignancy_rate > 15:
+        st.warning("Moderate malignancy burden detected.")
+    else:
+        st.success("Malignancy rate within expected range.")
+
+    if avg_confidence < 60:
+        st.warning("AI confidence calibration may require review.")
 
 # =====================================================
 # EXECUTIVE BOARD VIEW
