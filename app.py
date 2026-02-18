@@ -1,48 +1,44 @@
 # ==========================================
-# IMPORT SECTION (CLEAN VERSION)
+# 🔐 AUTH SYSTEM
 # ==========================================
 
-import streamlit as st
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import io
-import datetime
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-# Plotly
-import plotly.graph_objects as go
-import plotly.express as px
 
-# Machine Learning
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.calibration import calibration_curve
+# ---------- LOGIN PAGE ----------
+if not st.session_state.authenticated:
 
-# PDF (ReportLab)
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
+    st.title("🔐 Smart Biopsy Navigator Login")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if username == "admin" and password == "1234":
+            st.session_state.authenticated = True
+            st.success("Login successful")
+            st.rerun()
+        else:
+            st.error("Invalid credentials")
+
+    st.stop()   # ⛔ หยุดที่นี่ถ้ายังไม่ login
 
 
 # ==========================================
-# SESSION STATE INIT
+# SIDEBAR NAVIGATION (AFTER LOGIN)
 # ==========================================
 
-if "db" not in st.session_state:
-    st.session_state.db = pd.DataFrame(
-        columns=[
-            "Date",
-            "HN",
-            "Patient",
-            "Organ",
-            "Status",
-            "Confidence",
-            "Marker_Val",
-            "Tumor_Size"
-        ]
-    )
+st.sidebar.title("Smart Biopsy Navigator")
+
+if st.sidebar.button("Logout"):
+    st.session_state.authenticated = False
+    st.rerun()
+
+page = st.sidebar.radio(
+    "Select Page",
+    ["📂 Clinical Dashboard", "💼 Business Overview"]
+)
 
 
 # ==========================================
