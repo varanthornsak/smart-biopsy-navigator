@@ -1,6 +1,6 @@
-# ================================
-# IMPORT SECTION
-# ================================
+# ==========================================
+# IMPORT SECTION (CLEAN VERSION)
+# ==========================================
 
 import streamlit as st
 import numpy as np
@@ -9,20 +9,18 @@ import matplotlib.pyplot as plt
 import io
 import datetime
 
+# Plotly
 import plotly.graph_objects as go
-import plotly.express as
-        "Date", "HN", "Patient", "Organ",
-        "Status", "Confidence",
-        "Marker_Val", "Tumor_Size"
-    ])
- px
+import plotly.express as px
 
+# Machine Learning
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.calibration import calibration_curve
 
+# PDF (ReportLab)
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
