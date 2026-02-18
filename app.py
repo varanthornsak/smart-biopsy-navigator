@@ -399,7 +399,7 @@ if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
         ascending=False
     )
 
-    def highlight_status(row):
+        def highlight_status(row):
         if row["Status"] == "MALIGNANT":
             return ["background-color: #FEE2E2"] * len(row)
         elif row["Status"] == "BENIGN":
@@ -408,10 +408,10 @@ if "Timestamp" in df.columns and df["Timestamp"].notna().sum() > 1:
             return ["background-color: #DCFCE7"] * len(row)
         return [""] * len(row)
 
-    if len(high_risk_df) > 0:
+        if len(high_risk_df) > 0:
         styled_df = high_risk_df.style.apply(highlight_status, axis=1)
         st.dataframe(styled_df, use_container_width=True)
-    else:
+        else:
         st.success("No high-risk cases detected.")
 
 # =====================================================
