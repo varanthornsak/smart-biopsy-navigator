@@ -101,10 +101,18 @@ if page == "🧠 Clinical Dashboard":
             "Organ",
             ["Liver", "Thyroid", "Breast", "Lymph Nodes"]
         )
-        file = st.file_uploader("Upload Ultrasound Image", type=["png", "jpg", "jpeg"])
+       file = st.file_uploader(
+        "Upload Ultrasound Image",
+        type=["png", "jpg", "jpeg"]
+        )
 
         if file is not None:
-        st.image(file, caption="Ultrasound Preview", use_container_width=True)
+        st.image(
+        file,
+        caption="Ultrasound Preview",
+        use_container_width=True
+        )
+
         
         # -------- Organ Specific --------
         if organ == "Liver":
