@@ -146,7 +146,7 @@ if nav == "Diagnostic Hub":
     col1, col2 = st.columns([1,1])
 
     # ================= LEFT =================
-  with col1:
+    with col1:
 
     patient = st.text_input("Patient Name")
     hn = st.text_input("HN")
