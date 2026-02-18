@@ -296,7 +296,7 @@ if nav == "Professional Analytics":
             textinfo='percent+label',
             textfont=dict(
                 size=24,          
-                color="black
+                color="black"
         )])
 
         pie_fig.update_layout(height=550)
