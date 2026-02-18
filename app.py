@@ -184,26 +184,39 @@ if page == "🧠 Clinical Dashboard":
             # ---- RESULT ----
             with tab1:
 
-                fig = go.Figure(go.Indicator(
-                    mode="gauge+number",
-                    value=conf_percent,
-                    number={'suffix': "%"},
-                    gauge={
-                        'axis': {'range': [0, 100]},
-                        'bar': {'color': color}
-                    }
-                ))
+            last = st.session_state.db.iloc[-1]
+            confidence = last["Confidence"]
+            conf_percent = confidence * 100
+        
+            # 🎨 Define color BEFORE using it
+            if last["Status"] == "Normal":
+                color = "#00cc96"      # Green
+            elif last["Status"] == "Benign":
+                color = "#FFA500"      # Yellow
+            else:
+                color = "#EF553B"      # Red
+        
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=conf_percent,
+                number={'suffix': "%"},
+                gauge={
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': color}
+                }
+            ))
+        
+            st.plotly_chart(fig, use_container_width=True)
+        
+            st.markdown(f"## {last['Status']}")
+        
+            if last["Status"] == "Normal":
+                st.success("No suspicious malignancy detected")
+            elif last["Status"] == "Benign":
+                st.warning("Likely benign lesion – follow up recommended")
+            else:
+                st.error("High suspicion of malignancy – biopsy recommended")
 
-                st.plotly_chart(fig, use_container_width=True)
-
-                st.markdown(f"## {last['Status']}")
-
-                if confidence < 0.30:
-                    st.success("Low Suspicion of Malignancy")
-                elif confidence < 0.70:
-                    st.warning("Indeterminate – Clinical Correlation Recommended")
-                else:
-                    st.error("High Suspicion of Malignancy")
 
             # ---- AI INSIGHTS ----
             with tab2:
