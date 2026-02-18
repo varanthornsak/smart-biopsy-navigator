@@ -201,6 +201,44 @@ if nav == "Diagnostic Hub":
 
                 st.success("Analysis Complete")
 
+    with col2:
+
+        st.subheader("AI Result Dashboard")
+
+        if "last_result" in st.session_state:
+
+            status = st.session_state.last_result["status"]
+            confidence = st.session_state.last_result["confidence"]
+
+            # ===== COLOR SYSTEM =====
+            if status == "NORMAL":
+                color = "green"
+            elif status == "BENIGN":
+                color = "orange"
+            else:
+                color = "red"
+
+            st.markdown(
+                f"""
+                <div style="
+                    padding:30px;
+                    border-radius:15px;
+                    text-align:center;
+                    background-color:{color};
+                    color:white;
+                    font-size:28px;
+                    font-weight:bold;
+                ">
+                    {status}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            st.metric("Confidence", f"{confidence*100:.1f}%")
+
+        else:
+            st.info("Run analysis to see result")
 
 # =====================================================
 # PROFESSIONAL ANALYTICS
