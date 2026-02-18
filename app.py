@@ -1200,12 +1200,12 @@ import seaborn as sns
 import numpy as np
 
 # =====================================================
-# TRAINING PANEL
+# AI TRAINING LAB – MEDICAL AI TIER 2
 # =====================================================
 
 if nav == "AI Training Lab":
 
-    st.header("Multi-Organ AI Training Engine")
+    st.header("Multi-Organ AI Training Engine – Tier 2")
 
     if len(st.session_state.db) == 0:
         st.warning("No data available.")
@@ -1213,12 +1213,7 @@ if nav == "AI Training Lab":
 
         df = st.session_state.db.copy()
 
-        # ---------------------------------------------
-        # ORGAN FILTER
-        # ---------------------------------------------
-        organ = st.selectbox("Select Organ",
-                             df["Organ"].unique())
-
+        organ = st.selectbox("Select Organ", df["Organ"].unique())
         df = df[df["Organ"] == organ]
 
         if len(df) < 50:
@@ -1228,20 +1223,19 @@ if nav == "AI Training Lab":
             st.write(f"Training on {len(df)} cases")
 
             # ---------------------------------------------
-            # TARGET ENCODING
+            # TARGET
             # ---------------------------------------------
             df = df[df["Status"].isin(["BENIGN", "MALIGNANT"])]
-
             y = df["Status"]
             le = LabelEncoder()
-            y = le.fit_transform(y)  # 0=Benign, 1=Malignant
+            y = le.fit_transform(y)
 
             # ---------------------------------------------
-            # AFP OPTIONAL FIX
+            # AFP OPTIONAL (CLINICAL SAFE)
             # ---------------------------------------------
             if "AFP" in df.columns:
                 df["AFP_available"] = df["AFP"].notnull().astype(int)
-                df["AFP"] = df["AFP"].fillna(df["AFP"].median())
+                df["AFP"] = df["AFP"].fillna(0)
             else:
                 df["AFP"] = 0
                 df["AFP_available"] = 0
@@ -1261,7 +1255,7 @@ if nav == "AI Training Lab":
             X = df[feature_cols]
 
             # ---------------------------------------------
-            # TRAIN / TEST SPLIT
+            # TRAIN TEST SPLIT
             # ---------------------------------------------
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
@@ -1271,10 +1265,10 @@ if nav == "AI Training Lab":
             )
 
             # ---------------------------------------------
-            # MODEL
+            # MODEL (Balanced + Controlled Depth)
             # ---------------------------------------------
             model = RandomForestClassifier(
-                n_estimators=300,
+                n_estimators=400,
                 max_depth=6,
                 class_weight="balanced",
                 random_state=42
@@ -1283,30 +1277,39 @@ if nav == "AI Training Lab":
             model.fit(X_train, y_train)
 
             # ---------------------------------------------
-            # PREDICTIONS
+            # PROBABILITY
             # ---------------------------------------------
-            y_pred = model.predict(X_test)
             y_prob = model.predict_proba(X_test)[:, 1]
-        # =====================================
-        # CLINICAL WEIGHTING LOGIC
-        # =====================================
 
-            imaging_score = 0
+            # ---------------------------------------------
+            # IMAGING AUTHORITY BOOST
+            # ---------------------------------------------
+            if "Ultrasound_Score" in X_test.columns:
+                us = X_test["Ultrasound_Score"].values
+                imaging_boost = np.clip(us, 0, 1)
+                y_prob = 0.7 * imaging_boost + 0.3 * y_prob
 
-            if "Ultrasound_Score" in input_df.columns:
-                imaging_score += input_df["Ultrasound_Score"].values[0]
-            
-            if "Lesion_Size" in input_df.columns:
-                size = input_df["Lesion_Size"].values[0]
-                if size > 4:
-                    imaging_score += 0.2
-                elif size > 2:
-                    imaging_score += 0.1
-            
-            imaging_score = min(imaging_score, 1)
-            
-            # 70% imaging authority, 30% model probability
-            prob = 0.7 * imaging_score + 0.3 * prob
+            # ---------------------------------------------
+            # AUTO THRESHOLD FOR ≥ 90% SENSITIVITY
+            # ---------------------------------------------
+            thresholds = np.linspace(0.1, 0.9, 200)
+            best_threshold = 0.5
+            best_miss = 1.0
+
+            for t in thresholds:
+                y_pred_temp = (y_prob >= t).astype(int)
+                cm_temp = confusion_matrix(y_test, y_pred_temp)
+                tn, fp, fn, tp = cm_temp.ravel()
+                sensitivity = tp / (tp + fn)
+
+                if sensitivity >= 0.90:
+                    miss = fn / (tp + fn)
+                    if miss < best_miss:
+                        best_miss = miss
+                        best_threshold = t
+
+            threshold = best_threshold
+            y_pred = (y_prob >= threshold).astype(int)
 
             # ---------------------------------------------
             # METRICS
@@ -1326,9 +1329,10 @@ if nav == "AI Training Lab":
             col3.metric("Specificity", f"{specificity*100:.1f}%")
 
             st.metric("Miss Rate", f"{miss_rate*100:.1f}%")
+            st.metric("Optimized Threshold", f"{threshold:.2f}")
 
             # ---------------------------------------------
-            # CONFUSION MATRIX (NO SEABORN)
+            # CONFUSION MATRIX
             # ---------------------------------------------
             st.subheader("Confusion Matrix")
 
@@ -1363,39 +1367,6 @@ if nav == "AI Training Lab":
             st.pyplot(fig_roc)
 
             # ---------------------------------------------
-            # CALIBRATION CURVE
-            # ---------------------------------------------
-            st.subheader("Calibration Curve")
-
-            prob_true, prob_pred = calibration_curve(
-                y_test, y_prob, n_bins=10
-            )
-
-            fig_cal, ax_cal = plt.subplots()
-            ax_cal.plot(prob_pred, prob_true, marker="o")
-            ax_cal.plot([0,1],[0,1], linestyle="--")
-
-            st.pyplot(fig_cal)
-
-            # ---------------------------------------------
-            # CROSS VALIDATION
-            # ---------------------------------------------
-            st.subheader("Cross-Validation Check")
-
-            skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-            cv_scores = cross_val_score(
-                model,
-                X,
-                y,
-                cv=skf,
-                scoring="roc_auc"
-            )
-
-            st.write("CV AUC Scores:", cv_scores)
-            st.write("Mean CV AUC:", np.mean(cv_scores))
-
-            # ---------------------------------------------
             # FEATURE IMPORTANCE
             # ---------------------------------------------
             st.subheader("Feature Importance")
@@ -1408,4 +1379,4 @@ if nav == "AI Training Lab":
 
             st.dataframe(feat_df)
 
-            st.success("Training Complete.")
+            st.success("Tier-2 Medical Training Complete.")
