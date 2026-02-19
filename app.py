@@ -266,7 +266,7 @@ if nav == "Diagnostic Hub":
         # =============================
         size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
-                # =============================
+        # =============================
         # RUN AI BUTTON
         # =============================
         run = st.button("Run AI Analysis", use_container_width=True)
