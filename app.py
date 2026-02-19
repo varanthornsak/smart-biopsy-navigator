@@ -208,61 +208,62 @@ if nav == "Diagnostic Hub":
         # =============================
         size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
-        # =============================
+                # =============================
         # RUN AI BUTTON
         # =============================
         run = st.button("Run AI Analysis", use_container_width=True)
 
-       if run and patient and hn:
+        if run and patient and hn:
 
-       if uploaded_file is not None:
+            if uploaded_file is not None:
 
-        from PIL import Image
-        import torch
-        from torchvision import transforms
+                from PIL import Image
+                import torch
+                from torchvision import transforms
 
-        image = Image.open(uploaded_file).convert("RGB")
+                image = Image.open(uploaded_file).convert("RGB")
 
-        preprocess = transforms.Compose([
-            transforms.Resize((224,224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485,0.456,0.406],
-                std=[0.229,0.224,0.225]
-            )
-        ])
+                preprocess = transforms.Compose([
+                    transforms.Resize((224,224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485,0.456,0.406],
+                        std=[0.229,0.224,0.225]
+                    )
+                ])
 
-        img_tensor = preprocess(image).unsqueeze(0)
+                img_tensor = preprocess(image).unsqueeze(0)
 
-        with torch.no_grad():
-            output = model(img_tensor)
-            probs = torch.softmax(output, dim=1)[0]
-            conf, pred = torch.max(probs, dim=0)
+                with torch.no_grad():
+                    output = model(img_tensor)
+                    probs = torch.softmax(output, dim=1)[0]
+                    conf, pred = torch.max(probs, dim=0)
 
-        classes = ["NORMAL", "BENIGN", "MALIGNANT"]
-        status = classes[pred.item()]
-        confidence = conf.item()
+                classes = ["NORMAL", "BENIGN", "MALIGNANT"]
+                status = classes[pred.item()]
+                confidence = conf.item()
 
-        new = pd.DataFrame([{
-            "Date": datetime.date.today(),
-            "HN": hn,
-            "Patient": patient,
-            "Organ": organ,
-            "Status": status,
-            "Confidence": confidence,
-            "Marker_Val": marker,
-            "Tumor_Size": size
-        }])
+                new = pd.DataFrame([{
+                    "Date": datetime.date.today(),
+                    "HN": hn,
+                    "Patient": patient,
+                    "Organ": organ,
+                    "Status": status,
+                    "Confidence": confidence,
+                    "Marker_Val": marker,
+                    "Tumor_Size": size
+                }])
 
-        st.session_state.db = pd.concat(
-            [st.session_state.db, new],
-            ignore_index=True
-        )
+                st.session_state.db = pd.concat(
+                    [st.session_state.db, new],
+                    ignore_index=True
+                )
 
-        st.success("AI Image Analysis Complete")
+                st.success("AI Image Analysis Complete")
 
-    else:
-        st.error("Please upload an ultrasound image.")
+            else:
+                st.error("Please upload an ultrasound image.")
+
 
 
     # ================= RIGHT =================
