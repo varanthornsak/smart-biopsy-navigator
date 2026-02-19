@@ -47,6 +47,49 @@ def load_model():
     return model
 
 model = load_model()
+# ===============================
+# GRAD-CAM FUNCTION
+# ===============================
+
+import numpy as np
+import cv2
+
+def generate_gradcam(model, image_tensor):
+
+    gradients = []
+    activations = []
+
+    def backward_hook(module, grad_in, grad_out):
+        gradients.append(grad_out[0])
+
+    def forward_hook(module, input, output):
+        activations.append(output)
+
+    target_layer = model.layer4[-1]
+
+    forward_handle = target_layer.register_forward_hook(forward_hook)
+    backward_handle = target_layer.register_full_backward_hook(backward_hook)
+
+    output = model(image_tensor)
+    pred_class = output.argmax(dim=1)
+
+    model.zero_grad()
+    output[0, pred_class].backward()
+
+    grads = gradients[0]
+    acts = activations[0]
+
+    weights = grads.mean(dim=(2,3), keepdim=True)
+    cam = (weights * acts).sum(dim=1).squeeze()
+
+    cam = cam.detach().numpy()
+    cam = np.maximum(cam, 0)
+    cam = cam / cam.max()
+
+    forward_handle.remove()
+    backward_handle.remove()
+
+    return cam
 
 # =====================================================
 # PAGE CONFIG
@@ -257,6 +300,27 @@ if nav == "Diagnostic Hub":
                 classes = ["NORMAL", "BENIGN", "MALIGNANT"]
                 status = classes[pred.item()]
                 confidence = conf.item()
+
+                # ===============================
+                # Grad-CAM Explainability
+                # ===============================
+                
+                cam = generate_gradcam(model, img_tensor)
+                
+                heatmap = cv2.resize(cam, (image.width, image.height))
+                heatmap = np.uint8(255 * heatmap)
+                heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+                
+                overlay = cv2.addWeighted(
+                    np.array(image),
+                    0.6,
+                    heatmap,
+                    0.4,
+                    0
+                )
+
+st.image(overlay, caption="Grad-CAM Explainability", use_column_width=True)
+
 
                 new = pd.DataFrame([{
                     "Date": datetime.date.today(),
