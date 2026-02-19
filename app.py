@@ -775,10 +775,56 @@ elif nav == "Case Archive":
     )
 
     # ===============================
-    # BASIC ANALYTICS
+    # CASES BY ORGAN (Colored by Risk)
     # ===============================
-    st.subheader("Cases by Organ")
-    st.bar_chart(filtered_df["Organ"].value_counts())
+    import matplotlib.pyplot as plt
+    
+    st.subheader("Cases by Organ (Risk Classification)")
+    
+    grouped = filtered_df.groupby(["Organ", "Status"]).size().unstack(fill_value=0)
+    
+    # Ensure all risk categories exist
+    for col in ["Low Risk", "Moderate Risk", "High Risk"]:
+        if col not in grouped.columns:
+            grouped[col] = 0
+    
+    # Rename for clinical display
+    grouped = grouped.rename(columns={
+        "Low Risk": "Normal",
+        "Moderate Risk": "Benign",
+        "High Risk": "Malignant"
+    })
+    
+    grouped = grouped[["Normal", "Benign", "Malignant"]]
+    
+    fig, ax = plt.subplots()
+    
+    bottom_vals = None
+    
+    colors = {
+        "Normal": "green",
+        "Benign": "yellow",
+        "Malignant": "red"
+    }
+    
+    for col in grouped.columns:
+        if bottom_vals is None:
+            ax.bar(grouped.index, grouped[col],
+                   label=col,
+                   color=colors[col])
+            bottom_vals = grouped[col].values
+        else:
+            ax.bar(grouped.index, grouped[col],
+                   bottom=bottom_vals,
+                   label=col,
+                   color=colors[col])
+            bottom_vals = bottom_vals + grouped[col].values
+    
+    ax.set_xlabel("Organ")
+    ax.set_ylabel("Number of Cases")
+    ax.legend()
+    
+    st.pyplot(fig)
 # =====================================================
 # 📘 USER MANUAL (WORKING VERSION)
 # =====================================================
