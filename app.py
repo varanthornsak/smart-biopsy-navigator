@@ -215,7 +215,7 @@ if nav == "Diagnostic Hub":
 
        if run and patient and hn:
 
-    if uploaded_file is not None:
+       if uploaded_file is not None:
 
         from PIL import Image
         import torch
