@@ -271,16 +271,14 @@ if nav == "Diagnostic Hub":
         # =============================
         run = st.button("Run AI Analysis", use_container_width=True)
 
-        if run and patient and hn:
-
+      if run and patient and hn:
             if uploaded_file is not None:
-
                 from PIL import Image
                 import torch
                 from torchvision import transforms
 
+                # 1. เตรียมรูปภาพ
                 image = Image.open(uploaded_file).convert("RGB")
-
                 preprocess = transforms.Compose([
                     transforms.Resize((224,224)),
                     transforms.ToTensor(),
@@ -289,18 +287,62 @@ if nav == "Diagnostic Hub":
                         std=[0.229,0.224,0.225]
                     )
                 ])
-
                 img_tensor = preprocess(image).unsqueeze(0)
 
+                # 2. รัน AI Model
                 with torch.no_grad():
                     output = model(img_tensor)
                     probs = torch.softmax(output, dim=1)[0]
-                    conf, pred = torch.max(probs, dim=0)
+                    conf_ai, pred_ai = torch.max(probs, dim=0)
 
                 classes = ["NORMAL", "BENIGN", "MALIGNANT"]
-                status = classes[pred.item()]
-                confidence = conf.item()
+                ai_status = classes[pred_ai.item()]
+                ai_conf = conf_ai.item()
 
+                # 3. Hybrid Logic (ปรับปรุงผลลัพธ์ด้วย Clinical Data)
+                # ถ้า AI ตอบ Benign แต่ขนาดก้อนเนื้อใหญ่มาก หรือ Marker สูง ให้ Override เป็น Malignant
+                final_status = ai_status
+                final_conf = ai_conf
+
+                if size > 50 or (organ == "Liver" and marker > 400):
+                    final_status = "MALIGNANT"
+                    final_conf = max(ai_conf, 0.92) # ปรับความมั่นใจเพิ่มขึ้นตามเงื่อนไขคลินิก
+                elif size < 10 and marker < 10 and ai_status == "MALIGNANT":
+                    final_status = "BENIGN" # ถ้าก้อนเล็กมากและ marker ต่ำ แต่ AI ให้ร้ายแรงไป ให้ลดระดับลง
+                    final_conf = 0.65
+
+                # 4. สร้าง Grad-CAM
+                cam = generate_gradcam(model, img_tensor)
+                heatmap = cv2.resize(cam, (image.width, image.height))
+                heatmap = np.uint8(255 * heatmap)
+                heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+                overlay = cv2.addWeighted(np.array(image), 0.6, heatmap, 0.4, 0)
+                st.image(overlay, caption="AI Diagnosis Insight (Grad-CAM)", use_column_width=True)
+
+                # 5. บันทึกลง Database
+                new_entry = pd.DataFrame([{
+                    "Date": datetime.date.today(),
+                    "HN": hn,
+                    "Patient": patient,
+                    "Organ": organ,
+                    "Status": final_status,
+                    "Confidence": final_conf,
+                    "Marker_Val": marker,
+                    "Tumor_Size": size,
+                    "Case_ID": generate_case_id(),
+                    "Timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
+                    "Created_By": st.session_state.role
+                }])
+
+                st.session_state.db = pd.concat([st.session_state.db, new_entry], ignore_index=True)
+                
+                st.success(f"วิเคราะห์สำเร็จ: {final_status}")
+                
+                # บังคับให้หน้าจอ Refresh เพื่อให้กราฟ Gauge อัปเดตทันที
+                st.rerun()
+
+            else:
+                st.error("กรุณาอัปโหลดรูปภาพ Ultrasound ก่อนรันการวิเคราะห์")
                 # ===============================
                 # Grad-CAM Explainability
                 # ===============================
