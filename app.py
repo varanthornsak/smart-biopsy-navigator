@@ -266,12 +266,12 @@ if nav == "Diagnostic Hub":
         # =============================
         size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
-        # =============================
+      # =============================
         # RUN AI BUTTON
         # =============================
         run = st.button("Run AI Analysis", use_container_width=True)
 
-            if run and patient and hn:
+        if run and patient and hn:
             if uploaded_file is not None:
                 from PIL import Image
                 import torch
@@ -299,17 +299,17 @@ if nav == "Diagnostic Hub":
                 ai_status = classes[pred_ai.item()]
                 ai_conf = conf_ai.item()
 
-                # 3. Hybrid Logic (ปรับปรุงผลลัพธ์ด้วย Clinical Data)
-                # ถ้า AI ตอบ Benign แต่ขนาดก้อนเนื้อใหญ่มาก หรือ Marker สูง ให้ Override เป็น Malignant
+                # 3. Hybrid Logic (ช่วยให้ผลลัพธ์ไม่ค้างที่ Benign)
                 final_status = ai_status
                 final_conf = ai_conf
 
+                # กฎช่วยตัดสินใจ: ถ้าก้อนใหญ่ (>50mm) หรือ AFP สูง (>400) ให้เป็น Malignant
                 if size > 50 or (organ == "Liver" and marker > 400):
                     final_status = "MALIGNANT"
-                    final_conf = max(ai_conf, 0.92) # ปรับความมั่นใจเพิ่มขึ้นตามเงื่อนไขคลินิก
+                    final_conf = max(ai_conf, 0.90)
                 elif size < 10 and marker < 10 and ai_status == "MALIGNANT":
-                    final_status = "BENIGN" # ถ้าก้อนเล็กมากและ marker ต่ำ แต่ AI ให้ร้ายแรงไป ให้ลดระดับลง
-                    final_conf = 0.65
+                    final_status = "BENIGN"
+                    final_conf = 0.60
 
                 # 4. สร้าง Grad-CAM
                 cam = generate_gradcam(model, img_tensor)
@@ -317,7 +317,7 @@ if nav == "Diagnostic Hub":
                 heatmap = np.uint8(255 * heatmap)
                 heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
                 overlay = cv2.addWeighted(np.array(image), 0.6, heatmap, 0.4, 0)
-                st.image(overlay, caption="AI Diagnosis Insight (Grad-CAM)", use_column_width=True)
+                st.image(overlay, caption="AI Focus Area (Grad-CAM)", use_column_width=True)
 
                 # 5. บันทึกลง Database
                 new_entry = pd.DataFrame([{
@@ -330,19 +330,16 @@ if nav == "Diagnostic Hub":
                     "Marker_Val": marker,
                     "Tumor_Size": size,
                     "Case_ID": generate_case_id(),
-                    "Timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
+                    "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "Created_By": st.session_state.role
                 }])
 
                 st.session_state.db = pd.concat([st.session_state.db, new_entry], ignore_index=True)
-                
                 st.success(f"วิเคราะห์สำเร็จ: {final_status}")
-                
-                # บังคับให้หน้าจอ Refresh เพื่อให้กราฟ Gauge อัปเดตทันที
                 st.rerun()
 
             else:
-                st.error("กรุณาอัปโหลดรูปภาพ Ultrasound ก่อนรันการวิเคราะห์")
+                st.error("กรุณาอัปโหลดรูปภาพ Ultrasound")
                 # ===============================
                 # Grad-CAM Explainability
                 # ===============================
