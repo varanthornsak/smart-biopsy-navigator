@@ -9,6 +9,30 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 import io
 
+# ===============================
+# DOWNLOAD MODEL FROM GOOGLE DRIVE
+# ===============================
+
+MODEL_ID = "1uVGvt5KKvhxumGapxjjOF10fWRXoZbDs"
+MODEL_PATH = "ultrasound_model.pt"
+
+@st.cache_resource
+def download_model():
+    if not os.path.exists(MODEL_PATH):
+        url = f"https://drive.google.com/uc?id={MODEL_ID}"
+        gdown.download(url, MODEL_PATH, quiet=False)
+    return MODEL_PATH
+
+model_path = download_model()
+
+@st.cache_resource
+def load_model():
+    model = torch.load(model_path, map_location=torch.device("cpu"))
+    model.eval()
+    return model
+
+model = load_model()
+
 # =====================================================
 # PAGE CONFIG
 # =====================================================
@@ -189,27 +213,57 @@ if nav == "Diagnostic Hub":
         # =============================
         run = st.button("Run AI Analysis", use_container_width=True)
 
-        if run and patient and hn:
+       if run and patient and hn:
 
-            status, confidence = run_ai(organ, marker, size)
+    if uploaded_file is not None:
 
-            new = pd.DataFrame([{
-                "Date": datetime.date.today(),
-                "HN": hn,
-                "Patient": patient,
-                "Organ": organ,
-                "Status": status,
-                "Confidence": confidence,
-                "Marker_Val": marker,
-                "Tumor_Size": size
-            }])
+        from PIL import Image
+        import torch
+        from torchvision import transforms
 
-            st.session_state.db = pd.concat(
-                [st.session_state.db, new],
-                ignore_index=True
+        image = Image.open(uploaded_file).convert("RGB")
+
+        preprocess = transforms.Compose([
+            transforms.Resize((224,224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485,0.456,0.406],
+                std=[0.229,0.224,0.225]
             )
+        ])
 
-            st.success("Analysis Complete")
+        img_tensor = preprocess(image).unsqueeze(0)
+
+        with torch.no_grad():
+            output = model(img_tensor)
+            probs = torch.softmax(output, dim=1)[0]
+            conf, pred = torch.max(probs, dim=0)
+
+        classes = ["NORMAL", "BENIGN", "MALIGNANT"]
+        status = classes[pred.item()]
+        confidence = conf.item()
+
+        new = pd.DataFrame([{
+            "Date": datetime.date.today(),
+            "HN": hn,
+            "Patient": patient,
+            "Organ": organ,
+            "Status": status,
+            "Confidence": confidence,
+            "Marker_Val": marker,
+            "Tumor_Size": size
+        }])
+
+        st.session_state.db = pd.concat(
+            [st.session_state.db, new],
+            ignore_index=True
+        )
+
+        st.success("AI Image Analysis Complete")
+
+    else:
+        st.error("Please upload an ultrasound image.")
+
 
     # ================= RIGHT =================
     with col2:
