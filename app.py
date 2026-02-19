@@ -8,6 +8,9 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 import io
+import torch
+import os
+import gdown
 
 # ===============================
 # DOWNLOAD MODEL FROM GOOGLE DRIVE
