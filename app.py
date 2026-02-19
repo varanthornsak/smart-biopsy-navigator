@@ -20,13 +20,25 @@ MODEL_ID = "1uVGvt5KKvhxumGapxjjOF10fWRXoZbDs"
 MODEL_PATH = "ultrasound_model.pt"
 
 @st.cache_resource
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        url = f"https://drive.google.com/uc?id={MODEL_ID}"
-        gdown.download(url, MODEL_PATH, quiet=False)
-    return MODEL_PATH
+def load_model():
 
-model_path = download_model()
+    import torch
+    import torch.nn as nn
+    from torchvision import models
+
+    MODEL_PATH = download_model()
+
+    # สร้าง architecture ให้ตรงกับตอน train
+    model = models.resnet18(pretrained=False)
+
+    model.fc = nn.Linear(model.fc.in_features, 3)  # 3 classes
+
+    state_dict = torch.load(MODEL_PATH, map_location=torch.device('cpu'))
+    model.load_state_dict(state_dict)
+
+    model.eval()
+
+    return model
 
 @st.cache_resource
 def load_model():
