@@ -319,7 +319,7 @@ if nav == "Diagnostic Hub":
                     0
                 )
 
-st.image(overlay, caption="Grad-CAM Explainability", use_column_width=True)
+                st.image(overlay, caption="Grad-CAM Explainability", use_column_width=True)
 
 
                 new = pd.DataFrame([{
