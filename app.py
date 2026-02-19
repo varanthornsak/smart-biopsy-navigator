@@ -271,7 +271,7 @@ if nav == "Diagnostic Hub":
         # =============================
         run = st.button("Run AI Analysis", use_container_width=True)
 
-      if run and patient and hn:
+            if run and patient and hn:
             if uploaded_file is not None:
                 from PIL import Image
                 import torch
