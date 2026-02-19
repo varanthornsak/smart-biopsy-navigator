@@ -688,7 +688,54 @@ if nav == "Executive Board View":
         savings = saved_cases * cost_per_biopsy
 
         st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
+# =====================================================
+# CASE ARCHIVE 
+# =====================================================
+if nav == "Case Archive":
+    st.title("Case Archive & Historical Records")
+    
+    if len(st.session_state.db) > 0:
+        df_display = st.session_state.db.copy()
+        
+        # ค้นหา HN
+        search_hn = st.text_input("🔍 Search by HN (Hospital Number)")
+        if search_hn:
+            df_display = df_display[df_display["HN"].str.contains(search_hn, case=False)]
 
+        # แสดงตาราง
+        st.dataframe(df_display, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📄 Generate Clinical Report")
+        
+        # ตรวจสอบว่ามี Case_ID ไหม (กัน Error)
+        if "Case_ID" in df_display.columns and not df_display.empty:
+            case_to_report = st.selectbox(
+                "Select Case to Generate PDF", 
+                df_display["Case_ID"].unique().tolist()
+            )
+
+            if case_to_report:
+                case_data = df_display[df_display["Case_ID"] == case_to_report].iloc[0]
+                
+                # เรียกใช้ฟังก์ชันสร้าง PDF ที่คุณเขียนไว้ด้านบน
+                pdf_file = generate_pdf(
+                    str(case_data["Patient"]),
+                    str(case_data["HN"]),
+                    str(case_data["Organ"]),
+                    str(case_data["Status"]),
+                    float(case_data["Confidence"])
+                )
+                
+                st.download_button(
+                    label=f"⬇️ Download Report ({case_to_report})",
+                    data=pdf_file,
+                    file_name=f"Report_{case_to_report}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+    else:
+        st.info("No cases found in the archive. Please run an analysis in the Diagnostic Hub first.")
 # =====================================================
 # 📘 USER MANUAL (WORKING VERSION)
 # =====================================================
