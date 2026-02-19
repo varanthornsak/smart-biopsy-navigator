@@ -688,54 +688,97 @@ if nav == "Executive Board View":
         savings = saved_cases * cost_per_biopsy
 
         st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
-# =====================================================
-# CASE ARCHIVE 
-# =====================================================
-if nav == "Case Archive":
-    st.title("Case Archive & Historical Records")
-    
-    if len(st.session_state.db) > 0:
-        df_display = st.session_state.db.copy()
-        
-        # ค้นหา HN
-        search_hn = st.text_input("🔍 Search by HN (Hospital Number)")
-        if search_hn:
-            df_display = df_display[df_display["HN"].str.contains(search_hn, case=False)]
+elif nav == "Case Archive":
 
-        # แสดงตาราง
-        st.dataframe(df_display, use_container_width=True)
+    st.title("Clinical Case Archive")
 
-        st.markdown("---")
-        st.subheader("📄 Generate Clinical Report")
-        
-        # ตรวจสอบว่ามี Case_ID ไหม (กัน Error)
-        if "Case_ID" in df_display.columns and not df_display.empty:
-            case_to_report = st.selectbox(
-                "Select Case to Generate PDF", 
-                df_display["Case_ID"].unique().tolist()
-            )
+    df = st.session_state.db
 
-            if case_to_report:
-                case_data = df_display[df_display["Case_ID"] == case_to_report].iloc[0]
-                
-                # เรียกใช้ฟังก์ชันสร้าง PDF ที่คุณเขียนไว้ด้านบน
-                pdf_file = generate_pdf(
-                    str(case_data["Patient"]),
-                    str(case_data["HN"]),
-                    str(case_data["Organ"]),
-                    str(case_data["Status"]),
-                    float(case_data["Confidence"])
-                )
-                
-                st.download_button(
-                    label=f"⬇️ Download Report ({case_to_report})",
-                    data=pdf_file,
-                    file_name=f"Report_{case_to_report}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-    else:
-        st.info("No cases found in the archive. Please run an analysis in the Diagnostic Hub first.")
+    if len(df) == 0:
+        st.info("No cases available")
+        st.stop()
+
+    # ===============================
+    # FILTER PANEL
+    # ===============================
+    st.sidebar.subheader("Filter Cases")
+
+    search_hn = st.sidebar.text_input("Search HN")
+    organ_filter = st.sidebar.multiselect(
+        "Filter by Organ",
+        options=df["Organ"].unique()
+    )
+    status_filter = st.sidebar.multiselect(
+        "Filter by Risk",
+        options=df["Status"].unique()
+    )
+
+    # Date filter
+    min_date = df["Date"].min()
+    max_date = df["Date"].max()
+
+    date_range = st.sidebar.date_input(
+        "Select Date Range",
+        [min_date, max_date]
+    )
+
+    filtered_df = df.copy()
+
+    if search_hn:
+        filtered_df = filtered_df[
+            filtered_df["HN"].str.contains(search_hn)
+        ]
+
+    if organ_filter:
+        filtered_df = filtered_df[
+            filtered_df["Organ"].isin(organ_filter)
+        ]
+
+    if status_filter:
+        filtered_df = filtered_df[
+            filtered_df["Status"].isin(status_filter)
+        ]
+
+    if len(date_range) == 2:
+        filtered_df = filtered_df[
+            (filtered_df["Date"] >= date_range[0]) &
+            (filtered_df["Date"] <= date_range[1])
+        ]
+
+    # ===============================
+    # SUMMARY
+    # ===============================
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Total Cases", len(filtered_df))
+    col2.metric("High Risk Cases",
+                len(filtered_df[filtered_df["Status"] == "High Risk"]))
+    col3.metric("Avg Confidence",
+                f"{filtered_df['Confidence'].mean():.1f}%")
+
+    st.divider()
+
+    # ===============================
+    # DATA TABLE
+    # ===============================
+    st.dataframe(filtered_df, use_container_width=True)
+
+    # ===============================
+    # DOWNLOAD BUTTON
+    # ===============================
+    csv = filtered_df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download CSV",
+        csv,
+        "clinical_cases.csv",
+        "text/csv"
+    )
+
+    # ===============================
+    # BASIC ANALYTICS
+    # ===============================
+    st.subheader("Cases by Organ")
+    st.bar_chart(filtered_df["Organ"].value_counts())
 # =====================================================
 # 📘 USER MANUAL (WORKING VERSION)
 # =====================================================
