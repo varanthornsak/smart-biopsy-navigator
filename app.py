@@ -222,141 +222,124 @@ def generate_pdf(patient, hn, organ, status, confidence):
 # DIAGNOSTIC HUB
 # =====================================================
 if nav == "Diagnostic Hub":
+    st.title("AI Diagnostic Engine")
+    col1, col2 = st.columns([1,1])
 
-File "/mount/src/smart-biopsy-navigator/app.py", line 382
-              else:
-              ^
-SyntaxError: invalid syntax
-# =====================================================
-# 📊 PROFESSIONAL ANALYTICS – HOSPITAL VERSION
-# =====================================================
+    with col1:
+        st.subheader("Patient Information")
+        patient = st.text_input("Patient Name")
+        hn = st.text_input("HN")
+        organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
 
+        st.markdown("### Biomarker (Optional)")
+        marker = st.number_input("AFP (ng/mL) – Optional", min_value=0.0, value=0.0, step=1.0)
+
+        st.markdown("### Ultrasound Image Upload")
+        uploaded_file = st.file_uploader("Upload Ultrasound Image", type=["jpg", "jpeg", "png"])
+
+        if uploaded_file is not None:
+            with st.expander("🔍 View Ultrasound Image"):
+                st.image(uploaded_file, width=400)
+
+        size = st.slider("Lesion Size (mm)", 1, 100, 10)
+        run = st.button("Run AI Analysis", use_container_width=True)
+
+        if run:
+            if not (patient and hn):
+                st.error("Please enter Patient Name and HN")
+            elif uploaded_file is None:
+                st.error("Please upload an ultrasound image")
+            else:
+                # --- AI Core Logic ---
+                from PIL import Image
+                import torch
+                from torchvision import transforms
+
+                image = Image.open(uploaded_file).convert("RGB")
+                preprocess = transforms.Compose([
+                    transforms.Resize((224,224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])
+                ])
+                img_tensor = preprocess(image).unsqueeze(0)
+
+                with torch.no_grad():
+                    output = model(img_tensor)
+                    probs = torch.softmax(output, dim=1)[0]
+                    conf_ai, pred_ai = torch.max(probs, dim=0)
+
+                classes = ["NORMAL", "BENIGN", "MALIGNANT"]
+                final_status = classes[pred_ai.item()]
+                final_conf = conf_ai.item()
+
+                # --- Hybrid Logic (แก้ปัญหาผลลัพธ์ค้างที่ Benign) ---
+                if size > 50 or (organ == "Liver" and marker > 400):
+                    final_status = "MALIGNANT"
+                    final_conf = max(final_conf, 0.90)
+                
+                # --- Grad-CAM ---
+                cam = generate_gradcam(model, img_tensor)
+                heatmap = cv2.resize(cam, (image.width, image.height))
+                heatmap = np.uint8(255 * heatmap)
+                heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+                overlay = cv2.addWeighted(np.array(image), 0.6, heatmap, 0.4, 0)
+                st.image(overlay, caption="Grad-CAM Focus Area", use_column_width=True)
+
+                # --- Save Record ---
+                new_case = pd.DataFrame([{
+                    "Date": datetime.date.today(),
+                    "HN": hn,
+                    "Patient": patient,
+                    "Organ": organ,
+                    "Status": final_status,
+                    "Confidence": final_conf,
+                    "Marker_Val": marker,
+                    "Tumor_Size": size,
+                    "Case_ID": generate_case_id(),
+                    "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "Created_By": st.session_state.role
+                }])
+                st.session_state.db = pd.concat([st.session_state.db, new_case], ignore_index=True)
+                st.success(f"Analysis Complete: {final_status}")
+                st.rerun()
+
+    with col2:
+        st.subheader("AI Result Dashboard")
+        if len(st.session_state.db) > 0:
+            last = st.session_state.db.iloc[-1]
+            conf_pct = last["Confidence"] * 100
+            res_status = last["Status"]
+            
+            color = "#28a745" if res_status == "NORMAL" else "#ffc107" if res_status == "BENIGN" else "#dc3545"
+
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=conf_pct,
+                number={'suffix': "%"},
+                title={'text': f"Latest Result: {res_status}"},
+                gauge={'axis': {'range': [0, 100]}, 'bar': {'color': color}}
+            ))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Run analysis to generate result.")
+
+# =====================================================
+# SECTIONS อื่นๆ (Analytics / Case Archive / Manual)
+# =====================================================
 if nav == "Professional Analytics":
-
-    st.title("Professional Analytics Dashboard")
-
-    STATUS_COLOR = {
-        "NORMAL": "#28a745",
-        "BENIGN": "#ffc107",
-        "MALIGNANT": "#dc3545"
-    }
-
-    if len(st.session_state.db) > 0:
-
-        df = st.session_state.db.copy()
-
-        # ===== Clean data =====
-        df["Status"] = df["Status"].astype(str).str.upper().str.strip()
-        df["Date"] = pd.to_datetime(df["Date"])
-
-        status_counts = df["Status"].value_counts()
-
-        # ================= KPI =================
-        total_cases = len(df)
-        malignant_cases = status_counts.get("MALIGNANT", 0)
-        malignancy_rate = round((malignant_cases / total_cases) * 100, 1)
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        col1.metric("Total Cases", total_cases)
-        col2.metric("🟢 Normal", status_counts.get("NORMAL", 0))
-        col3.metric("🔴 Malignant", malignant_cases)
-        col4.metric("Malignancy Rate (%)", f"{malignancy_rate}%")
-
-        st.markdown("---")
-
-        # ================= DONUT =================
-        st.subheader("Risk Distribution")
-
-        labels = status_counts.index.tolist()
-        values = status_counts.values.tolist()
-
-        colors = [STATUS_COLOR.get(s, "#9ca3af") for s in labels]
-
-        pie_fig = go.Figure(data=[
-            go.Pie(
-                labels=labels,
-                values=values,
-                hole=0.5,
-                marker=dict(colors=colors),
-                textinfo="percent+label",
-                textfont=dict(size=18)
-            )
-        ])
-
-        pie_fig.update_layout(height=500)
-
-        st.plotly_chart(pie_fig, use_container_width=True)
-
-        # ================= CASE TREND =================
-        st.subheader("Case Volume Trend")
-
-        trend_df = df.groupby(df["Date"].dt.date).size().reset_index(name="Count")
-
-        trend_fig = go.Figure()
-        trend_fig.add_trace(go.Scatter(
-            x=trend_df["Date"],
-            y=trend_df["Count"],
-            mode="lines+markers"
-        ))
-
-        trend_fig.update_layout(height=450)
-
-        st.plotly_chart(trend_fig, use_container_width=True)
-
-       # ================= ORGAN DISTRIBUTION =================
-        st.subheader("Organ Distribution by Risk")
-        
-        organ_status = df.groupby(["Organ", "Status"]).size().reset_index(name="Count")
-        
-        organ_fig = go.Figure()
-        
-        for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
-            subset = organ_status[organ_status["Status"] == status]
-        
-            organ_fig.add_trace(go.Bar(
-                x=subset["Organ"],
-                y=subset["Count"],
-                name=status,
-                marker_color=STATUS_COLOR.get(status)
-            ))
-        
-        organ_fig.update_layout(
-            barmode="stack",
-            height=450
-        )
-        
-        st.plotly_chart(organ_fig, use_container_width=True)
-
-      # ================= CONFIDENCE DISTRIBUTION =================
-        st.subheader("AI Confidence Distribution by Risk")
-        
-        conf_fig = go.Figure()
-        
-        for status in ["NORMAL", "BENIGN", "MALIGNANT"]:
-            subset = df[df["Status"] == status]
-        
-            conf_fig.add_trace(go.Histogram(
-                x=subset["Confidence"] * 100,
-                name=status,
-                marker_color=STATUS_COLOR.get(status),
-                opacity=0.6
-            ))
-        
-        conf_fig.update_layout(
-            barmode="overlay",
-            height=450
-        )
-        
-        st.plotly_chart(conf_fig, use_container_width=True)
-
-        # ================= DATA TABLE =================
-        st.subheader("Case Database")
-
-        st.dataframe(df, use_container_width=True)
-
+    st.title("Professional Analytics")
+    if not st.session_state.db.empty:
+        st.dataframe(st.session_state.db, use_container_width=True)
     else:
-        st.info("No case data available yet.")
+        st.info("No data yet.")
+
+elif nav == "Case Archive":
+    st.title("Clinical Case Archive")
+    st.dataframe(st.session_state.db, use_container_width=True)
+
+elif nav == "User Manual":
+    st.title("Operational Manual")
+    st.markdown("ระบบ Smart Biopsy Pro ใช้ AI และกฎทางคลินิกร่วมกันในการวิเคราะห์ความเสี่ยง...")
 
 # =====================================================
 # 🏥 EXECUTIVE BOARD VIEW – HOSPITAL EDITION
