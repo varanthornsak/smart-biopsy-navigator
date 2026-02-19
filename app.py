@@ -28,25 +28,15 @@ def load_model():
 
     MODEL_PATH = download_model()
 
-    # สร้าง architecture ให้ตรงกับตอน train
     model = models.resnet18(pretrained=False)
+    model.fc = nn.Linear(model.fc.in_features, 3)
 
-    model.fc = nn.Linear(model.fc.in_features, 3)  # 3 classes
-
-    state_dict = torch.load(MODEL_PATH, map_location=torch.device('cpu'))
+    state_dict = torch.load(MODEL_PATH, map_location=torch.device("cpu"))
     model.load_state_dict(state_dict)
 
     model.eval()
 
     return model
-
-@st.cache_resource
-def load_model():
-    model = torch.load(model_path, map_location=torch.device("cpu"))
-    model.eval()
-    return model
-
-model = load_model()
 
 # =====================================================
 # PAGE CONFIG
