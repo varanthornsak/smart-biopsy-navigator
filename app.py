@@ -143,77 +143,96 @@ if nav == "Diagnostic Hub":
 
     st.title("AI Diagnostic Engine")
 
-    col1, col2 = st.columns([1,1])
+    col1, col2 = st.columns([1, 1])
 
-    # ================= LEFT =================
-   with col1:
+    # =====================================================
+    # LEFT PANEL – INPUT SECTION
+    # =====================================================
+    with col1:
 
-    patient = st.text_input("Patient Name")
-    hn = st.text_input("HN")
+        st.subheader("Patient Information")
 
-    organ = st.selectbox(
-        "Organ",
-        ["Liver", "Thyroid", "Breast", "Lung", "Lymph Nodes"]
-    )
+        patient = st.text_input("Patient Name")
+        hn = st.text_input("HN")
 
-    # ===============================
-    # 📌 AFP FIELD (ALWAYS VISIBLE FOR LIVER)
-    # ===============================
-    marker = None
-
-    if organ == "Liver":
-        marker = st.number_input(
-            "AFP (ng/mL)",
-            min_value=0.0,
-            value=10.0,
-            help="Alpha-fetoprotein biomarker"
+        organ = st.selectbox(
+            "Organ",
+            ["Liver", "Thyroid", "Breast", "Lung", "Lymph Nodes"]
         )
 
-    # ===============================
-    # 📌 Lesion Size
-    # ===============================
-    size = st.slider("Lesion Size (mm)", 1, 100, 10)
+        # -------------------------------
+        # AFP (แสดงทันทีถ้าเป็น Liver)
+        # -------------------------------
+        marker = None
 
-    # ===============================
-    # 📌 Ultrasound Image Upload
-    # ===============================
-    st.markdown("### Upload Ultrasound Image")
-
-    uploaded_image = st.file_uploader(
-        "Upload Ultrasound (.jpg, .png)",
-        type=["jpg", "jpeg", "png"]
-    )
-
-    if uploaded_image:
-        st.image(uploaded_image, caption="Ultrasound Preview", use_column_width=True)
-
-    # ===============================
-    # RUN AI
-    # ===============================
-    if st.button("Run AI Analysis"):
-
-        if patient and hn:
-
-            status, confidence = run_ai(organ, marker, size)
-
-            new = pd.DataFrame([{
-                "Date": datetime.date.today(),
-                "HN": hn,
-                "Patient": patient,
-                "Organ": organ,
-                "Status": status,
-                "Confidence": confidence,
-                "Marker_Val": marker,
-                "Tumor_Size": size
-            }])
-
-            st.session_state.db = pd.concat(
-                [st.session_state.db, new],
-                ignore_index=True
+        if organ == "Liver":
+            marker = st.number_input(
+                "AFP (ng/mL)",
+                min_value=0.0,
+                value=10.0,
+                step=1.0,
+                help="Alpha-fetoprotein biomarker"
             )
 
-            st.success("Analysis Complete")
-    # ================= RIGHT =================
+        # -------------------------------
+        # Lesion Size
+        # -------------------------------
+        size = st.slider(
+            "Lesion Size (mm)",
+            min_value=1,
+            max_value=100,
+            value=10
+        )
+
+        # -------------------------------
+        # Ultrasound Upload
+        # -------------------------------
+        st.markdown("### Ultrasound Image Upload")
+
+        uploaded_image = st.file_uploader(
+            "Upload Ultrasound Image",
+            type=["jpg", "jpeg", "png"]
+        )
+
+        if uploaded_image is not None:
+            st.image(
+                uploaded_image,
+                caption="Ultrasound Preview",
+                use_column_width=True
+            )
+
+        # -------------------------------
+        # RUN AI
+        # -------------------------------
+        if st.button("Run AI Analysis", use_container_width=True):
+
+            if not patient or not hn:
+                st.warning("Please enter Patient Name and HN")
+            else:
+
+                status, confidence = run_ai(organ, marker, size)
+
+                new_case = pd.DataFrame([{
+                    "Date": datetime.date.today(),
+                    "HN": hn,
+                    "Patient": patient,
+                    "Organ": organ,
+                    "Status": status,
+                    "Confidence": confidence,
+                    "Marker_Val": marker,
+                    "Tumor_Size": size
+                }])
+
+                st.session_state.db = pd.concat(
+                    [st.session_state.db, new_case],
+                    ignore_index=True
+                )
+
+                st.success("AI Analysis Completed Successfully")
+
+    # =====================================================
+    # RIGHT PANEL – RESULT DASHBOARD
+    # =====================================================
     with col2:
 
         st.subheader("AI Result Dashboard")
@@ -221,7 +240,8 @@ if nav == "Diagnostic Hub":
         if len(st.session_state.db) > 0:
 
             last = st.session_state.db.iloc[-1]
-            confidence_percent = last["Confidence"] * 100
+
+            confidence_percent = float(last["Confidence"]) * 100
             status = last["Status"]
 
             if status == "NORMAL":
@@ -231,22 +251,35 @@ if nav == "Diagnostic Hub":
             else:
                 color = "#dc3545"
 
+            # Gauge Chart
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
                 value=confidence_percent,
                 number={'suffix': "%"},
-                title={'text': status},
+                title={'text': f"Diagnosis: {status}"},
                 gauge={
                     'axis': {'range': [0, 100]},
                     'bar': {'color': color}
                 }
             ))
 
+            fig.update_layout(height=350)
+
             st.plotly_chart(fig, use_container_width=True)
 
-        else:
-            st.info("Run analysis to generate result.")
+            # Case Summary Card
+            st.markdown("### Case Summary")
 
+            st.write(f"**Patient:** {last['Patient']}")
+            st.write(f"**HN:** {last['HN']}")
+            st.write(f"**Organ:** {last['Organ']}")
+            st.write(f"**Tumor Size:** {last['Tumor_Size']} mm")
+
+            if last["Organ"] == "Liver" and pd.notna(last["Marker_Val"]):
+                st.write(f"**AFP:** {last['Marker_Val']} ng/mL")
+
+        else:
+            st.info("Run analysis to generate AI result.")
 # =====================================================
 # 📊 PROFESSIONAL ANALYTICS (SAFE VERSION)
 # =====================================================
