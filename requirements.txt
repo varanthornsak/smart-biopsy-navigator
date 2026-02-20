@@ -10,3 +10,4 @@ seaborn
 scikit-learn
 timestamp
 gdown
+scikit-image
