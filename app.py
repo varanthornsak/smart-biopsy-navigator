@@ -1,4 +1,8 @@
 import streamlit as st
+st.set_page_config(
+    page_title="Smart Biopsy Pro | Enterprise Multi-Organ",
+    layout="wide"
+)
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
@@ -12,6 +16,8 @@ import io
 import torch
 import os
 import gdown
+import cv2
+import numpy as np
 
 # ===============================
 # DOWNLOAD MODEL FROM GOOGLE DRIVE
@@ -49,6 +55,73 @@ def load_model():
 
 model = load_model()
 # =====================================================
+# PRODUCTION GRAD-CAM (ONE BLOCK READY)
+# =====================================================
+
+import torch.nn.functional as F
+
+def generate_gradcam_overlay(model, img_tensor, original_image):
+    """
+    Returns overlay image with Grad-CAM heatmap
+    Compatible with ResNet18 (CPU safe)
+    """
+
+    model.eval()
+
+    gradients = []
+    activations = []
+
+    target_layer = model.layer4[-1]
+
+    def forward_hook(module, input, output):
+        activations.append(output)
+
+    def backward_hook(module, grad_input, grad_output):
+        gradients.append(grad_output[0])
+
+    forward_handle = target_layer.register_forward_hook(forward_hook)
+    backward_handle = target_layer.register_backward_hook(backward_hook)
+
+    # Forward
+    output = model(img_tensor)
+    target_class = output.argmax(dim=1).item()
+    loss = output[:, target_class]
+
+    # Backward
+    model.zero_grad()
+    loss.backward()
+
+    grad = gradients[0]
+    act = activations[0]
+
+    weights = torch.mean(grad, dim=(2, 3), keepdim=True)
+    cam = torch.sum(weights * act, dim=1).squeeze()
+
+    cam = F.relu(cam)
+
+    cam -= cam.min()
+    cam /= (cam.max() + 1e-8)
+
+    cam = cam.detach().cpu().numpy()
+
+    forward_handle.remove()
+    backward_handle.remove()
+
+    # Resize heatmap to match original image
+    heatmap = cv2.resize(cam, (original_image.width, original_image.height))
+    heatmap = np.uint8(255 * heatmap)
+    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+    overlay = cv2.addWeighted(
+        np.array(original_image),
+        0.6,
+        heatmap,
+        0.4,
+        0
+    )
+
+    return overlay
+# =====================================================
 # 1. UTILITY FUNCTIONS (วางไว้บนสุดหลัง Load Model)
 # =====================================================
 def clip_val(n):
@@ -78,95 +151,11 @@ if "role" not in st.session_state:
     st.session_state.role = "Clinician"
 
 # =====================================================
-# SIDEBAR NAVIGATION 
-# =====================================================
-with st.sidebar:
-    st.title("Main Menu")
-    nav = st.radio("Navigation", ["Diagnostic Hub", "Case Archive", "User Manual"])
-
-# =====================================================
 # 2. DATABASE PATCH (กัน Error กรณีคอลัมน์ไม่ครบ)
 # =====================================================
 for col in ["Case_ID", "Timestamp", "Created_By"]:
     if col not in st.session_state.db.columns:
         st.session_state.db[col] = ""
-
-# --- PAGE: DIAGNOSTIC HUB ---
-if nav == "Diagnostic Hub":
-    st.title("AI Diagnostic Engine")
-    col1, col2 = st.columns([1,1])
-
-    with col1:
-        st.subheader("Patient Entry")
-        patient = st.text_input("Patient Name")
-        hn = st.text_input("HN")
-        organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
-        marker = st.number_input("Biomarker Value", min_value=0.0)
-        uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png"])
-        size = st.slider("Lesion Size (mm)", 1, 100, 10)
-        
-        if st.button("Run AI Analysis") and uploaded_file:
-            # ใช้ Logic การวิเคราะห์
-            status, conf = "MALIGNANT" if size > 50 else "BENIGN", 0.85 
-            
-            new_data = {
-                "Date": datetime.date.today(), 
-                "HN": hn, 
-                "Patient": patient,
-                "Organ": organ, 
-                "Status": status, 
-                "Confidence": conf,
-                "Marker_Val": marker, 
-                "Tumor_Size": size,
-                "Case_ID": generate_case_id(), 
-                "Timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
-                "Created_By": st.session_state.role
-            }
-            st.session_state.db = pd.concat([st.session_state.db, pd.DataFrame([new_data])], ignore_index=True)
-            st.success("Analysis Complete!")
-            st.rerun()
-
-    # แสดงผลอธิบาย 
-    if not st.session_state.db.empty:
-        last = st.session_state.db.iloc[-1]
-        st.markdown("---")
-        st.subheader("🔍 AI Risk Explanation")
-        reasons, rec = generate_explanation(last["Organ"], last["Marker_Val"], last["Tumor_Size"], last["Status"])
-        for r in reasons: 
-            st.warning(r)
-        st.success(f"Recommendation: {rec}")
-
-# --- PAGE: CASE ARCHIVE (ย้าย Filter มาไว้ที่นี่) ---
-elif nav == "Case Archive":
-    st.title("Clinical Case Archive")
-    if st.session_state.db.empty:
-        st.info("No cases found.")
-    else:
-        # Filter Logic
-        search = st.text_input("Search by HN")
-        df_display = st.session_state.db
-        if search:
-            df_display = df_display[df_display["HN"].str.contains(search)]
-        
-        st.dataframe(df_display, use_container_width=True)
-        csv = df_display.to_csv(index=False).encode('utf-8')
-        st.download_button("Download CSV", csv, "cases.csv", "text/csv")
-
-# --- PAGE: EXECUTIVE & OTHERS ---
-elif nav == "Executive Board View":
-    st.title("Executive Dashboard")
-    # ใส่โค้ดกราฟของคุณที่นี่...
-
-elif nav == "User Manual":
-    st.title("Operational Manual")
-    st.write("ขั้นตอนการใช้งานระบบ...")
-# =====================================================
-# PAGE CONFIG
-# =====================================================
-st.set_page_config(
-    page_title="Smart Biopsy Pro | Enterprise Multi-Organ",
-    layout="wide"
-)
 # =====================================================
 # SAFE SESSION INITIALIZATION (CRITICAL FOR CLOUD)
 # =====================================================
@@ -368,48 +357,39 @@ if nav == "Diagnostic Hub":
 
                 # ป้องกันเลขทะลุ 1.0 (100%) และทำให้ดูไม่เป็นเลขกลมๆ
                 final_conf = min(0.989, final_conf)
-
+    
                 # 3. Grad-CAM & Save
-                cam = generate_gradcam(model, img_tensor)
-                heatmap = cv2.resize(cam, (image.width, image.height))
-                heatmap = np.uint8(255 * heatmap)
-                heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-                overlay = cv2.addWeighted(np.array(image), 0.6, heatmap, 0.4, 0)
-                st.image(overlay, caption="AI Analysis Insight", use_column_width=True)
-
+                try:
+                    overlay = generate_gradcam_overlay(model, img_tensor, image)
+                    st.image(overlay, caption="AI Analysis Insight", use_column_width=True)
+                except Exception as e:
+                    st.warning("Grad-CAM visualization unavailable.")
+                    overlay = None
+                
+                # 4. Save Case
                 new_case = pd.DataFrame([{
                     "Date": datetime.date.today(),
-                    "HN": hn, "Patient": patient, "Organ": organ,
-                    "Status": final_status, "Confidence": final_conf,
-                    "Marker_Val": marker, "Tumor_Size": size,
+                    "HN": hn,
+                    "Patient": patient,
+                    "Organ": organ,
+                    "Status": final_status,
+                    "Confidence": final_conf,
+                    "Marker_Val": marker,
+                    "Tumor_Size": size,
                     "Case_ID": generate_case_id(),
                     "Timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
                     "Created_By": st.session_state.role
                 }])
-                st.session_state.db = pd.concat([st.session_state.db, new_case], ignore_index=True)
+                
+                st.session_state.db = pd.concat(
+                    [st.session_state.db, new_case],
+                    ignore_index=True
+                )
+                
                 st.success(f"Analysis Finished: {final_status} ({final_conf*100:.2f}%)")
+                
+                # Refresh UI safely
                 st.rerun()
-
-# ฟังก์ชันเสริมสำหรับจำกัดค่าเลข
-def clip_val(n):
-    return max(0, min(1, n))
-# =====================================================
-# SECTIONS อื่นๆ (Analytics / Case Archive / Manual)
-# =====================================================
-if nav == "Professional Analytics":
-    st.title("Professional Analytics")
-    if not st.session_state.db.empty:
-        st.dataframe(st.session_state.db, use_container_width=True)
-    else:
-        st.info("No data yet.")
-
-elif nav == "Case Archive":
-    st.title("Clinical Case Archive")
-    st.dataframe(st.session_state.db, use_container_width=True)
-
-elif nav == "User Manual":
-    st.title("Operational Manual")
-    st.markdown("ระบบ Smart Biopsy Pro ใช้ AI และกฎทางคลินิกร่วมกันในการวิเคราะห์ความเสี่ยง...")
 
 # =====================================================
 # 🏥 EXECUTIVE BOARD VIEW – HOSPITAL EDITION
@@ -437,7 +417,7 @@ if nav == "Professional Analytics":
         normal_cases = len(df[df["Status"] == "NORMAL"])
 
         malignancy_rate = round((malignant_cases / total_cases) * 100, 1)
-        avg_conf = round(df["Confidence"].mean() * 100, 1)
+        avg_conf = round(df["Confidence"].mean() * 100,.1)
 
         # ================= KPI =================
         col1, col2, col3, col4, col5 = st.columns(5)
@@ -742,9 +722,10 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
 
     col1.metric("Total Cases", len(filtered_df))
     col2.metric("High Risk Cases",
-                len(filtered_df[filtered_df["Status"] == "High Risk"]))
+                len(filtered_df[filtered_df["Status"] == "MALIGNANT"]))
     col3.metric("Avg Confidence",
-                f"{filtered_df['Confidence'].mean():.1f}%")
+                f"{filtered_df['Confidence'].mean()*100:.1f}%"
+    )
 
     st.divider()
 
@@ -774,7 +755,7 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
     grouped = filtered_df.groupby(["Organ", "Status"]).size().unstack(fill_value=0)
     
     # Ensure all risk categories exist
-    for col in ["Low Risk", "Moderate Risk", "High Risk"]:
+    for col in ["NORMAL", "MODERATE", "MALIGNANT"]:
         if col not in grouped.columns:
             grouped[col] = 0
     
