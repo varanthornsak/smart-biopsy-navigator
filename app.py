@@ -146,39 +146,73 @@ if nav == "Diagnostic Hub":
     col1, col2 = st.columns([1,1])
 
     # ================= LEFT =================
-    with col1:
+   with col1:
 
-        patient = st.text_input("Patient Name")
-        hn = st.text_input("HN")
-        organ = st.selectbox("Organ", ["Liver", "Thyroid", "Breast", "Lung"])
+    patient = st.text_input("Patient Name")
+    hn = st.text_input("HN")
 
-        marker = None
+    organ = st.selectbox(
+        "Organ",
+        ["Liver", "Thyroid", "Breast", "Lung", "Lymph Nodes"]
+    )
 
-        if organ == "Liver":
-            use_afp = st.checkbox("Include AFP (Optional Biomarker)")
-            if use_afp:
-                marker = st.number_input("AFP (ng/mL)", min_value=0.0, value=10.0)
+    # ===============================
+    # 📌 AFP FIELD (ALWAYS VISIBLE FOR LIVER)
+    # ===============================
+    marker = None
 
-        size = st.slider("Lesion Size (mm)", 1, 100, 10)
+    if organ == "Liver":
+        marker = st.number_input(
+            "AFP (ng/mL)",
+            min_value=0.0,
+            value=10.0,
+            help="Alpha-fetoprotein biomarker"
+        )
 
-        if st.button("Run AI Analysis"):
+    # ===============================
+    # 📌 Lesion Size
+    # ===============================
+    size = st.slider("Lesion Size (mm)", 1, 100, 10)
 
-            if patient and hn:
+    # ===============================
+    # 📌 Ultrasound Image Upload
+    # ===============================
+    st.markdown("### Upload Ultrasound Image")
 
-                status, confidence = run_ai(organ, marker, size)
+    uploaded_image = st.file_uploader(
+        "Upload Ultrasound (.jpg, .png)",
+        type=["jpg", "jpeg", "png"]
+    )
 
-                new = pd.DataFrame([{
-                    "Status": status,
-                    "Confidence": confidence
-                }])
+    if uploaded_image:
+        st.image(uploaded_image, caption="Ultrasound Preview", use_column_width=True)
 
-                st.session_state.db = pd.concat(
-                    [st.session_state.db, new],
-                    ignore_index=True
-                )
+    # ===============================
+    # RUN AI
+    # ===============================
+    if st.button("Run AI Analysis"):
 
-                st.success("Analysis Complete")
+        if patient and hn:
 
+            status, confidence = run_ai(organ, marker, size)
+
+            new = pd.DataFrame([{
+                "Date": datetime.date.today(),
+                "HN": hn,
+                "Patient": patient,
+                "Organ": organ,
+                "Status": status,
+                "Confidence": confidence,
+                "Marker_Val": marker,
+                "Tumor_Size": size
+            }])
+
+            st.session_state.db = pd.concat(
+                [st.session_state.db, new],
+                ignore_index=True
+            )
+
+            st.success("Analysis Complete")
     # ================= RIGHT =================
     with col2:
 
