@@ -629,7 +629,18 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
 
     st.markdown("### Clinical Recommendation:")
     st.success(recommendation)
+# =====================================================
+# UTILITY FUNCTIONS 
+# =====================================================
 
+def clip_val(n):
+    """ฟังก์ชันสำหรับจำกัดค่าตัวเลขไม่ให้ต่ำกว่า 0 และไม่ให้เกิน 1 (หรือ 100%)"""
+    return max(0.0, min(1.0, n))
+
+# ฟังก์ชันอื่นๆ ที่มีอยู่แล้ว...
+def generate_case_id():
+    import uuid
+    return f"SBP-{datetime.date.today().year}-{str(uuid.uuid4())[:6].upper()}"
 # =====================================================
 # ENHANCED EXECUTIVE METRICS
 # =====================================================
