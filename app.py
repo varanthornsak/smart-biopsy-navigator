@@ -47,6 +47,31 @@ def load_model():
     return model
 
 model = load_model()
+# =====================================================
+# วางฟังก์ชันเหล่านี้ไว้ด้านบนสุด (หลัง Imports)
+# =====================================================
+import uuid
+
+def generate_case_id():
+    """สร้างรหัส Case ID แบบสุ่ม เช่น SBP-2026-A1B2C3"""
+    return f"SBP-{datetime.date.today().year}-{str(uuid.uuid4())[:6].upper()}"
+
+def generate_explanation(organ, marker, size, status):
+    """สร้างคำอธิบายความเสี่ยงตามข้อมูลคลินิก"""
+    reasons = []
+    recommendation = ""
+    if size > 50:
+        reasons.append(f"พบรอยโรคขนาดใหญ่ ({size} mm)")
+    if organ == "Liver" and marker > 400:
+        reasons.append(f"ค่า Biomarker (AFP) สูงกว่าเกณฑ์มาตรฐาน ({marker} ng/mL)")
+    
+    if status == "MALIGNANT":
+        recommendation = "พิจารณา Biopsy ด่วนและปรึกษาศัลยแพทย์เฉพาะทาง"
+    elif status == "BENIGN":
+        recommendation = "แนะนำให้ตรวจติดตาม (Follow-up) ด้วย Ultrasound ในอีก 3-6 เดือน"
+    else:
+        recommendation = "ไม่พบความผิดปกติที่ชัดเจน ตรวจสุขภาพตามรอบปกติ"
+    return reasons, recommendation
 # ===============================
 # GRAD-CAM FUNCTION
 # ===============================
