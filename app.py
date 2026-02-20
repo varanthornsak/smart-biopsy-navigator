@@ -874,4 +874,142 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
         st.image(overlay, use_column_width=True)
 
         st.success("CNN Mock AI Analysis Completed")
+        # =====================================================
+# 🚀 SMART BIOPSY PRO v3 – AI FUSION ENGINE
+# =====================================================
+
+import random
+
+# -----------------------------------------------------
+# 1️⃣ Fusion Engine (Clinical + Image)
+# -----------------------------------------------------
+def fusion_engine(clinical_conf, image_prob):
+
+    if image_prob is None:
+        image_prob = 0.0
+
+    fusion_score = (0.55 * clinical_conf) + (0.45 * image_prob)
+
+    if fusion_score < 0.30:
+        tier = "LOW RISK"
+    elif fusion_score < 0.60:
+        tier = "MODERATE RISK"
+    elif fusion_score < 0.80:
+        tier = "HIGH RISK"
+    else:
+        tier = "CRITICAL"
+
+    return round(fusion_score, 2), tier
+
+
+# -----------------------------------------------------
+# 2️⃣ Mock Bounding Box Detection
+# -----------------------------------------------------
+def draw_mock_bounding_box(image, risk_level):
+
+    img = np.array(image).copy()
+    h, w, _ = img.shape
+
+    x1 = random.randint(w//4, w//2)
+    y1 = random.randint(h//4, h//2)
+    x2 = x1 + random.randint(60, 120)
+    y2 = y1 + random.randint(60, 120)
+
+    color = (255, 0, 0) if risk_level in ["HIGH RISK", "CRITICAL"] else (255, 165, 0)
+
+    cv2.rectangle(img, (x1,y1), (x2,y2), color, 3)
+
+    return Image.fromarray(img)
+
+
+# -----------------------------------------------------
+# 3️⃣ Grad-CAM Style Mock
+# -----------------------------------------------------
+def generate_gradcam_mock(image, intensity):
+
+    img = np.array(image)
+    h, w, _ = img.shape
+
+    cam = np.zeros((h, w))
+    cx = w // 2
+    cy = h // 2
+
+    cam[cy, cx] = 255 * intensity
+    cam = gaussian_filter(cam, sigma=60)
+
+    cam_rgb = np.zeros_like(img)
+    cam_rgb[:,:,1] = cam  # green channel
+
+    blended = np.clip(img * 0.6 + cam_rgb * 0.6, 0, 255)
+
+    return Image.fromarray(blended.astype(np.uint8))
+
+
+# -----------------------------------------------------
+# 4️⃣ AI Fusion Display Panel
+# -----------------------------------------------------
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last_index = st.session_state.db.index[-1]
+    last = st.session_state.db.loc[last_index]
+
+    if last["Ultrasound_Image"]:
+
+        st.markdown("---")
+        st.subheader("🧠 AI Fusion Engine")
+
+        clinical_conf = float(last["Confidence"])
+        image_prob = last.get("Image_Malignancy_Prob", 0.0)
+
+        fusion_score, tier = fusion_engine(clinical_conf, image_prob)
+
+        st.session_state.db.loc[last_index, "Fusion_Score"] = fusion_score
+        st.session_state.db.loc[last_index, "Risk_Tier"] = tier
+
+        # ------------------------
+        # Fusion Gauge
+        # ------------------------
+        fig_fusion = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=fusion_score * 100,
+            number={'suffix': "%"},
+            title={'text': f"Fusion Risk Score – {tier}"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': "#8b5cf6"}
+            }
+        ))
+
+        st.plotly_chart(fig_fusion, use_container_width=True)
+
+        # ------------------------
+        # Bounding Box
+        # ------------------------
+        img = base64_to_image(last["Ultrasound_Image"])
+        bbox_img = draw_mock_bounding_box(img, tier)
+
+        st.subheader("📦 AI Lesion Detection (Mock)")
+        st.image(bbox_img, use_column_width=True)
+
+        # ------------------------
+        # Grad-CAM
+        # ------------------------
+        gradcam_img = generate_gradcam_mock(img, fusion_score)
+
+        st.subheader("🔥 Grad-CAM Visualization")
+        st.image(gradcam_img, use_column_width=True)
+
+        # ------------------------
+        # Severity Banner
+        # ------------------------
+        if tier == "LOW RISK":
+            st.success("Low Risk – Routine Monitoring")
+        elif tier == "MODERATE RISK":
+            st.warning("Moderate Risk – Follow-up Recommended")
+        elif tier == "HIGH RISK":
+            st.error("High Risk – Biopsy Consideration")
+        else:
+            st.error("CRITICAL – Immediate Intervention Recommended")
+
+        st.success("AI Fusion Analysis Completed")
 
