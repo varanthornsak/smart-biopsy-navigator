@@ -268,7 +268,7 @@ def bounding_box(image, tier):
 # =====================================================
 # 🖥 DIAGNOSTIC HUB
 # =====================================================
-iif nav == "Diagnostic Hub":
+if nav == "Diagnostic Hub":
 
     st.title("🧠 Diagnostic Hub")
 
