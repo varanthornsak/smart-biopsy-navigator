@@ -48,6 +48,39 @@ def load_model():
 
 model = load_model()
 # =====================================================
+# UTILITY FUNCTIONS 
+# =====================================================
+import uuid
+import random
+
+def clip_val(n):
+    """ฟังก์ชันสำหรับจำกัดค่าตัวเลขไม่ให้ต่ำกว่า 0 และไม่ให้เกิน 1 (หรือ 100%)"""
+    try:
+        return max(0.0, min(1.0, float(n)))
+    except:
+        return 0.0
+
+def generate_case_id():
+    """สร้างรหัส Case ID แบบสุ่ม เช่น SBP-2026-A1B2C3"""
+    return f"SBP-{datetime.date.today().year}-{str(uuid.uuid4())[:6].upper()}"
+
+def generate_explanation(organ, marker, size, status):
+    """สร้างคำอธิบายความเสี่ยงตามข้อมูลคลินิก"""
+    reasons = []
+    recommendation = ""
+    if size > 50:
+        reasons.append(f"พบรอยโรคขนาดใหญ่ ({size} mm)")
+    if organ == "Liver" and marker > 400:
+        reasons.append(f"ค่า Biomarker (AFP) สูงกว่าเกณฑ์มาตรฐาน ({marker} ng/mL)")
+    
+    if status == "MALIGNANT":
+        recommendation = "พิจารณา Biopsy ด่วนและปรึกษาศัลยแพทย์เฉพาะทาง"
+    elif status == "BENIGN":
+        recommendation = "แนะนำให้ตรวจติดตาม (Follow-up) ในอีก 3-6 เดือน"
+    else:
+        recommendation = "ไม่พบความผิดปกติที่ชัดเจน ตรวจสุขภาพตามรอบปกติ"
+    return reasons, recommendation
+# =====================================================
 # วางฟังก์ชันเหล่านี้ไว้ด้านบนสุด (หลัง Imports)
 # =====================================================
 import uuid
@@ -629,61 +662,6 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
 
     st.markdown("### Clinical Recommendation:")
     st.success(recommendation)
-# =====================================================
-# UTILITY FUNCTIONS 
-# =====================================================
-
-def clip_val(n):
-    """ฟังก์ชันสำหรับจำกัดค่าตัวเลขไม่ให้ต่ำกว่า 0 และไม่ให้เกิน 1 (หรือ 100%)"""
-    return max(0.0, min(1.0, n))
-
-# ฟังก์ชันอื่นๆ ที่มีอยู่แล้ว...
-def generate_case_id():
-    import uuid
-    return f"SBP-{datetime.date.today().year}-{str(uuid.uuid4())[:6].upper()}"
-# =====================================================
-# ENHANCED EXECUTIVE METRICS
-# =====================================================
-if nav == "Executive Board View":
-
-    df = st.session_state.db
-
-    st.markdown("---")
-    st.subheader("AI Adoption & Impact Metrics")
-
-    total = len(df)
-
-    if total > 0:
-
-        adoption_rate = min(100, total * 5)
-        biopsy_reduction = random.randint(15, 35)
-        time_saved = total * 12
-
-        colA, colB, colC = st.columns(3)
-
-        colA.metric("AI Adoption Rate", f"{adoption_rate}%")
-        colB.metric("Biopsy Reduction", f"{biopsy_reduction}%")
-        colC.metric("Time Saved (hrs)", f"{time_saved}")
-
-        st.markdown("### ROI Simulation")
-
-        monthly_cases = st.slider("Monthly Cases", 50, 2000, 300)
-        cost_per_biopsy = st.slider("Cost per Biopsy (฿)", 5000, 50000, 15000)
-        reduction_percent = st.slider("False Positive Reduction %", 5, 50, 20)
-
-        saved_cases = monthly_cases * (reduction_percent / 100)
-        savings = saved_cases * cost_per_biopsy
-
-        st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
-elif nav == "Case Archive":
-
-    st.title("Clinical Case Archive")
-
-    df = st.session_state.db
-
-    if len(df) == 0:
-        st.info("No cases available")
-        st.stop()
 
     # ===============================
     # FILTER PANEL
