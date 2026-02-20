@@ -270,153 +270,99 @@ def bounding_box(image, tier):
 # =====================================================
 if nav == "Diagnostic Hub":
 
-    st.title("AI Diagnostic Engine")
+    st.title("🧠 Diagnostic Hub")
 
-    col1,col2 = st.columns(2)
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📋 Clinical Input",
+        "🖼 Image AI",
+        "🧠 AI Fusion",
+        "📊 Visualization"
+    ])
 
-    # ---------- INPUT ----------
-    with col1:
+    # =========================================================
+    # TAB 1 — CLINICAL INPUT
+    # =========================================================
+    with tab1:
+        st.subheader("Clinical Risk Assessment")
 
-        patient = st.text_input("Patient Name")
-        hn = st.text_input("HN")
-        organ = st.selectbox("Organ",
-            ["Liver","Thyroid","Breast","Lung","Lymph Nodes"])
+        age = st.number_input("Age", 1, 120, 30)
+        bmi = st.number_input("BMI", 10.0, 60.0, 22.0)
+        smoker = st.selectbox("Smoker", ["No", "Yes"])
 
-        marker = None
-        if organ == "Liver":
-            marker = st.number_input("AFP (ng/mL)",0.0,10000.0,10.0)
+        clinical_score = (age * 0.01) + (bmi * 0.02)
+        if smoker == "Yes":
+            clinical_score += 0.15
 
-        size = st.slider("Lesion Size (mm)",1,100,10)
+        clinical_score = min(clinical_score, 1.0)
 
-        uploaded = st.file_uploader("Upload Ultrasound",
-                                     type=["jpg","png","jpeg"])
+        st.metric("Clinical Risk Score", f"{clinical_score:.2f}")
+
+
+    # =========================================================
+    # TAB 2 — IMAGE AI (Mock CNN)
+    # =========================================================
+    with tab2:
+        st.subheader("Ultrasound Image AI")
+
+        uploaded = st.file_uploader("Upload Ultrasound", type=["png","jpg","jpeg"])
 
         if uploaded:
-            st.image(uploaded,use_column_width=True)
+            image = Image.open(uploaded)
+            st.image(image, use_container_width=True)
 
-        if st.button("Run AI Analysis"):
+            # Mock CNN score
+            img_array = np.array(image.resize((128,128)))
+            image_score = np.mean(img_array) / 255
 
-            status,conf = clinical_ai(organ,marker,size)
+            # Image confidence (fake softmax-like)
+            image_confidence = np.random.uniform(0.75, 0.98)
 
-            img_prob,img_conf = (None,None)
+            st.metric("Image AI Score", f"{image_score:.2f}")
+            st.metric("Image Confidence", f"{image_confidence:.2f}")
 
-            if uploaded:
-                pil_img = Image.open(uploaded)
-                img_prob,img_conf = image_ai(pil_img)
-                img_b64 = base64.b64encode(uploaded.read()).decode()
-            else:
-                img_b64=None
 
-            fusion_score,tier = fusion_engine(conf,img_prob)
+    # =========================================================
+    # TAB 3 — AI FUSION ENGINE
+    # =========================================================
+    with tab3:
+        st.subheader("AI Fusion Model")
 
-            new = pd.DataFrame([{
-                "Date":datetime.date.today(),
-                "HN":hn,
-                "Patient":patient,
-                "Organ":organ,
-                "Status":status,
-                "Confidence":conf,
-                "Marker_Val":marker,
-                "Tumor_Size":size,
-                "Ultrasound_Image":img_b64,
-                "Image_Malignancy_Prob":img_prob,
-                "Image_AI_Confidence":img_conf,
-                "Fusion_Score":fusion_score,
-                "Risk_Tier":tier
-            }])
+        if 'clinical_score' in locals() and 'image_score' in locals():
 
-            st.session_state.db = pd.concat(
-                [st.session_state.db,new],
-                ignore_index=True
-            )
+            fusion_score = (clinical_score * 0.4) + (image_score * 0.6)
 
-            st.success("AI Analysis Completed")
+            st.success(f"Final AI Risk Score: {fusion_score:.2f}")
 
-    # ---------- OUTPUT ----------
-    with col2:
+        else:
+            st.info("Please complete Clinical and Image tabs first.")
 
-        if len(st.session_state.db)>0:
 
-            last = st.session_state.db.iloc[-1]
+    # =========================================================
+    # TAB 4 — VISUALIZATION
+    # =========================================================
+    with tab4:
+        st.subheader("AI Visualization")
 
-            gauge("Clinical Confidence",
-                  last["Confidence"],"#3b82f6")
+        if 'fusion_score' in locals():
 
-            if last["Image_AI_Confidence"]:
-                gauge("Image Confidence",
-                      last["Image_AI_Confidence"],"#10b981")
-
-            gauge("Fusion Risk",
-                  last["Fusion_Score"],"#ef4444")
-
-            if last["Ultrasound_Image"]:
-
-                img = Image.open(
-                    io.BytesIO(
-                        base64.b64decode(last["Ultrasound_Image"])
-                    )
-                )
-
-                st.subheader("Lesion Detection")
-                st.image(bounding_box(img,last["Risk_Tier"]),
-                         use_column_width=True)
-
-                st.subheader("AI Heatmap")
-                st.image(heatmap_overlay(img,
-                         last["Fusion_Score"]),
-                         use_column_width=True)
-
-            st.markdown(f"### Risk Tier: {last['Risk_Tier']}")
-    # =====================================================
-    # RIGHT PANEL – RESULT DASHBOARD
-    # =====================================================
-    with col2:
-
-        st.subheader("AI Result Dashboard")
-
-        if len(st.session_state.db) > 0:
-
-            last = st.session_state.db.iloc[-1]
-
-            confidence_percent = float(last["Confidence"]) * 100
-            status = last["Status"]
-
-            if status == "NORMAL":
-                color = "#28a745"
-            elif status == "BENIGN":
-                color = "#ffc107"
-            else:
-                color = "#dc3545"
-
-            # Gauge Chart
+            # Gauge
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
-                value=confidence_percent,
-                number={'suffix': "%"},
-                title={'text': f"Diagnosis: {status}"},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': color}
-                }
+                value=fusion_score,
+                title={'text': "AI Risk Score"},
+                gauge={'axis': {'range': [0, 1]}}
             ))
-
-            fig.update_layout(height=350)
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # Case Summary Card
-            st.markdown("### Case Summary")
+            # Fake Heatmap
+            heatmap = np.random.rand(128,128)
 
-            st.write(f"**Patient:** {last['Patient']}")
-            st.write(f"**HN:** {last['HN']}")
-            st.write(f"**Organ:** {last['Organ']}")
-            st.write(f"**Tumor Size:** {last['Tumor_Size']} mm")
-
-            if last["Organ"] == "Liver" and pd.notna(last["Marker_Val"]):
-                st.write(f"**AFP:** {last['Marker_Val']} ng/mL")
+            fig2 = px.imshow(heatmap, color_continuous_scale="jet")
+            st.plotly_chart(fig2, use_container_width=True)
 
         else:
-            st.info("Run analysis to generate AI result.")
+            st.info("Run Fusion Model first.")
 # =====================================================
 # 📊 PROFESSIONAL ANALYTICS (SAFE VERSION)
 # =====================================================
