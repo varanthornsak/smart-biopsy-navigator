@@ -67,6 +67,21 @@ def generate_explanation(organ, marker, size, status):
     elif status == "BENIGN": recommendation = "แนะนำตรวจติดตาม 3-6 เดือน"
     else: recommendation = "ตรวจสุขภาพตามปกติ"
     return reasons, recommendation
+# =====================================================
+# INITIALIZE SESSION & LOGIN 
+# =====================================================
+if "db" not in st.session_state:
+    st.session_state.db = pd.DataFrame(columns=["Date", "HN", "Patient", "Organ", "Status", "Confidence", "Marker_Val", "Tumor_Size"])
+
+if "role" not in st.session_state:
+    st.session_state.role = "Clinician"
+
+# =====================================================
+# SIDEBAR NAVIGATION 
+# =====================================================
+with st.sidebar:
+    st.title("Main Menu")
+    nav = st.radio("Navigation", ["Diagnostic Hub", "Case Archive", "User Manual"])
 
 # =====================================================
 # 2. DATABASE PATCH (กัน Error กรณีคอลัมน์ไม่ครบ)
