@@ -578,4 +578,175 @@ if nav == "Executive Board View":
         savings = saved_cases * cost_per_biopsy
 
         st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
+# =====================================================
+# ENTERPRISE IMAGE AI EXTENSION BLOCK
+# =====================================================
+
+import base64
+from PIL import Image
+import numpy as np
+from reportlab.platypus import Image as RLImage
+from reportlab.lib import colors
+from reportlab.platypus import Table
+from reportlab.lib.pagesizes import A4
+
+# =====================================================
+# 1️⃣ DATABASE PATCH – ADD IMAGE FIELDS
+# =====================================================
+if "Ultrasound_Image" not in st.session_state.db.columns:
+    st.session_state.db["Ultrasound_Image"] = None
+    st.session_state.db["Image_AI_Confidence"] = None
+
+
+# =====================================================
+# 2️⃣ IMAGE → BASE64 STORAGE
+# =====================================================
+def image_to_base64(uploaded_file):
+    return base64.b64encode(uploaded_file.read()).decode()
+
+
+def base64_to_image(b64_string):
+    return Image.open(io.BytesIO(base64.b64decode(b64_string)))
+
+
+# =====================================================
+# 3️⃣ MOCK IMAGE AI CONFIDENCE
+# =====================================================
+def run_image_ai(image):
+    # mock confidence from pixel intensity variance
+    img_array = np.array(image.convert("L"))
+    variance = np.var(img_array)
+    confidence = min(0.95, max(0.10, variance / 10000))
+    return round(confidence, 2)
+
+
+# =====================================================
+# 4️⃣ RISK HEATMAP OVERLAY
+# =====================================================
+def generate_heatmap_overlay(image):
+
+    img_array = np.array(image)
+    heatmap = np.zeros_like(img_array)
+
+    # mock suspicious zone center
+    h, w, _ = img_array.shape
+    center_x, center_y = w // 2, h // 2
+
+    for i in range(h):
+        for j in range(w):
+            dist = np.sqrt((i-center_y)**2 + (j-center_x)**2)
+            intensity = max(0, 255 - dist*2)
+            heatmap[i,j] = [intensity, 0, 0]
+
+    overlay = np.clip(img_array*0.6 + heatmap*0.4, 0, 255)
+    return Image.fromarray(overlay.astype(np.uint8))
+
+
+# =====================================================
+# 5️⃣ PACS STYLE VIEWER
+# =====================================================
+def pacs_viewer(image):
+
+    st.markdown("### PACS Viewer")
+
+    zoom = st.slider("Zoom Level", 1, 5, 1)
+
+    img_array = np.array(image)
+    resized = Image.fromarray(img_array).resize(
+        (img_array.shape[1]*zoom, img_array.shape[0]*zoom)
+    )
+
+    st.image(resized, use_column_width=True)
+
+
+# =====================================================
+# 6️⃣ PDF EXPORT WITH IMAGE
+# =====================================================
+def generate_full_pdf(case_row):
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    elements.append(Paragraph("<b>SMART BIOPSY PRO REPORT</b>", styles["Title"]))
+    elements.append(Spacer(1, 0.3 * inch))
+
+    info_data = [
+        ["Patient", case_row["Patient"]],
+        ["HN", case_row["HN"]],
+        ["Organ", case_row["Organ"]],
+        ["Status", case_row["Status"]],
+        ["AI Confidence", f"{case_row['Confidence']*100:.1f}%"],
+        ["Image AI Confidence", f"{case_row['Image_AI_Confidence']*100:.1f}%"]
+    ]
+
+    table = Table(info_data, colWidths=[150, 250])
+    table.setStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey)
+    ])
+    elements.append(table)
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # add ultrasound image
+    if case_row["Ultrasound_Image"]:
+        img = base64_to_image(case_row["Ultrasound_Image"])
+        img_path = "/tmp/temp_ultrasound.jpg"
+        img.save(img_path)
+        elements.append(RLImage(img_path, width=4*inch, height=4*inch))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
+# =====================================================
+# 7️⃣ HOOK INTO DIAGNOSTIC HUB (AUTO RUN IF IMAGE EXISTS)
+# =====================================================
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last_index = st.session_state.db.index[-1]
+    last = st.session_state.db.loc[last_index]
+
+    # If image just uploaded
+    if "uploaded_image" in locals() and uploaded_image is not None:
+
+        b64 = image_to_base64(uploaded_image)
+        st.session_state.db.loc[last_index, "Ultrasound_Image"] = b64
+
+        img = Image.open(uploaded_image)
+        img_conf = run_image_ai(img)
+
+        st.session_state.db.loc[last_index, "Image_AI_Confidence"] = img_conf
+
+        overlay = generate_heatmap_overlay(img)
+
+        st.markdown("---")
+        st.subheader("Image AI Confidence")
+
+        fig2 = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=img_conf * 100,
+            number={'suffix': "%"},
+            title={'text': "Image AI Risk"},
+            gauge={'axis': {'range': [0, 100]},
+                   'bar': {'color': "#ff4d4d"}}
+        ))
+
+        st.plotly_chart(fig2, use_container_width=True)
+
+        st.subheader("Risk Heatmap Overlay")
+        st.image(overlay, use_column_width=True)
+
+        pacs_viewer(img)
+
+        # PDF Download
+        pdf_buffer = generate_full_pdf(st.session_state.db.loc[last_index])
+
+        st.download_button(
+            "Download Full AI Report (PDF)",
+            data=pdf_buffer,
+            file_name=f"{last['HN']}_AI_Report.pdf",
+            mime="application/pdf"
+        )
 
