@@ -268,101 +268,80 @@ def bounding_box(image, tier):
 # =====================================================
 # 🖥 DIAGNOSTIC HUB
 # =====================================================
-if nav == "Diagnostic Hub":
+iif nav == "Diagnostic Hub":
 
     st.title("🧠 Diagnostic Hub")
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📋 Clinical Input",
-        "🖼 Image AI",
-        "🧠 AI Fusion",
-        "📊 Visualization"
-    ])
+    left, right = st.columns([1,1.2])  # ซ้ายเล็กกว่า ขวาใหญ่กว่า
 
-    # =========================================================
-    # TAB 1 — CLINICAL INPUT
-    # =========================================================
-    with tab1:
-        st.subheader("Clinical Risk Assessment")
+    # =====================================================
+    # LEFT PANEL — INPUT
+    # =====================================================
+    with left:
+        st.subheader("📋 Clinical & Image Input")
 
         age = st.number_input("Age", 1, 120, 30)
         bmi = st.number_input("BMI", 10.0, 60.0, 22.0)
         smoker = st.selectbox("Smoker", ["No", "Yes"])
 
-        clinical_score = (age * 0.01) + (bmi * 0.02)
-        if smoker == "Yes":
-            clinical_score += 0.15
+        uploaded = st.file_uploader(
+            "Upload Ultrasound",
+            type=["png","jpg","jpeg"]
+        )
 
-        clinical_score = min(clinical_score, 1.0)
+        run_ai = st.button("Run AI Analysis")
 
-        st.metric("Clinical Risk Score", f"{clinical_score:.2f}")
+    # =====================================================
+    # RIGHT PANEL — AI RESULT TAB
+    # =====================================================
+    with right:
+        st.subheader("🧠 AI Analysis Panel")
 
+        if run_ai:
 
-    # =========================================================
-    # TAB 2 — IMAGE AI (Mock CNN)
-    # =========================================================
-    with tab2:
-        st.subheader("Ultrasound Image AI")
+            # ---- Clinical Score ----
+            clinical_score = (age * 0.01) + (bmi * 0.02)
+            if smoker == "Yes":
+                clinical_score += 0.15
+            clinical_score = min(clinical_score, 1.0)
 
-        uploaded = st.file_uploader("Upload Ultrasound", type=["png","jpg","jpeg"])
+            # ---- Image Score (Mock CNN) ----
+            if uploaded:
+                image = Image.open(uploaded)
+                img_array = np.array(image.resize((128,128)))
+                image_score = np.mean(img_array) / 255
+                image_confidence = np.random.uniform(0.75, 0.98)
+            else:
+                image_score = 0.5
+                image_confidence = 0.8
 
-        if uploaded:
-            image = Image.open(uploaded)
-            st.image(image, use_container_width=True)
-
-            # Mock CNN score
-            img_array = np.array(image.resize((128,128)))
-            image_score = np.mean(img_array) / 255
-
-            # Image confidence (fake softmax-like)
-            image_confidence = np.random.uniform(0.75, 0.98)
-
-            st.metric("Image AI Score", f"{image_score:.2f}")
-            st.metric("Image Confidence", f"{image_confidence:.2f}")
-
-
-    # =========================================================
-    # TAB 3 — AI FUSION ENGINE
-    # =========================================================
-    with tab3:
-        st.subheader("AI Fusion Model")
-
-        if 'clinical_score' in locals() and 'image_score' in locals():
-
+            # ---- Fusion ----
             fusion_score = (clinical_score * 0.4) + (image_score * 0.6)
 
-            st.success(f"Final AI Risk Score: {fusion_score:.2f}")
-
-        else:
-            st.info("Please complete Clinical and Image tabs first.")
-
-
-    # =========================================================
-    # TAB 4 — VISUALIZATION
-    # =========================================================
-    with tab4:
-        st.subheader("AI Visualization")
-
-        if 'fusion_score' in locals():
-
-            # Gauge
+            # ---- Gauge ----
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
                 value=fusion_score,
                 title={'text': "AI Risk Score"},
                 gauge={'axis': {'range': [0, 1]}}
             ))
-
             st.plotly_chart(fig, use_container_width=True)
 
-            # Fake Heatmap
-            heatmap = np.random.rand(128,128)
+            # ---- Image Display + Heatmap ----
+            if uploaded:
+                st.image(image, caption="Ultrasound Image", use_container_width=True)
 
-            fig2 = px.imshow(heatmap, color_continuous_scale="jet")
-            st.plotly_chart(fig2, use_container_width=True)
+                heatmap = np.random.rand(128,128)
+                fig2 = px.imshow(heatmap, color_continuous_scale="jet")
+                st.plotly_chart(fig2, use_container_width=True)
+
+            # ---- Metrics ----
+            col1, col2 = st.columns(2)
+            col1.metric("Clinical Score", f"{clinical_score:.2f}")
+            col2.metric("Image Confidence", f"{image_confidence:.2f}")
 
         else:
-            st.info("Run Fusion Model first.")
+            st.info("Input data and press 'Run AI Analysis'")
 # =====================================================
 # 📊 PROFESSIONAL ANALYTICS (SAFE VERSION)
 # =====================================================
