@@ -80,7 +80,7 @@ for col in ["Case_ID", "Timestamp", "Created_By"]:
 # =====================================================
 
 # --- PAGE: DIAGNOSTIC HUB ---
-if nav == "Diagnostic Hub":
+    if nav == "Diagnostic Hub":
     st.title("AI Diagnostic Engine")
     col1, col2 = st.columns([1,1])
 
