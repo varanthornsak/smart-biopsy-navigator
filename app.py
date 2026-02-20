@@ -167,7 +167,6 @@ st.set_page_config(
     page_title="Smart Biopsy Pro | Enterprise Multi-Organ",
     layout="wide"
 )
-
 # =====================================================
 # SAFE SESSION INITIALIZATION (CRITICAL FOR CLOUD)
 # =====================================================
@@ -183,7 +182,22 @@ if "db" not in st.session_state:
         "Status", "Confidence",
         "Marker_Val", "Tumor_Size"
     ])
-
+st.markdown("""
+<style>
+    .stMetric {
+        background-color: #f8fafc;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+    }
+    .stButton>button {
+        background-color: #0d6efd;
+        color: white;
+        border-radius: 8px;
+        height: 3em;
+    }
+</style>
+""", unsafe_allow_html=True)
 # =====================================================
 # CONSTANTS
 # =====================================================
