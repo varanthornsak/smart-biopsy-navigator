@@ -383,7 +383,69 @@ elif nav == "Executive Board View":
 # =====================================================
 elif nav == "Case Archive":
     st.dataframe(st.session_state.db, use_container_width=True)
+# =====================================================
+# BUSINESS INTELLIGENCE
+# =====================================================
+elif nav == "Business Intelligence":
 
+    st.title("📈 Business Intelligence Dashboard")
+
+    st.subheader("💰 Revenue Overview")
+
+    monthly_revenue = np.random.randint(500000, 1500000, 12)
+
+    months = [
+        "Jan","Feb","Mar","Apr","May","Jun",
+        "Jul","Aug","Sep","Oct","Nov","Dec"
+    ]
+
+    fig = px.line(
+        x=months,
+        y=monthly_revenue,
+        markers=True,
+        title="Monthly Revenue"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Total Revenue (YTD)", f"{monthly_revenue.sum():,.0f} THB")
+    col2.metric("Avg / Month", f"{monthly_revenue.mean():,.0f} THB")
+    col3.metric("Growth Rate", f"{np.random.uniform(5,15):.1f}%")
+
+    st.divider()
+
+    st.subheader("🏥 AI Service Utilization")
+
+    service_data = {
+        "AI Screening": np.random.randint(200,500),
+        "Ultrasound AI": np.random.randint(100,300),
+        "Risk Analytics": np.random.randint(150,400),
+        "Premium AI Report": np.random.randint(50,150)
+    }
+
+    fig2 = px.bar(
+        x=list(service_data.keys()),
+        y=list(service_data.values()),
+        title="Service Usage"
+    )
+
+    st.plotly_chart(fig2, use_container_width=True)
+
+    st.divider()
+
+    st.subheader("📊 Market Projection (Mock)")
+
+    projection = np.cumsum(np.random.randint(100000, 300000, 12))
+
+    fig3 = px.area(
+        x=months,
+        y=projection,
+        title="Projected Revenue Growth"
+    )
+
+    st.plotly_chart(fig3, use_container_width=True)
 # =====================================================
 # USER MANUAL (DETAILED)
 # =====================================================
@@ -1013,60 +1075,4 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
             st.error("CRITICAL – Immediate Intervention Recommended")
 
         st.success("AI Fusion Analysis Completed")
-        if nav == "Business Intelligence":
-
-    st.title("📈 Business Intelligence Dashboard")
-
-    st.subheader("💰 Revenue Overview")
-
-    # Mock Data
-    monthly_revenue = np.random.randint(500000, 1500000, 12)
-    months = [
-        "Jan","Feb","Mar","Apr","May","Jun",
-        "Jul","Aug","Sep","Oct","Nov","Dec"
-    ]
-
-    fig = px.line(
-        x=months,
-        y=monthly_revenue,
-        markers=True,
-        title="Monthly Revenue"
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Total Revenue (YTD)", f"{monthly_revenue.sum():,.0f} THB")
-    col2.metric("Avg / Month", f"{monthly_revenue.mean():,.0f} THB")
-    col3.metric("Growth Rate", f"{np.random.uniform(5,15):.1f}%")
-
-    st.divider()
-
-    st.subheader("🏥 AI Service Utilization")
-
-    service_data = {
-        "AI Screening": np.random.randint(200,500),
-        "Ultrasound AI": np.random.randint(100,300),
-        "Risk Analytics": np.random.randint(150,400),
-        "Premium AI Report": np.random.randint(50,150)
-    }
-
-    fig2 = px.bar(
-        x=list(service_data.keys()),
-        y=list(service_data.values()),
-        title="Service Usage"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
-
-    st.divider()
-
-    st.subheader("📊 Market Projection (Mock)")
-
-    projection = np.cumsum(np.random.randint(100000, 300000, 12))
-
-    fig3 = px.area(
-        x=months,
-        y=projection,
-        title="Projected Revenue Growth"
-    )
-    st.plotly_chart(fig3, use_container_width=True)
+      
