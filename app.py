@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import datetime
@@ -10,133 +9,6 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 import io
 
-# =====================================================
-# AI ENGINE IMPORTS
-# =====================================================
-import cv2
-from scipy.ndimage import gaussian_filter
-from skimage.measure import shannon_entropy
-# =====================================================
-# 🧠 SMART AI ENGINE v4 – Dynamic Multi-Feature Model
-# =====================================================
-
-# -----------------------------------------------------
-# 1️⃣ Advanced Feature Extraction
-# -----------------------------------------------------
-def ai_feature_extractor_v4(image):
-
-    img = np.array(image.convert("L"))
-
-    # Texture variance
-    texture = np.var(img) / 8000
-
-    # Edge density
-    edges = cv2.Canny(img, 40, 120)
-    edge_density = np.sum(edges > 0) / (img.shape[0] * img.shape[1])
-    edge_norm = edge_density * 6
-
-    # Entropy
-    entropy = shannon_entropy(img) / 8
-
-    # Intensity irregularity
-    blur = cv2.GaussianBlur(img, (15, 15), 0)
-    irregularity = np.mean(np.abs(img - blur)) / 60
-
-    # Clip features
-    texture = min(texture, 1)
-    edge_norm = min(edge_norm, 1)
-    entropy = min(entropy, 1)
-    irregularity = min(irregularity, 1)
-
-    return texture, edge_norm, entropy, irregularity
-
-
-# -----------------------------------------------------
-# 2️⃣ Dynamic Malignancy Prediction
-# -----------------------------------------------------
-def ai_predict_v4(image):
-
-    texture, edge, entropy, irregularity = ai_feature_extractor_v4(image)
-
-    malignancy = (
-        0.30 * texture +
-        0.25 * edge +
-        0.25 * entropy +
-        0.20 * irregularity
-    )
-
-    # Add uncertainty
-    noise = np.random.normal(0, 0.025)
-    malignancy += noise
-
-    malignancy = np.clip(malignancy, 0, 1)
-
-    # Confidence from feature stability
-    features = np.array([texture, edge, entropy, irregularity])
-    stability = 1 - np.std(features)
-
-    confidence = 0.55 + (stability * 0.4)
-    confidence = np.clip(confidence, 0.5, 0.95)
-
-    return round(malignancy, 3), round(confidence, 3)
-
-
-# -----------------------------------------------------
-# 3️⃣ 6-Level Risk Classification
-# -----------------------------------------------------
-def risk_tier_v4(score):
-
-    if score < 0.15:
-        return "Very Low Risk"
-    elif score < 0.30:
-        return "Low Risk"
-    elif score < 0.50:
-        return "Mild Suspicion"
-    elif score < 0.65:
-        return "Moderate Risk"
-    elif score < 0.80:
-        return "High Risk"
-    else:
-        return "Critical"
-
-
-# -----------------------------------------------------
-# 4️⃣ AI Fusion Engine v4
-# -----------------------------------------------------
-def fusion_engine_v4(clinical_score, image_score):
-
-    fusion = (0.6 * clinical_score) + (0.4 * image_score)
-
-    fusion = 0.5 * fusion + 0.5 * (fusion ** 1.2)
-    fusion = np.clip(fusion, 0, 1)
-
-    tier = risk_tier_v4(fusion)
-
-    return round(fusion, 3), tier
-
-
-# -----------------------------------------------------
-# 5️⃣ Advanced Heatmap Generator
-# -----------------------------------------------------
-def advanced_heatmap_v4(image, malignancy):
-
-    img = np.array(image)
-    h, w, _ = img.shape
-
-    heatmap = np.zeros((h, w))
-
-    cx = np.random.randint(w//3, w*2//3)
-    cy = np.random.randint(h//3, h*2//3)
-
-    heatmap[cy, cx] = 255 * malignancy
-    heatmap = gaussian_filter(heatmap, sigma=50)
-
-    heat_rgb = np.zeros_like(img)
-    heat_rgb[:, :, 0] = heatmap  # red channel
-
-    overlay = np.clip(img * 0.65 + heat_rgb * 0.6, 0, 255)
-
-    return overlay.astype(np.uint8)
 # =====================================================
 # PAGE CONFIG
 # =====================================================
@@ -205,7 +77,6 @@ with st.sidebar:
         "Professional Analytics",
         "Executive Board View",
         "Case Archive",
-        "Business Intelligence",
         "User Manual"
     ])
 
@@ -289,15 +160,23 @@ if nav == "Diagnostic Hub":
             ["Liver", "Thyroid", "Breast", "Lung", "Lymph Nodes"]
         )
 
+        # -------------------------------
+        # AFP (แสดงทันทีถ้าเป็น Liver)
+        # -------------------------------
         marker = None
+
         if organ == "Liver":
             marker = st.number_input(
                 "AFP (ng/mL)",
                 min_value=0.0,
                 value=10.0,
-                step=1.0
+                step=1.0,
+                help="Alpha-fetoprotein biomarker"
             )
 
+        # -------------------------------
+        # Lesion Size
+        # -------------------------------
         size = st.slider(
             "Lesion Size (mm)",
             min_value=1,
@@ -305,6 +184,9 @@ if nav == "Diagnostic Hub":
             value=10
         )
 
+        # -------------------------------
+        # Ultrasound Upload
+        # -------------------------------
         st.markdown("### Ultrasound Image Upload")
 
         uploaded_image = st.file_uploader(
@@ -312,9 +194,16 @@ if nav == "Diagnostic Hub":
             type=["jpg", "jpeg", "png"]
         )
 
-        if uploaded_image:
-            st.image(uploaded_image, caption="Ultrasound Preview", use_column_width=True)
+        if uploaded_image is not None:
+            st.image(
+                uploaded_image,
+                caption="Ultrasound Preview",
+                use_column_width=True
+            )
 
+        # -------------------------------
+        # RUN AI
+        # -------------------------------
         if st.button("Run AI Analysis", use_container_width=True):
 
             if not patient or not hn:
@@ -342,7 +231,7 @@ if nav == "Diagnostic Hub":
                 st.success("AI Analysis Completed Successfully")
 
     # =====================================================
-    # RIGHT PANEL – RESULT + AI MODULE TABS
+    # RIGHT PANEL – RESULT DASHBOARD
     # =====================================================
     with col2:
 
@@ -351,6 +240,7 @@ if nav == "Diagnostic Hub":
         if len(st.session_state.db) > 0:
 
             last = st.session_state.db.iloc[-1]
+
             confidence_percent = float(last["Confidence"]) * 100
             status = last["Status"]
 
@@ -361,9 +251,7 @@ if nav == "Diagnostic Hub":
             else:
                 color = "#dc3545"
 
-            # -------------------------------
             # Gauge Chart
-            # -------------------------------
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
                 value=confidence_percent,
@@ -375,97 +263,13 @@ if nav == "Diagnostic Hub":
                 }
             ))
 
-            fig.update_layout(height=300)
+            fig.update_layout(height=350)
+
             st.plotly_chart(fig, use_container_width=True)
 
-            st.divider()
-
-            # =====================================================
-            # AI MODULE TABS (RIGHT SIDE)
-            # =====================================================
-            tabs = st.tabs([
-                "📊 Confidence",
-                "🔥 Heatmap",
-                "🖥 PACS",
-                "🧠 CNN",
-                "🌡 Risk Map",
-                "⚡ Fusion",
-                "🎯 Lesion",
-                "🔬 Grad-CAM"
-            ])
-
-            # 1️⃣ Confidence
-            with tabs[0]:
-                st.metric("Malignancy Probability", f"{confidence_percent:.2f}%")
-
-            # 2️⃣ Heatmap
-            with tabs[1]:
-                heatmap = np.random.rand(20, 20)
-                fig = px.imshow(heatmap)
-                st.plotly_chart(fig, use_container_width=True)
-
-            # 3️⃣ PACS
-            with tabs[2]:
-                if uploaded_image:
-                    st.image(uploaded_image, caption="PACS View", use_column_width=True)
-                else:
-                    st.info("No image uploaded")
-
-            # 4️⃣ CNN Analysis
-            with tabs[3]:
-                from PIL import Image
-             
-                if uploaded_image:
-                    img = Image.open(uploaded_image)
-                    malignancy_score, image_conf = ai_predict_v4(img)
-
-                    st.metric("Image Malignancy", f"{malignancy_score*100:.2f}%")
-                    st.metric("Model Confidence", f"{image_conf*100:.2f}%")
-                else:
-                    st.info("Upload image to run CNN analysis")
-
-            # 5️⃣ Risk Heatmap
-            with tabs[4]:
-                if uploaded_image:
-                    img = Image.open(uploaded_image)
-                    malignancy_score, _ = ai_predict_v4(img)
-                
-                    overlay = advanced_heatmap_v4(img, malignancy_score)
-                    st.image(overlay, use_column_width=True)
-                else:
-                    st.info("Upload image to generate heatmap")
-
-            # 6️⃣ Fusion Engine
-            with tabs[5]:
-                if uploaded_image:
-                    img = Image.open(uploaded_image)
-                    malignancy_score, _ = ai_predict_v4(img)
-                
-                    fusion_score, tier = fusion_engine_v4(
-                        float(last["Confidence"]),
-                        malignancy_score
-                    )
-                
-                    st.metric("Fusion Score", f"{fusion_score*100:.2f}%")
-                    st.success(tier)
-                else:
-                    st.info("Upload image for fusion analysis")
-
-            # 7️⃣ Lesion Detection
-            with tabs[6]:
-                st.image(
-                    "https://via.placeholder.com/600x400.png?text=Lesion+Detection"
-                )
-
-            # 8️⃣ Grad-CAM
-            with tabs[7]:
-                gradcam = np.random.rand(20, 20)
-                fig = px.imshow(gradcam, color_continuous_scale="jet")
-                st.plotly_chart(fig, use_container_width=True)
-
-            st.divider()
-
+            # Case Summary Card
             st.markdown("### Case Summary")
+
             st.write(f"**Patient:** {last['Patient']}")
             st.write(f"**HN:** {last['HN']}")
             st.write(f"**Organ:** {last['Organ']}")
@@ -578,69 +382,7 @@ elif nav == "Executive Board View":
 # =====================================================
 elif nav == "Case Archive":
     st.dataframe(st.session_state.db, use_container_width=True)
-# =====================================================
-# BUSINESS INTELLIGENCE
-# =====================================================
-elif nav == "Business Intelligence":
 
-    st.title("📈 Business Intelligence Dashboard")
-
-    st.subheader("💰 Revenue Overview")
-
-    monthly_revenue = np.random.randint(500000, 1500000, 12)
-
-    months = [
-        "Jan","Feb","Mar","Apr","May","Jun",
-        "Jul","Aug","Sep","Oct","Nov","Dec"
-    ]
-
-    fig = px.line(
-        x=months,
-        y=monthly_revenue,
-        markers=True,
-        title="Monthly Revenue"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Total Revenue (YTD)", f"{monthly_revenue.sum():,.0f} THB")
-    col2.metric("Avg / Month", f"{monthly_revenue.mean():,.0f} THB")
-    col3.metric("Growth Rate", f"{np.random.uniform(5,15):.1f}%")
-
-    st.divider()
-
-    st.subheader("🏥 AI Service Utilization")
-
-    service_data = {
-        "AI Screening": np.random.randint(200,500),
-        "Ultrasound AI": np.random.randint(100,300),
-        "Risk Analytics": np.random.randint(150,400),
-        "Premium AI Report": np.random.randint(50,150)
-    }
-
-    fig2 = px.bar(
-        x=list(service_data.keys()),
-        y=list(service_data.values()),
-        title="Service Usage"
-    )
-
-    st.plotly_chart(fig2, use_container_width=True)
-
-    st.divider()
-
-    st.subheader("📊 Market Projection (Mock)")
-
-    projection = np.cumsum(np.random.randint(100000, 300000, 12))
-
-    fig3 = px.area(
-        x=months,
-        y=projection,
-        title="Projected Revenue Growth"
-    )
-
-    st.plotly_chart(fig3, use_container_width=True)
 # =====================================================
 # USER MANUAL (DETAILED)
 # =====================================================
@@ -836,3 +578,437 @@ if nav == "Executive Board View":
         savings = saved_cases * cost_per_biopsy
 
         st.success(f"Projected Monthly Savings: ฿{savings:,.0f}")
+# =====================================================
+# ENTERPRISE IMAGE AI EXTENSION BLOCK
+# =====================================================
+
+import base64
+from PIL import Image
+import numpy as np
+from reportlab.platypus import Image as RLImage
+from reportlab.lib import colors
+from reportlab.platypus import Table
+from reportlab.lib.pagesizes import A4
+
+# =====================================================
+# 1️⃣ DATABASE PATCH – ADD IMAGE FIELDS
+# =====================================================
+if "Ultrasound_Image" not in st.session_state.db.columns:
+    st.session_state.db["Ultrasound_Image"] = None
+    st.session_state.db["Image_AI_Confidence"] = None
+
+
+# =====================================================
+# 2️⃣ IMAGE → BASE64 STORAGE
+# =====================================================
+def image_to_base64(uploaded_file):
+    return base64.b64encode(uploaded_file.read()).decode()
+
+
+def base64_to_image(b64_string):
+    return Image.open(io.BytesIO(base64.b64decode(b64_string)))
+
+
+# =====================================================
+# 3️⃣ MOCK IMAGE AI CONFIDENCE
+# =====================================================
+def run_image_ai(image):
+    # mock confidence from pixel intensity variance
+    img_array = np.array(image.convert("L"))
+    variance = np.var(img_array)
+    confidence = min(0.95, max(0.10, variance / 10000))
+    return round(confidence, 2)
+
+
+# =====================================================
+# 4️⃣ RISK HEATMAP OVERLAY
+# =====================================================
+def generate_heatmap_overlay(image):
+
+    img_array = np.array(image)
+    heatmap = np.zeros_like(img_array)
+
+    # mock suspicious zone center
+    h, w, _ = img_array.shape
+    center_x, center_y = w // 2, h // 2
+
+    for i in range(h):
+        for j in range(w):
+            dist = np.sqrt((i-center_y)**2 + (j-center_x)**2)
+            intensity = max(0, 255 - dist*2)
+            heatmap[i,j] = [intensity, 0, 0]
+
+    overlay = np.clip(img_array*0.6 + heatmap*0.4, 0, 255)
+    return Image.fromarray(overlay.astype(np.uint8))
+
+
+# =====================================================
+# 5️⃣ PACS STYLE VIEWER
+# =====================================================
+def pacs_viewer(image):
+
+    st.markdown("### PACS Viewer")
+
+    zoom = st.slider("Zoom Level", 1, 5, 1)
+
+    img_array = np.array(image)
+    resized = Image.fromarray(img_array).resize(
+        (img_array.shape[1]*zoom, img_array.shape[0]*zoom)
+    )
+
+    st.image(resized, use_column_width=True)
+
+
+# =====================================================
+# 6️⃣ PDF EXPORT WITH IMAGE
+# =====================================================
+def generate_full_pdf(case_row):
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    elements.append(Paragraph("<b>SMART BIOPSY PRO REPORT</b>", styles["Title"]))
+    elements.append(Spacer(1, 0.3 * inch))
+
+    info_data = [
+        ["Patient", case_row["Patient"]],
+        ["HN", case_row["HN"]],
+        ["Organ", case_row["Organ"]],
+        ["Status", case_row["Status"]],
+        ["AI Confidence", f"{case_row['Confidence']*100:.1f}%"],
+        ["Image AI Confidence", f"{case_row['Image_AI_Confidence']*100:.1f}%"]
+    ]
+
+    table = Table(info_data, colWidths=[150, 250])
+    table.setStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey)
+    ])
+    elements.append(table)
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # add ultrasound image
+    if case_row["Ultrasound_Image"]:
+        img = base64_to_image(case_row["Ultrasound_Image"])
+        img_path = "/tmp/temp_ultrasound.jpg"
+        img.save(img_path)
+        elements.append(RLImage(img_path, width=4*inch, height=4*inch))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
+# =====================================================
+# 7️⃣ HOOK INTO DIAGNOSTIC HUB (AUTO RUN IF IMAGE EXISTS)
+# =====================================================
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last_index = st.session_state.db.index[-1]
+    last = st.session_state.db.loc[last_index]
+
+    # If image just uploaded
+    if "uploaded_image" in locals() and uploaded_image is not None:
+
+        b64 = image_to_base64(uploaded_image)
+        st.session_state.db.loc[last_index, "Ultrasound_Image"] = b64
+
+        img = Image.open(uploaded_image)
+        img_conf = run_image_ai(img)
+
+        st.session_state.db.loc[last_index, "Image_AI_Confidence"] = img_conf
+
+        overlay = generate_heatmap_overlay(img)
+
+        st.markdown("---")
+        st.subheader("Image AI Confidence")
+
+        fig2 = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=img_conf * 100,
+            number={'suffix': "%"},
+            title={'text': "Image AI Risk"},
+            gauge={'axis': {'range': [0, 100]},
+                   'bar': {'color': "#ff4d4d"}}
+        ))
+
+        st.plotly_chart(fig2, use_container_width=True)
+
+        st.subheader("Risk Heatmap Overlay")
+        st.image(overlay, use_column_width=True)
+
+        pacs_viewer(img)
+
+        # PDF Download
+        pdf_buffer = generate_full_pdf(st.session_state.db.loc[last_index])
+
+        st.download_button(
+            "Download Full AI Report (PDF)",
+            data=pdf_buffer,
+            file_name=f"{last['HN']}_AI_Report.pdf",
+            mime="application/pdf"
+        )
+        # =====================================================
+# 🔬 ADVANCED CNN MOCK AI ENGINE
+# =====================================================
+
+import cv2
+import numpy as np
+from scipy.ndimage import gaussian_filter
+
+# =====================================================
+# 1️⃣ CNN MOCK FEATURE EXTRACTION
+# =====================================================
+def cnn_mock_feature_extractor(image):
+
+    img = np.array(image.convert("L"))
+
+    # Edge detection (simulate CNN low-level feature)
+    edges = cv2.Canny(img, 50, 150)
+
+    # Texture feature (variance)
+    texture_score = np.var(img)
+
+    # Edge density feature
+    edge_density = np.sum(edges) / (img.shape[0] * img.shape[1])
+
+    # Normalize features
+    texture_norm = min(texture_score / 5000, 1.0)
+    edge_norm = min(edge_density / 50, 1.0)
+
+    # Mock fully-connected layer
+    malignancy_probability = (0.6 * texture_norm) + (0.4 * edge_norm)
+
+    confidence_score = min(0.95, 0.5 + abs(texture_norm - edge_norm))
+
+    return round(malignancy_probability, 2), round(confidence_score, 2)
+
+
+# =====================================================
+# 2️⃣ ADVANCED HEATMAP GENERATOR (Gaussian Hotspot)
+# =====================================================
+def advanced_heatmap_overlay(image, malignancy_score):
+
+    img = np.array(image)
+    h, w, _ = img.shape
+
+    heatmap = np.zeros((h, w))
+
+    # Create Gaussian hotspot center
+    center_x = np.random.randint(w//3, w*2//3)
+    center_y = np.random.randint(h//3, h*2//3)
+
+    heatmap[center_y, center_x] = 255 * malignancy_score
+
+    heatmap = gaussian_filter(heatmap, sigma=40)
+
+    heatmap_rgb = np.zeros_like(img)
+    heatmap_rgb[:,:,0] = heatmap  # red channel
+
+    overlay = np.clip(img * 0.6 + heatmap_rgb * 0.5, 0, 255)
+
+    return Image.fromarray(overlay.astype(np.uint8))
+
+
+# =====================================================
+# 3️⃣ IMAGE AI EXECUTION PANEL (AUTO IF IMAGE EXISTS)
+# =====================================================
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last_index = st.session_state.db.index[-1]
+    last = st.session_state.db.loc[last_index]
+
+    if last["Ultrasound_Image"]:
+
+        st.markdown("---")
+        st.subheader("🧠 Advanced CNN Image AI Analysis")
+
+        img = base64_to_image(last["Ultrasound_Image"])
+
+        malignancy_score, image_confidence = cnn_mock_feature_extractor(img)
+
+        # Save into database
+        st.session_state.db.loc[last_index, "Image_AI_Confidence"] = image_confidence
+        st.session_state.db.loc[last_index, "Image_Malignancy_Prob"] = malignancy_score
+
+        # =============================
+        # Gauge 1 – Image Confidence
+        # =============================
+        fig_conf = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=image_confidence * 100,
+            number={'suffix': "%"},
+            title={'text': "Image Confidence Score"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': "#3b82f6"}
+            }
+        ))
+
+        st.plotly_chart(fig_conf, use_container_width=True)
+
+        # =============================
+        # Gauge 2 – Malignancy Risk
+        # =============================
+        fig_mal = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=malignancy_score * 100,
+            number={'suffix': "%"},
+            title={'text': "Image Malignancy Probability"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': "#ef4444"}
+            }
+        ))
+
+        st.plotly_chart(fig_mal, use_container_width=True)
+
+        # =============================
+        # Heatmap Overlay
+        # =============================
+        st.subheader("🔥 AI Risk Heatmap Visualization")
+
+        overlay = advanced_heatmap_overlay(img, malignancy_score)
+
+        st.image(overlay, use_column_width=True)
+
+        st.success("CNN Mock AI Analysis Completed")
+        # =====================================================
+# 🚀 SMART BIOPSY PRO v3 – AI FUSION ENGINE
+# =====================================================
+
+import random
+
+# -----------------------------------------------------
+# 1️⃣ Fusion Engine (Clinical + Image)
+# -----------------------------------------------------
+def fusion_engine(clinical_conf, image_prob):
+
+    if image_prob is None:
+        image_prob = 0.0
+
+    fusion_score = (0.55 * clinical_conf) + (0.45 * image_prob)
+
+    if fusion_score < 0.30:
+        tier = "LOW RISK"
+    elif fusion_score < 0.60:
+        tier = "MODERATE RISK"
+    elif fusion_score < 0.80:
+        tier = "HIGH RISK"
+    else:
+        tier = "CRITICAL"
+
+    return round(fusion_score, 2), tier
+
+
+# -----------------------------------------------------
+# 2️⃣ Mock Bounding Box Detection
+# -----------------------------------------------------
+def draw_mock_bounding_box(image, risk_level):
+
+    img = np.array(image).copy()
+    h, w, _ = img.shape
+
+    x1 = random.randint(w//4, w//2)
+    y1 = random.randint(h//4, h//2)
+    x2 = x1 + random.randint(60, 120)
+    y2 = y1 + random.randint(60, 120)
+
+    color = (255, 0, 0) if risk_level in ["HIGH RISK", "CRITICAL"] else (255, 165, 0)
+
+    cv2.rectangle(img, (x1,y1), (x2,y2), color, 3)
+
+    return Image.fromarray(img)
+
+
+# -----------------------------------------------------
+# 3️⃣ Grad-CAM Style Mock
+# -----------------------------------------------------
+def generate_gradcam_mock(image, intensity):
+
+    img = np.array(image)
+    h, w, _ = img.shape
+
+    cam = np.zeros((h, w))
+    cx = w // 2
+    cy = h // 2
+
+    cam[cy, cx] = 255 * intensity
+    cam = gaussian_filter(cam, sigma=60)
+
+    cam_rgb = np.zeros_like(img)
+    cam_rgb[:,:,1] = cam  # green channel
+
+    blended = np.clip(img * 0.6 + cam_rgb * 0.6, 0, 255)
+
+    return Image.fromarray(blended.astype(np.uint8))
+
+
+# -----------------------------------------------------
+# 4️⃣ AI Fusion Display Panel
+# -----------------------------------------------------
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last_index = st.session_state.db.index[-1]
+    last = st.session_state.db.loc[last_index]
+
+    if last["Ultrasound_Image"]:
+
+        st.markdown("---")
+        st.subheader("🧠 AI Fusion Engine")
+
+        clinical_conf = float(last["Confidence"])
+        image_prob = last.get("Image_Malignancy_Prob", 0.0)
+
+        fusion_score, tier = fusion_engine(clinical_conf, image_prob)
+
+        st.session_state.db.loc[last_index, "Fusion_Score"] = fusion_score
+        st.session_state.db.loc[last_index, "Risk_Tier"] = tier
+
+        # ------------------------
+        # Fusion Gauge
+        # ------------------------
+        fig_fusion = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=fusion_score * 100,
+            number={'suffix': "%"},
+            title={'text': f"Fusion Risk Score – {tier}"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': "#8b5cf6"}
+            }
+        ))
+
+        st.plotly_chart(fig_fusion, use_container_width=True)
+
+        # ------------------------
+        # Bounding Box
+        # ------------------------
+        img = base64_to_image(last["Ultrasound_Image"])
+        bbox_img = draw_mock_bounding_box(img, tier)
+
+        st.subheader("📦 AI Lesion Detection (Mock)")
+        st.image(bbox_img, use_column_width=True)
+
+        # ------------------------
+        # Grad-CAM
+        # ------------------------
+        gradcam_img = generate_gradcam_mock(img, fusion_score)
+
+        st.subheader("🔥 Grad-CAM Visualization")
+        st.image(gradcam_img, use_column_width=True)
+
+        # ------------------------
+        # Severity Banner
+        # ------------------------
+        if tier == "LOW RISK":
+            st.success("Low Risk – Routine Monitoring")
+        elif tier == "MODERATE RISK":
+            st.warning("Moderate Risk – Follow-up Recommended")
+        elif tier == "HIGH RISK":
+            st.error("High Risk – Biopsy Consideration")
+        else:
+            st.error("CRITICAL – Immediate Intervention Recommended")
+
+        st.success("AI Fusion Analysis Completed")
