@@ -749,4 +749,129 @@ if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
             file_name=f"{last['HN']}_AI_Report.pdf",
             mime="application/pdf"
         )
+        # =====================================================
+# 🔬 ADVANCED CNN MOCK AI ENGINE
+# =====================================================
+
+import cv2
+import numpy as np
+from scipy.ndimage import gaussian_filter
+
+# =====================================================
+# 1️⃣ CNN MOCK FEATURE EXTRACTION
+# =====================================================
+def cnn_mock_feature_extractor(image):
+
+    img = np.array(image.convert("L"))
+
+    # Edge detection (simulate CNN low-level feature)
+    edges = cv2.Canny(img, 50, 150)
+
+    # Texture feature (variance)
+    texture_score = np.var(img)
+
+    # Edge density feature
+    edge_density = np.sum(edges) / (img.shape[0] * img.shape[1])
+
+    # Normalize features
+    texture_norm = min(texture_score / 5000, 1.0)
+    edge_norm = min(edge_density / 50, 1.0)
+
+    # Mock fully-connected layer
+    malignancy_probability = (0.6 * texture_norm) + (0.4 * edge_norm)
+
+    confidence_score = min(0.95, 0.5 + abs(texture_norm - edge_norm))
+
+    return round(malignancy_probability, 2), round(confidence_score, 2)
+
+
+# =====================================================
+# 2️⃣ ADVANCED HEATMAP GENERATOR (Gaussian Hotspot)
+# =====================================================
+def advanced_heatmap_overlay(image, malignancy_score):
+
+    img = np.array(image)
+    h, w, _ = img.shape
+
+    heatmap = np.zeros((h, w))
+
+    # Create Gaussian hotspot center
+    center_x = np.random.randint(w//3, w*2//3)
+    center_y = np.random.randint(h//3, h*2//3)
+
+    heatmap[center_y, center_x] = 255 * malignancy_score
+
+    heatmap = gaussian_filter(heatmap, sigma=40)
+
+    heatmap_rgb = np.zeros_like(img)
+    heatmap_rgb[:,:,0] = heatmap  # red channel
+
+    overlay = np.clip(img * 0.6 + heatmap_rgb * 0.5, 0, 255)
+
+    return Image.fromarray(overlay.astype(np.uint8))
+
+
+# =====================================================
+# 3️⃣ IMAGE AI EXECUTION PANEL (AUTO IF IMAGE EXISTS)
+# =====================================================
+if nav == "Diagnostic Hub" and len(st.session_state.db) > 0:
+
+    last_index = st.session_state.db.index[-1]
+    last = st.session_state.db.loc[last_index]
+
+    if last["Ultrasound_Image"]:
+
+        st.markdown("---")
+        st.subheader("🧠 Advanced CNN Image AI Analysis")
+
+        img = base64_to_image(last["Ultrasound_Image"])
+
+        malignancy_score, image_confidence = cnn_mock_feature_extractor(img)
+
+        # Save into database
+        st.session_state.db.loc[last_index, "Image_AI_Confidence"] = image_confidence
+        st.session_state.db.loc[last_index, "Image_Malignancy_Prob"] = malignancy_score
+
+        # =============================
+        # Gauge 1 – Image Confidence
+        # =============================
+        fig_conf = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=image_confidence * 100,
+            number={'suffix': "%"},
+            title={'text': "Image Confidence Score"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': "#3b82f6"}
+            }
+        ))
+
+        st.plotly_chart(fig_conf, use_container_width=True)
+
+        # =============================
+        # Gauge 2 – Malignancy Risk
+        # =============================
+        fig_mal = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=malignancy_score * 100,
+            number={'suffix': "%"},
+            title={'text': "Image Malignancy Probability"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': "#ef4444"}
+            }
+        ))
+
+        st.plotly_chart(fig_mal, use_container_width=True)
+
+        # =============================
+        # Heatmap Overlay
+        # =============================
+        st.subheader("🔥 AI Risk Heatmap Visualization")
+
+        overlay = advanced_heatmap_overlay(img, malignancy_score)
+
+        st.image(overlay, use_column_width=True)
+
+        st.success("CNN Mock AI Analysis Completed")
 
