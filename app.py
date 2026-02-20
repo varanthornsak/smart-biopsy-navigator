@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import datetime
 import time
+import uuid
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
